@@ -11,3 +11,6 @@ src/Ilha/imagens/fones/*.png
 /videos/
 /imagens/
 src/Ilha/imagens/logos/
+
+# worktrees dos agentes
+/.claude/
