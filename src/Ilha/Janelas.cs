@@ -64,6 +64,12 @@ internal sealed class JanelaToque : NativeWindow
     public event Action<int, int>? Clicou;
     public event Action<int, int>? CliqueDireito;
     public event Action<int>? Rolou;
+    public event Action<int, int>? Apertou;
+    public event Action<int, int>? Arrastando;
+
+    [System.Runtime.InteropServices.DllImport("user32.dll")] private static extern IntPtr SetCapture(IntPtr h);
+    [System.Runtime.InteropServices.DllImport("user32.dll")] private static extern bool ReleaseCapture();
+    private bool _apertado;
 
     private bool _rastreando;
 
@@ -101,6 +107,16 @@ internal sealed class JanelaToque : NativeWindow
                 }
                 var (x, y) = Ponto(m.LParam);
                 Moveu?.Invoke(x, y);
+                if (_apertado) Arrastando?.Invoke(x, y);
+                break;
+            }
+            case Nativo.WM_LBUTTONDOWN:
+            {
+                // captura o mouse para o arraste continuar mesmo saindo da pílula
+                _apertado = true;
+                SetCapture(Handle);
+                var (x, y) = Ponto(m.LParam);
+                Apertou?.Invoke(x, y);
                 break;
             }
             case Nativo.WM_MOUSELEAVE:
@@ -109,6 +125,7 @@ internal sealed class JanelaToque : NativeWindow
                 break;
             case Nativo.WM_LBUTTONUP:
             {
+                if (_apertado) { _apertado = false; ReleaseCapture(); }
                 var (x, y) = Ponto(m.LParam);
                 Clicou?.Invoke(x, y);
                 break;

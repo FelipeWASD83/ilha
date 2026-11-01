@@ -46,7 +46,7 @@ public sealed class Config
     [JsonPropertyName("respeitarNaoPerturbe")] public bool RespeitarNaoPerturbe { get; set; } = true;
     [JsonPropertyName("alertaSegundos")] public float AlertaSegundos { get; set; } = 4f;
     // ordem entre as atividades; alerta não entra: ele sempre passa por cima de todas
-    [JsonPropertyName("prioridades")] public List<string> Prioridades { get; set; } = new() { "claude", "ia", "timer", "midia", "uso" };
+    [JsonPropertyName("prioridades")] public List<string> Prioridades { get; set; } = new() { "volume", "claude", "ia", "timer", "midia", "uso" };
     // nome do .exe (com ou sem ".exe"), sem diferença de maiúscula
     [JsonPropertyName("jogosCompetitivos")] public List<string> JogosCompetitivos { get; set; } = new()
     {

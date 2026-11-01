@@ -116,6 +116,9 @@ internal sealed class Ilha : IDisposable
         _toque.Moveu += (_, _) => Entrou();
         _toque.Saiu += Saiu;
         _toque.Clicou += Clicou;
+        _toque.Apertou += Apertou;
+        _toque.Arrastando += (x, y) => { if (_arraste != null) _arraste(Local(_vagaCorpo, x, y).X, Local(_vagaCorpo, x, y).Y, false); };
+        _toque.Rolou += Rolou;
         _relogioAlerta.Tick += (_, _) => { _relogioAlerta.Stop(); FimDoAlerta(); };
         _relogioSaida.Tick += (_, _) => { _relogioSaida.Stop(); if (!_sobre && _expandida && !_porAtalho) Recolher(); };
         _vigiaClique.Tick += (_, _) => VigiarCliqueFora();
@@ -495,7 +498,7 @@ internal sealed class Ilha : IDisposable
         if (a.Ativa && _jaVistas.Add(a))
         {
             // algo novo aparece expandindo por um instante (não no Não Incomodar)
-            if (!(_ctx.NaoPerturbe && _cfg.RespeitarNaoPerturbe) && a.TemExpandida && Permitida(a))
+            if (!(_ctx.NaoPerturbe && _cfg.RespeitarNaoPerturbe) && a.AnunciaChegada && Permitida(a))
                 Alertar(new Alerta { Tipo = "chegada", Som = "chegada", Criar = p => a.Criar(p, Forma.Expandida), PermitidoNoCompetitivo = a.PermitidaNoCompetitivo, Segundos = _cfg.AlertaSegundos * 0.7f, Dono = a });
         }
         if (!a.Ativa)
@@ -604,8 +607,41 @@ internal sealed class Ilha : IDisposable
         else if (_estado is Estado.Compacta or Estado.Ociosa) Aplicar();
     }
 
+    private Action<float, float, bool>? _arraste;
+
+    private Vector2 Local(Vaga v, int x, int y)
+    {
+        if (v.Atual == null) return Vector2.Zero;
+        var o = v.Atual.Sprite.Offset;
+        var host = v.Host.Offset;
+        return new Vector2((x - host.X - o.X) / _g.Escala, (y - host.Y - o.Y) / _g.Escala);
+    }
+
+    private void Apertou(int x, int y)
+    {
+        _arraste = null;
+        if (_vagaCorpo.Atual == null) return;
+        var l = Local(_vagaCorpo, x, y);
+        foreach (var b in _vagaCorpo.Atual.Cena.Botoes)
+            if (b.Arrastar != null && b.Area.Contains(l.X, l.Y)) { _arraste = b.Arrastar; _arraste(l.X, l.Y, false); return; }
+    }
+
+    private void Rolou(int delta)
+    {
+        var a = _estado == Estado.Expandida ? _foco : _estado == Estado.Compacta ? Visiveis().FirstOrDefault() : null;
+        try { a?.Rolar(delta); } catch (Exception e) { Log.Escrever("rolar: " + e); }
+    }
+
     private void Clicou(int x, int y)
     {
+        if (_arraste != null)
+        {
+            var l = Local(_vagaCorpo, x, y);
+            var fim = _arraste;
+            _arraste = null;
+            fim(l.X, l.Y, true);
+            return;
+        }
         if (_estado == Estado.Alerta)
         {
             if (!ClicarBotao(_vagaCorpo, x, y)) { _relogioAlerta.Stop(); ProximoAlerta(); }

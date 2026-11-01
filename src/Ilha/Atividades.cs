@@ -13,6 +13,11 @@ internal sealed class Botao
 {
     public System.Drawing.RectangleF Area;
     public Action Acao = () => { };
+    /// <summary>
+    /// Arrastável (barra de progresso, miniatura): recebe a posição em DIP na cena ao apertar, a cada movimento e ao
+    /// soltar (último argumento true). Com Arrastar, o clique não chama Acao.
+    /// </summary>
+    public Action<float, float, bool>? Arrastar;
 }
 
 /// <summary>
@@ -131,6 +136,10 @@ internal abstract class Atividade
     public virtual bool EhFerramenta => false;
     /// <summary>Largura mínima da pílula compacta (null = a padrão); a de privacidade é só as bolinhas.</summary>
     public virtual float? LarguraCompactaMinima => null;
+    /// <summary>Quando liga, aparece expandindo por um instante (o volume e a privacidade só aparecem).</summary>
+    public virtual bool AnunciaChegada => TemExpandida;
+    /// <summary>Rodinha do mouse em cima da ilha com esta atividade na frente (delta 120 por dente; true = tratou).</summary>
+    public virtual bool Rolar(int delta) => false;
     public bool Ativa { get; private set; }
     public DateTime Desde { get; private set; }
 

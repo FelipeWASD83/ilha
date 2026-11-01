@@ -66,7 +66,8 @@ sozinho). `Montar(palco, forma)` devolve a cena de cada forma: `Compacta` (até 
 `Bolha` (até 24×24, a bolinha ao lado), `Expandida` (cartão, até ~380×300), `Alerta`. Conteúdo mudou sem mudar de
 tamanho: `Redesenhar()`. Mudou o layout: `MudouTamanho()`. Botões: `cena.Botoes.Add(new Botao { Area, Acao })`
 (DIP, a partir do canto da cena). `PermitidaNoCompetitivo` (só o timer). `EhFerramenta` (calculadora, tradutor,
-IA: abre pelo atalho sem estar "em andamento"). `LarguraCompactaMinima`. `Alertar(new Alerta { Tipo, Som, Importante, Criar })`.
+IA: abre pelo atalho sem estar "em andamento"). `LarguraCompactaMinima`. `AnunciaChegada` (false = aparece sem abrir o cartão, como o volume). `Rolar(delta)` (rodinha do mouse em
+cima da ilha). Botão arrastável: `Botao.Arrastar = (x, y, soltou) => ...` (barra de progresso, miniatura para arrastar). `Alertar(new Alerta { Tipo, Som, Importante, Criar })`.
 
 Visual: pílula preta pura; texto branco (`Cor.Branco`, `Cor.Secundario`), acento da atividade (`Cor.Laranja`
 timer, `Cor.Verde`, `Cor.Coral` Claude). Segoe UI Variable (já é a da `Escrita`). Nada de fonte serifada.
