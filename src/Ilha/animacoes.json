@@ -3,7 +3,8 @@
   "lado": 128,
   "zoom": {
     "claude": 1.8,
-    "chatgpt": 1.0
+    "chatgpt": 1.0,
+    "chatgpt-bola-": 1.8
   },
   "animacoes": {
     "chatgpt-loop": {
@@ -64,6 +65,10 @@
     },
     "claude-bola": {
       "quadros": 26,
+      "loop": false
+    },
+    "chatgpt-bola": {
+      "quadros": 33,
       "loop": false
     },
     "claude-bola-cresce": {
@@ -132,10 +137,6 @@
     },
     "claude-bola-divide-saida": {
       "quadros": 9,
-      "loop": false
-    },
-    "chatgpt-bola": {
-      "quadros": 33,
       "loop": false
     },
     "chatgpt-bola-cresce": {

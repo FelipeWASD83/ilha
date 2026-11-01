@@ -43,11 +43,22 @@ internal sealed class Faixas
 
     public Info? Sobre(string nome) => _info.TryGetValue(nome, out var i) ? i : null;
 
-    /// <summary>Quanto ampliar a família (o "claude" de "claude-loop" ou de "claude.png") para as logos terem o mesmo tamanho.</summary>
+    /// <summary>
+    /// Quanto ampliar (o "claude" de "claude-loop" ou de "claude.png") para as logos terem o mesmo tamanho. Chave que
+    /// termina em "-" vale para os nomes que começam com ela ("chatgpt-bola-"), e a mais longa que casa ganha.
+    /// </summary>
     public float Zoom(string nome)
     {
-        string familia = Path.GetFileNameWithoutExtension(nome).Split('-')[0];
-        return _zoom.TryGetValue(familia, out var z) ? z : 1f;
+        string n = Path.GetFileNameWithoutExtension(nome);
+        float zoom = 1f;
+        int melhor = -1;
+        foreach (var (chave, z) in _zoom)
+        {
+            bool casa = chave.EndsWith('-') ? n.StartsWith(chave, StringComparison.Ordinal)
+                : n == chave || n.StartsWith(chave + "-", StringComparison.Ordinal);
+            if (casa && chave.Length > melhor) { melhor = chave.Length; zoom = z; }
+        }
+        return zoom;
     }
 
     /// <summary>A faixa de `nome` com cada quadro em `px` pixels (null se a imagem não existe, ex.: clone do git).</summary>

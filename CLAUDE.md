@@ -63,6 +63,11 @@ antes do plano; o resumo está no plano aprovado na conversa de 01/11/2026 e os 
   com obturador de 180°. Órbita, cometa, onda, divisão e anel; cada uma com entrada (sai da bola única) e saída
   (volta para ela), para nenhuma troca dar pulo. Começam na bola do vídeo dele (5,86% do quadro, `#D97757`). O
   GPT tem as mesmas em branco e um "virando bola" feito aqui (o trecho "some" dele + a bolinha nascendo).
+- **Corte (0.4.2):** a família Claude com zoom 1,8x chega a 56% do lado da caixa, e as bolinhas do GPT, desenhadas
+  1,8x maiores no quadro, passavam da borda dele (18 de 36 quadros da órbita encostavam). Agora toda cena entra na
+  ilha com `FOLGA_CENA` (12 DIP) em volta da superfície, e as bolinhas do GPT são desenhadas a 0,72 como as do Claude,
+  com zoom próprio pela chave `chatgpt-bola-` do `animacoes.json` (chave terminada em "-" casa por prefixo, a mais
+  longa ganha). O "virando bola" do GPT (`chatgpt-bola`, sem o "-") continua a 0,72 x 1,8 sem zoom, para emendar.
 - **Zoom**: a logo do Claude ocupa 50% do quadro dela (ele renderizou maior porque ela é assimétrica e saía da
   tela) e a do GPT 90%. A ilha mostra a família Claude com zoom 1,8x; as bolinhas do Claude são desenhadas a 72%
   e as do GPT a 130% para todas aparecerem do mesmo tamanho.

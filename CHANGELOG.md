@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.4.2 (01/11/2026)
+
+**Corrigido**
+- As animações do Claude, do GPT e das bolinhas saíam cortadas de vez em quando: na pílula e na bolha, o que passava
+  um pouco da caixa da logo era cortado na borda da cena, e as bolinhas do GPT passavam da borda da própria faixa de
+  quadros. Agora toda cena tem uma folga em volta (só o formato da pílula recorta) e as bolinhas do GPT foram refeitas
+  do tamanho das do Claude.
+
 ## 0.4.1 (01/11/2026)
 
 **Mudou**

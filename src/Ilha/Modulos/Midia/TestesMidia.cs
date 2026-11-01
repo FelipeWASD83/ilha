@@ -391,8 +391,19 @@ internal static class TestesMidia
         else if (vol.Result is { } v) Ok(true, $"volume do dispositivo padrão lido: {v.Nivel * 100:0}%{(v.Mudo ? ", mudo" : "")} (não mexi)");
         else _s.Append("aviso   volume: nenhuma saída de áudio\n");
 
-        var lb = Task.Run(Loopback.Sondar);
-        if (lb.Wait(5000)) _s.Append(lb.Result).Append('\n');
+        // thread própria (MTA), não a do pool: outros autotestes deixam o pool ocupado (servidores de pipe) e a sondagem
+        // ficava na fila mais de 5 s; a espera atende a fila desta thread caso o objeto de áudio tenha nascido aqui
+        var fonte = new TaskCompletionSource<string>();
+        var sonda = new System.Threading.Thread(() =>
+        {
+            try { fonte.SetResult(Loopback.Sondar()); } catch (Exception e) { fonte.SetResult("FALHOU  loopback: " + e.Message); }
+        }) { IsBackground = true, Name = "teste do loopback" };
+        sonda.SetApartmentState(System.Threading.ApartmentState.MTA);
+        sonda.Start();
+        var lb = fonte.Task;
+        var espera = System.Diagnostics.Stopwatch.StartNew();
+        while (!lb.IsCompleted && espera.ElapsedMilliseconds < 5000) { System.Windows.Forms.Application.DoEvents(); System.Threading.Thread.Sleep(10); }
+        if (lb.IsCompleted) _s.Append(lb.Result).Append('\n');
         else Ok(false, "loopback não respondeu");
 
         // a classe de verdade: thread própria, aviso de troca de dispositivo registrado, FFT e bandas publicadas

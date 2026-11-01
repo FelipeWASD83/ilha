@@ -931,7 +931,7 @@ internal sealed class Ilha : IDisposable
     private Vector2 Local(Vaga v, int x, int y)
     {
         if (v.Atual == null) return Vector2.Zero;
-        var o = v.Atual.Sprite.Offset;
+        var o = OrigemDaCena(v.Atual);
         var host = v.Host.Offset;
         return new Vector2((x - host.X - o.X) / _g.Escala, (y - host.Y - o.Y) / _g.Escala);
     }
@@ -1018,7 +1018,7 @@ internal sealed class Ilha : IDisposable
     private bool ClicarBotao(Vaga v, int x, int y)
     {
         if (v.Atual == null) return false;
-        var o = v.Atual.Sprite.Offset;
+        var o = OrigemDaCena(v.Atual);
         var host = v.Host.Offset;
         float lx = (x - host.X - o.X) / _g.Escala, ly = (y - host.Y - o.Y) / _g.Escala;
         foreach (var (b, d) in BotoesDe(v.Atual.Cena))
@@ -1524,18 +1524,31 @@ internal sealed class Ilha : IDisposable
         v.Atual = Entrar(v, cena, alturaPx, animar);
     }
 
+    /// <summary>
+    /// Folga em volta de toda cena: a superfície pega também o que passa um pouco da cena (a logo do Claude ampliada e
+    /// as bolinhas chegam a 56% do lado da caixa delas, e a logo do alerta de permissão fica em posição negativa).
+    /// Sem ela o desenho saía cortado na borda da cena; com ela, quem recorta é só o formato da pílula.
+    /// </summary>
+    private const float FOLGA_CENA = 12;
+
     private Vector3 Posicao(Cena cena, float alturaPx)
     {
         var px = _p.Px(cena.Tamanho);
-        return new Vector3(-MathF.Round(px.X / 2), MathF.Round((alturaPx - px.Y) / 2), 0);
+        float f = _p.Px(FOLGA_CENA);
+        return new Vector3(-MathF.Round(px.X / 2) - f, MathF.Round((alturaPx - px.Y) / 2) - f, 0);
     }
+
+    /// <summary>Onde fica o canto da cena (sem a folga), relativo à vaga.</summary>
+    private Vector3 OrigemDaCena(Quadro q) => q.Sprite.Offset + new Vector3(_p.Px(FOLGA_CENA), _p.Px(FOLGA_CENA), 0);
 
     private Quadro Entrar(Vaga v, Cena cena, float alturaPx, bool animar)
     {
         var c = _g.Compositor;
-        var px = _p.Px(cena.Tamanho);
+        float f = _p.Px(FOLGA_CENA);
+        var px = _p.Px(cena.Tamanho) + new Vector2(2 * f);
         var vs = c.CreateVisualSurface();
         vs.SourceVisual = cena.Raiz;
+        vs.SourceOffset = new Vector2(-f);
         vs.SourceSize = px;
         var pincel = c.CreateSurfaceBrush(vs);
         var sprite = c.CreateSpriteVisual();

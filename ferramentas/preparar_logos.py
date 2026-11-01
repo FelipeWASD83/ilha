@@ -30,10 +30,15 @@ COR_CLAUDE = (217, 119, 87)   # #D97757, medida na bola e na logo parada do víd
 BOLA_DELE = 0.0586            # diâmetro da bola do vídeo, em fração do quadro
 # a logo do Claude ocupa 50% do quadro dela e a do GPT 90%: a ilha mostra a família Claude com zoom de 1,8x
 # para as duas ficarem do mesmo tamanho. As bolinhas são desenhadas a 72% para caber nesse zoom.
-ZOOM = {"claude": 1.8, "chatgpt": 1.0}
-# bolinhas por família: a do GPT é branca e, como o GPT não tem zoom na ilha, é desenhada 1,8x maior no quadro
+# chave terminada em "-" vale para os nomes que começam com ela (a mais longa ganha): as bolinhas do GPT têm zoom
+# próprio, porque desenhadas 1,8x maiores no quadro elas passavam da borda dele e saíam cortadas
+ZOOM = {"claude": 1.8, "chatgpt": 1.0, "chatgpt-bola-": 1.8}
+# bolinhas por família: a do GPT é branca e desenhada do mesmo tamanho da do Claude (a ilha amplia as duas 1,8x)
 # dele para aparecer do mesmo tamanho que a do Claude
-FAMILIAS = {"claude": {"cor": COR_CLAUDE, "esc": 0.72}, "chatgpt": {"cor": (255, 255, 255), "esc": 0.72 * 1.8}}
+FAMILIAS = {"claude": {"cor": COR_CLAUDE, "esc": 0.72}, "chatgpt": {"cor": (255, 255, 255), "esc": 0.72}}
+# o "virando bola" do GPT ("chatgpt-bola", sem o "-" do fim) começa com a logo dele, que não tem zoom: a bola que nasce
+# nele é desenhada já no tamanho final (0,72 x 1,8) para emendar no "bola-cresce" ampliado
+ESC_GPT_VIRANDO_BOLA = 0.72 * 1.8
 COR, ESC = COR_CLAUDE, 0.72     # trocados por família em gerar_bolinhas
 BOLA0 = BOLA_DELE / 0.72        # a bola do vídeo do Claude, em unidades das bolinhas (vale para as duas famílias)
 
@@ -235,9 +240,11 @@ def gerar_bolinhas(indice: dict) -> None:
     for familia, cfg in FAMILIAS.items():
         COR, ESC = cfg["cor"], cfg["esc"]
         if familia == "chatgpt":
+            ESC = ESC_GPT_VIRANDO_BOLA
             q = gpt_virando_bola()
             salvar_faixa("chatgpt-bola", q)
             indice["chatgpt-bola"] = {"quadros": len(q), "loop": False}
+            ESC = cfg["esc"]
         # a bola do vídeo cresce até a bola única, e o caminho de volta (encolhe até sumir, para a logo surgir)
         cresce = [quadro(lambda u: bola_unica(BOLA0 + (D1 - BOLA0) * mola(u / 9)), i) for i in range(10)]
         encolhe = [quadro(lambda u: bola_unica(D1 * (1 - suave(u / 7))), i) for i in range(8)]
