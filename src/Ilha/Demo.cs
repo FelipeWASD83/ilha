@@ -1,0 +1,500 @@
+using System;
+using System.Collections.Generic;
+using System.Numerics;
+using Vortice.Direct2D1;
+using Vortice.DirectWrite;
+using Vortice.Mathematics;
+using Windows.UI.Composition;
+
+namespace Ilha;
+
+/// <summary>Atividade de mentira da fase 1: liga e desliga pelo menu da bandeja, para testar os estados.</summary>
+internal abstract class DeMentira : Atividade
+{
+    public void Alternar()
+    {
+        if (Ativa) Parar(); else Comecar();
+    }
+
+    public abstract void Comecar();
+    public abstract void Parar();
+}
+
+internal sealed class TimerDeMentira : DeMentira
+{
+    public override string Tipo => "timer";
+    public override string Nome => "Timer de 1 minuto";
+    public override bool PermitidaNoCompetitivo => true;
+
+    private readonly System.Windows.Forms.Timer _tique = new() { Interval = 250 };
+    private DateTime _fim;
+    private TimeSpan _pausadoCom;
+    private bool _pausado;
+    private int _ultimoSegundo = -1;
+    private const int DURACAO = 60;
+
+    public TimerDeMentira()
+    {
+        _tique.Tick += (_, _) =>
+        {
+            var r = Restante;
+            int s = (int)Math.Ceiling(r.TotalSeconds);
+            if (s != _ultimoSegundo) { _ultimoSegundo = s; Redesenhar(); }
+            if (r <= TimeSpan.Zero) Acabou();
+        };
+    }
+
+    private TimeSpan Restante => _pausado ? _pausadoCom : (_fim - DateTime.Now) < TimeSpan.Zero ? TimeSpan.Zero : _fim - DateTime.Now;
+    private float Progresso => 1f - (float)(Restante.TotalSeconds / DURACAO);
+    private string Texto { get { var r = Restante; int s = (int)Math.Ceiling(r.TotalSeconds); return $"{s / 60}:{s % 60:00}"; } }
+
+    public override void Comecar()
+    {
+        _fim = DateTime.Now.AddSeconds(DURACAO);
+        _pausado = false;
+        _tique.Start();
+        Ligar();
+    }
+
+    public override void Parar()
+    {
+        _tique.Stop();
+        Desligar();
+    }
+
+    private void Acabou()
+    {
+        Parar();
+        Alertar(new Alerta
+        {
+            Tipo = "timer",
+            Importante = true,
+            PermitidoNoCompetitivo = true,
+            Criar = p =>
+            {
+                var c = p.NovaCena(new Vector2(300, 52));
+                p.Desenho(c, Vector2.Zero, c.Tamanho, (dc, t) =>
+                {
+                    Icone.Anel(dc, p.G.Fabrica, new Vector2(26, 26), 20, 4, 1, Cor.Laranja);
+                    p.Texto.Desenhar(dc, "Timer acabou", new Vector2(60, 4), 18, Cor.Branco);
+                    p.Texto.Desenhar(dc, "1 minuto, de mentira", new Vector2(60, 28), 13, Cor.Secundario, FontWeight.Normal);
+                });
+                return c;
+            },
+        });
+    }
+
+    private void PausarOuContinuar()
+    {
+        if (_pausado) { _fim = DateTime.Now + _pausadoCom; _pausado = false; }
+        else { _pausadoCom = Restante; _pausado = true; }
+        Redesenhar();
+    }
+
+    protected override Cena Montar(Palco p, Forma f)
+    {
+        switch (f)
+        {
+            case Forma.Bolha:
+            {
+                var c = p.NovaCena(new Vector2(24, 24));
+                p.Desenho(c, Vector2.Zero, c.Tamanho, (dc, t) => Icone.Anel(dc, p.G.Fabrica, new Vector2(12, 12), 9, 3, Progresso, Cor.Laranja));
+                return c;
+            }
+            case Forma.Compacta:
+            {
+                var c = p.NovaCena(new Vector2(150, 24));
+                p.Desenho(c, Vector2.Zero, c.Tamanho, (dc, t) =>
+                {
+                    Icone.Anel(dc, p.G.Fabrica, new Vector2(12, 12), 9, 3, Progresso, Cor.Laranja);
+                    var tam = p.Texto.Medir(Texto, 15, FontWeight.SemiBold, tabular: true);
+                    p.Texto.Desenhar(dc, Texto, new Vector2(t.X - tam.X, (t.Y - tam.Y) / 2), 15, Cor.Laranja, FontWeight.SemiBold, tabular: true);
+                });
+                return c;
+            }
+            default:
+            {
+                var c = p.NovaCena(new Vector2(320, 92));
+                p.Desenho(c, Vector2.Zero, c.Tamanho, (dc, t) =>
+                {
+                    p.Texto.Desenhar(dc, _pausado ? "Timer pausado" : "Timer", new Vector2(0, 2), 13, Cor.Secundario);
+                    p.Texto.Desenhar(dc, Texto, new Vector2(-2, 22), 48, Cor.Laranja, FontWeight.Medium, tabular: true);
+                    // pausar/continuar e encerrar
+                    Icone.Circulo(dc, new Vector2(t.X - 82, 50), 21, new Color4(1f, 0.62f, 0.04f, 0.22f));
+                    if (_pausado) Icone.Triangulo(dc, p.G.Fabrica, new Vector2(t.X - 87, 41), new Vector2(t.X - 74, 50), new Vector2(t.X - 87, 59), Cor.Laranja);
+                    else
+                    {
+                        Icone.Retangulo(dc, t.X - 88, 41, 4.5f, 18, 1.5f, Cor.Laranja);
+                        Icone.Retangulo(dc, t.X - 80.5f, 41, 4.5f, 18, 1.5f, Cor.Laranja);
+                    }
+                    Icone.Circulo(dc, new Vector2(t.X - 24, 50), 21, Cor.Fraco);
+                    Icone.Linha(dc, new Vector2(t.X - 31, 43), new Vector2(t.X - 17, 57), 3, Cor.Branco, p.G.Fabrica);
+                    Icone.Linha(dc, new Vector2(t.X - 17, 43), new Vector2(t.X - 31, 57), 3, Cor.Branco, p.G.Fabrica);
+                });
+                c.Botoes.Add(new Botao { Area = new(320 - 103, 29, 42, 42), Acao = PausarOuContinuar });
+                c.Botoes.Add(new Botao { Area = new(320 - 45, 29, 42, 42), Acao = Parar });
+                return c;
+            }
+        }
+    }
+}
+
+internal sealed class MidiaDeMentira : DeMentira
+{
+    public override string Tipo => "midia";
+    public override string Nome => "Música tocando";
+
+    private bool _tocando = true;
+    private static readonly Color4 CorDaCapa = new(0.93f, 0.42f, 0.36f, 1f);
+
+    public override void Comecar() { _tocando = true; Ligar(); }
+    public override void Parar() => Desligar();
+
+    private static void Capa(ID2D1DeviceContext dc, float x, float y, float l, float raio)
+    {
+        Icone.Retangulo(dc, x, y, l, l, raio, new Color4(0.36f, 0.16f, 0.44f, 1f));
+        Icone.Circulo(dc, new Vector2(x + l * 0.68f, y + l * 0.36f), l * 0.36f, CorDaCapa);
+        Icone.Circulo(dc, new Vector2(x + l * 0.3f, y + l * 0.72f), l * 0.22f, new Color4(1f, 0.78f, 0.3f, 1f));
+    }
+
+    /// <summary>Barras que sobem e descem sozinhas no compositor (o visualizador de verdade vem na fase 2).</summary>
+    private void Visualizador(Palco p, Cena c, Vector2 pos, int barras, float altura)
+    {
+        float[] periodos = { 0.62f, 0.45f, 0.71f, 0.53f, 0.66f };
+        for (int i = 0; i < barras; i++)
+        {
+            var v = p.Bloco(c, new Vector2(pos.X + i * 5.5f, pos.Y), new Vector2(3, altura), CorDaCapa);
+            v.CenterPoint = new Vector3(v.Size.X / 2, v.Size.Y / 2, 0);
+            if (!_tocando) { v.Scale = new Vector3(1, 0.2f, 1); continue; }
+            var a = p.C.CreateScalarKeyFrameAnimation();
+            a.InsertKeyFrame(0f, 0.25f);
+            a.InsertKeyFrame(0.5f, 1f);
+            a.InsertKeyFrame(1f, 0.25f);
+            a.Duration = TimeSpan.FromSeconds(periodos[i % periodos.Length]);
+            a.IterationBehavior = AnimationIterationBehavior.Forever;
+            v.StartAnimation("Scale.Y", a);
+        }
+    }
+
+    protected override Cena Montar(Palco p, Forma f)
+    {
+        switch (f)
+        {
+            case Forma.Bolha:
+            {
+                var c = p.NovaCena(new Vector2(22, 22));
+                p.Desenho(c, Vector2.Zero, c.Tamanho, (dc, t) => Capa(dc, 0, 0, 22, 6));
+                return c;
+            }
+            case Forma.Compacta:
+            {
+                var c = p.NovaCena(new Vector2(170, 24));
+                p.Desenho(c, Vector2.Zero, new Vector2(24, 24), (dc, t) => Capa(dc, 1, 1, 22, 6));
+                Visualizador(p, c, new Vector2(170 - 4 * 5.5f, 4), 4, 16);
+                return c;
+            }
+            default:
+            {
+                var c = p.NovaCena(new Vector2(340, 126));
+                p.Desenho(c, Vector2.Zero, c.Tamanho, (dc, t) =>
+                {
+                    Capa(dc, 0, 0, 62, 14);
+                    p.Texto.Desenhar(dc, "Música de mentira", new Vector2(76, 8), 16, Cor.Branco, largura: 200);
+                    p.Texto.Desenhar(dc, "Ilha · demonstração", new Vector2(76, 32), 13, Cor.Secundario, FontWeight.Normal, largura: 200);
+                    // barra de progresso parada em 35%
+                    Icone.Retangulo(dc, 0, 82, t.X, 4, 2, Cor.Fraco);
+                    Icone.Retangulo(dc, 0, 82, t.X * 0.35f, 4, 2, Cor.Branco);
+                    p.Texto.Desenhar(dc, "1:12", new Vector2(0, 90), 11, Cor.Secundario, FontWeight.Normal, tabular: true);
+                    var fim = p.Texto.Medir("-2:14", 11, FontWeight.Normal, true);
+                    p.Texto.Desenhar(dc, "-2:14", new Vector2(t.X - fim.X, 90), 11, Cor.Secundario, FontWeight.Normal, tabular: true);
+                    // anterior, tocar/pausar, próxima
+                    float cy = 112, mx = t.X / 2;
+                    var F = p.G.Fabrica;
+                    Icone.Triangulo(dc, F, new Vector2(mx - 52, cy), new Vector2(mx - 42, cy - 7), new Vector2(mx - 42, cy + 7), Cor.Branco);
+                    Icone.Triangulo(dc, F, new Vector2(mx - 62, cy), new Vector2(mx - 52, cy - 7), new Vector2(mx - 52, cy + 7), Cor.Branco);
+                    if (_tocando)
+                    {
+                        Icone.Retangulo(dc, mx - 7, cy - 9, 5, 18, 1.5f, Cor.Branco);
+                        Icone.Retangulo(dc, mx + 2, cy - 9, 5, 18, 1.5f, Cor.Branco);
+                    }
+                    else Icone.Triangulo(dc, F, new Vector2(mx - 6, cy - 10), new Vector2(mx + 9, cy), new Vector2(mx - 6, cy + 10), Cor.Branco);
+                    Icone.Triangulo(dc, F, new Vector2(mx + 52, cy), new Vector2(mx + 42, cy - 7), new Vector2(mx + 42, cy + 7), Cor.Branco);
+                    Icone.Triangulo(dc, F, new Vector2(mx + 62, cy), new Vector2(mx + 52, cy - 7), new Vector2(mx + 52, cy + 7), Cor.Branco);
+                });
+                Visualizador(p, c, new Vector2(340 - 4 * 5.5f, 12), 4, 18);
+                c.Botoes.Add(new Botao { Area = new(170 - 18, 96, 36, 32), Acao = () => { _tocando = !_tocando; MudouTamanho(); } });
+                return c;
+            }
+        }
+    }
+}
+
+internal sealed class ClaudeDeMentira : DeMentira
+{
+    public override string Tipo => "claude";
+    public override string Nome => "Claude Code trabalhando";
+
+    private static readonly string[] Passos = { "Lendo Ilha.cs", "Pensando", "Editando Ilha.cs", "Rodando dotnet build", "Editando Demo.cs", "Rodando os testes" };
+    private readonly System.Windows.Forms.Timer _passo = new() { Interval = 2500 };
+    private int _i;
+    private bool _terminou;
+
+    public ClaudeDeMentira()
+    {
+        _passo.Tick += (_, _) =>
+        {
+            _i++;
+            if (_i == Passos.Length)
+            {
+                _terminou = true;
+                _passo.Stop();
+                Alertar(new Alerta
+                {
+                    Tipo = "claude",
+                    Criar = p =>
+                    {
+                        var c = p.NovaCena(new Vector2(300, 52));
+                        p.Desenho(c, Vector2.Zero, c.Tamanho, (dc, t) =>
+                        {
+                            Imagem.Desenhar(dc, p, "logo-claude.png", 9, 11, 30);
+                            p.Texto.Desenhar(dc, "Claude Code terminou", new Vector2(56, 4), 17, Cor.Branco);
+                            p.Texto.Desenhar(dc, "ilha · 6 passos, de mentira", new Vector2(56, 28), 13, Cor.Secundario, FontWeight.Normal);
+                        });
+                        return c;
+                    },
+                });
+            }
+            Redesenhar();
+        };
+    }
+
+    private string Agora => _terminou ? "Esperando você" : Passos[_i % Passos.Length];
+
+    public override void Comecar() { _i = 0; _terminou = false; _passo.Start(); Ligar(); }
+    public override void Parar() { _passo.Stop(); Desligar(); }
+
+    protected override Cena Montar(Palco p, Forma f)
+    {
+        switch (f)
+        {
+            case Forma.Bolha:
+            {
+                var c = p.NovaCena(new Vector2(22, 22));
+                p.Desenho(c, Vector2.Zero, c.Tamanho, (dc, t) => Imagem.Desenhar(dc, p, "logo-claude.png", 1, 1, 20));
+                return c;
+            }
+            case Forma.Compacta:
+            {
+                var c = p.NovaCena(new Vector2(210, 24));
+                p.Desenho(c, Vector2.Zero, c.Tamanho, (dc, t) =>
+                {
+                    Imagem.Desenhar(dc, p, "logo-claude.png", 1, 2, 20);
+                    var tam = p.Texto.Medir(Agora, 13);
+                    float l = MathF.Min(tam.X, 170);
+                    p.Texto.Desenhar(dc, Agora, new Vector2(t.X - l, (t.Y - tam.Y) / 2), 13, _terminou ? Cor.Secundario : Cor.Branco, largura: 170);
+                });
+                return c;
+            }
+            default:
+            {
+                var c = p.NovaCena(new Vector2(340, 80));
+                p.Desenho(c, Vector2.Zero, c.Tamanho, (dc, t) =>
+                {
+                    Imagem.Desenhar(dc, p, "logo-claude.png", 1, 3, 18);
+                    p.Texto.Desenhar(dc, "Claude Code · ilha", new Vector2(28, 2), 13, Cor.Secundario);
+                    p.Texto.Desenhar(dc, Agora, new Vector2(0, 26), 20, Cor.Branco, largura: t.X);
+                    p.Texto.Desenhar(dc, "Opus 5.5 · Alto, de mentira", new Vector2(0, 58), 12, Cor.Secundario, FontWeight.Normal);
+                });
+                return c;
+            }
+        }
+    }
+}
+
+internal sealed class UsoDeMentira : DeMentira
+{
+    public override string Tipo => "uso";
+    public override string Nome => "Uso do PC alto";
+
+    private readonly System.Windows.Forms.Timer _tique = new() { Interval = 1000 };
+    private readonly List<float> _hist = new();
+    private int _t;
+
+    public UsoDeMentira()
+    {
+        _tique.Tick += (_, _) =>
+        {
+            _t++;
+            _hist.Add(0.55f + 0.35f * MathF.Sin(_t * 0.7f) * MathF.Cos(_t * 0.23f));
+            if (_hist.Count > 12) _hist.RemoveAt(0);
+            Redesenhar();
+        };
+    }
+
+    private int Cpu => _hist.Count == 0 ? 0 : (int)(_hist[^1] * 100);
+
+    public override void Comecar() { _tique.Start(); Ligar(); }
+    public override void Parar() { _tique.Stop(); Desligar(); }
+
+    private void Grafico(ID2D1DeviceContext dc, float x, float y, float l, float a)
+    {
+        float passo = l / 12f;
+        for (int i = 0; i < _hist.Count; i++)
+        {
+            float h = MathF.Max(2, _hist[i] * a);
+            Icone.Retangulo(dc, x + i * passo, y + a - h, passo - 1.5f, h, 1, _hist[i] > 0.8f ? Cor.Vermelho : Cor.Verde);
+        }
+    }
+
+    protected override Cena Montar(Palco p, Forma f)
+    {
+        switch (f)
+        {
+            case Forma.Bolha:
+            {
+                var c = p.NovaCena(new Vector2(22, 22));
+                p.Desenho(c, Vector2.Zero, c.Tamanho, (dc, t) => Grafico(dc, 0, 3, 22, 16));
+                return c;
+            }
+            case Forma.Compacta:
+            {
+                var c = p.NovaCena(new Vector2(150, 24));
+                p.Desenho(c, Vector2.Zero, c.Tamanho, (dc, t) =>
+                {
+                    p.Texto.Desenhar(dc, $"CPU {Cpu}%", new Vector2(0, 3), 13, Cor.Branco, tabular: true);
+                    Grafico(dc, t.X - 52, 4, 52, 16);
+                });
+                return c;
+            }
+            default:
+            {
+                var c = p.NovaCena(new Vector2(320, 84));
+                p.Desenho(c, Vector2.Zero, c.Tamanho, (dc, t) =>
+                {
+                    p.Texto.Desenhar(dc, "Uso do PC, de mentira", new Vector2(0, 0), 13, Cor.Secundario);
+                    p.Texto.Desenhar(dc, $"CPU {Cpu}%", new Vector2(0, 22), 26, Cor.Branco, tabular: true);
+                    p.Texto.Desenhar(dc, "GPU 41% · 62 °C · VRAM 5,1 GB", new Vector2(0, 60), 12, Cor.Secundario, FontWeight.Normal);
+                    Grafico(dc, t.X - 140, 26, 140, 50);
+                });
+                return c;
+            }
+        }
+    }
+}
+
+/// <summary>O que o atalho abre quando não há nada em andamento: hora e data (as ferramentas chegam na fase 5).</summary>
+internal sealed class Painel : Atividade
+{
+    public override string Tipo => "painel";
+    public override string Nome => "Painel";
+    private readonly System.Windows.Forms.Timer _minuto = new() { Interval = 5_000 };
+    private int _desenhado = -1;
+
+    public Painel()
+    {
+        // só roda enquanto o painel está na tela, e só redesenha quando o minuto vira
+        _minuto.Tick += (_, _) =>
+        {
+            if (!TemCenaViva) { _minuto.Stop(); return; }
+            if (DateTime.Now.Minute != _desenhado) Redesenhar();
+        };
+    }
+
+    protected override Cena Montar(Palco p, Forma f)
+    {
+        _minuto.Start();
+        var c = p.NovaCena(new Vector2(320, 70));
+        p.Desenho(c, Vector2.Zero, c.Tamanho, (dc, t) =>
+        {
+            var agora = DateTime.Now;
+            _desenhado = agora.Minute;
+            var cultura = new System.Globalization.CultureInfo("pt-BR");
+            p.Texto.Desenhar(dc, agora.ToString("HH:mm", cultura), new Vector2(-1, -4), 42, Cor.Branco, FontWeight.Medium, tabular: true);
+            p.Texto.Desenhar(dc, agora.ToString("dddd, d 'de' MMMM", cultura), new Vector2(124, 10), 14, Cor.Branco, largura: 196);
+            p.Texto.Desenhar(dc, "Calculadora, tradutor e IA chegam na fase 5", new Vector2(124, 32), 12, Cor.Secundario, FontWeight.Normal, largura: 196);
+        });
+        return c;
+    }
+}
+
+internal sealed class Demonstracao
+{
+    private readonly Ilha _ilha;
+    public List<DeMentira> Atividades { get; } = new() { new TimerDeMentira(), new MidiaDeMentira(), new ClaudeDeMentira(), new UsoDeMentira() };
+    private readonly System.Windows.Forms.Timer _roteiro = new();
+    private Queue<(int ms, Action passo)> _passos = new();
+
+    public event Action<string>? Passo;
+
+    public Demonstracao(Ilha ilha)
+    {
+        _ilha = ilha;
+        foreach (var a in Atividades) ilha.Adicionar(a);
+        _roteiro.Tick += (_, _) => ProximoPasso();
+    }
+
+    public void Alternar(DeMentira a) => a.Alternar();
+
+    public void DesligarTodas()
+    {
+        foreach (var a in Atividades) if (a.Ativa) a.Parar();
+        _ilha.Recolher();
+    }
+
+    public void AlertaDeTeste() => _ilha.Alertar(new Alerta
+    {
+        Tipo = "alerta",
+        Criar = p =>
+        {
+            var c = p.NovaCena(new Vector2(300, 52));
+            p.Desenho(c, Vector2.Zero, c.Tamanho, (dc, t) =>
+            {
+                Icone.Retangulo(dc, 6, 8, 36, 36, 10, Cor.Fraco);
+                Icone.Circulo(dc, new Vector2(18, 26), 6, Cor.Branco);
+                Icone.Circulo(dc, new Vector2(30, 26), 6, Cor.Branco);
+                p.Texto.Desenhar(dc, "AirPods Pro conectados", new Vector2(56, 4), 17, Cor.Branco);
+                p.Texto.Desenhar(dc, "Alerta de teste", new Vector2(56, 28), 13, Cor.Secundario, FontWeight.Normal);
+                Icone.Anel(dc, p.G.Fabrica, new Vector2(t.X - 20, 26), 14, 3.5f, 0.8f, Cor.Verde);
+            });
+            return c;
+        },
+    });
+
+    /// <summary>Passeia por todos os estados, com pausa entre eles (também usado pela medição).</summary>
+    public void Roteiro(Action? fim = null)
+    {
+        var T = (TimerDeMentira)Atividades[0];
+        var M = (MidiaDeMentira)Atividades[1];
+        var C = (ClaudeDeMentira)Atividades[2];
+        _passos = new Queue<(int, Action)>(new (int, Action)[]
+        {
+            (100, () => { DesligarTodas(); Passo?.Invoke("limpo"); }),
+            (1500, () => { T.Comecar(); Passo?.Invoke("timer chegou (expande e volta)"); }),
+            (3800, () => { M.Comecar(); Passo?.Invoke("mídia chegou: dividida em pílula e bolha"); }),
+            (3800, () => { _ilha.Atalho(); Passo?.Invoke("atalho: expandida"); }),
+            (2500, () => { _ilha.Recolher(); Passo?.Invoke("recolhe para a compacta dividida"); }),
+            (1500, () => { AlertaDeTeste(); Passo?.Invoke("alerta"); }),
+            (5000, () => { M.Parar(); Passo?.Invoke("mídia saiu: só o timer"); }),
+            (1500, () => { C.Comecar(); Passo?.Invoke("Claude chegou: Claude na pílula, timer na bolha"); }),
+            (4000, () => { DesligarTodas(); Passo?.Invoke("tudo desligado"); }),
+            (1500, () => { Passo?.Invoke("fim"); fim?.Invoke(); }),
+        });
+        Agendar();
+    }
+
+    private void Agendar()
+    {
+        if (_passos.Count == 0) return;
+        _roteiro.Interval = Math.Max(1, _passos.Peek().ms);
+        _roteiro.Start();
+    }
+
+    private void ProximoPasso()
+    {
+        _roteiro.Stop();
+        if (_passos.Count == 0) return;
+        var (_, passo) = _passos.Dequeue();
+        passo();
+        Agendar();
+    }
+}

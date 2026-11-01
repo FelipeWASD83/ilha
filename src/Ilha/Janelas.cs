@@ -1,0 +1,128 @@
+using System;
+using System.Windows.Forms;
+
+namespace Ilha;
+
+/// <summary>
+/// A janela que mostra a ilha. Não recebe clique nenhum (camada transparente ao mouse), então a sombra e a
+/// margem da animação nunca seguram clique de outro app. Também é ela que ouve os avisos de tela,
+/// DPI, energia e o atalho global.
+/// </summary>
+internal sealed class JanelaVisual : NativeWindow
+{
+    public event Action? TelaMudou;
+    public event Action? Acordou;
+    public event Action<int>? Atalho;
+
+    public JanelaVisual()
+    {
+        CreateHandle(new CreateParams
+        {
+            Caption = "Ilha",
+            Style = Nativo.WS_POPUP,
+            ExStyle = Nativo.WS_EX_NOREDIRECTIONBITMAP | Nativo.WS_EX_TOOLWINDOW | Nativo.WS_EX_TOPMOST
+                      | Nativo.WS_EX_NOACTIVATE | Nativo.WS_EX_LAYERED | Nativo.WS_EX_TRANSPARENT,
+            Width = 1,
+            Height = 1,
+        });
+        // janela em camada só aparece depois disso; o conteúdo vem do compositor, não da superfície dela
+        Nativo.SetLayeredWindowAttributes(Handle, 0, 255, 0x2);
+    }
+
+    protected override void WndProc(ref Message m)
+    {
+        switch (m.Msg)
+        {
+            case Nativo.WM_DISPLAYCHANGE:
+            case Nativo.WM_DPICHANGED:
+                TelaMudou?.Invoke();
+                break;
+            case Nativo.WM_SETTINGCHANGE:
+                // SPI_SETWORKAREA (barra de tarefas mudou de lugar ou de tamanho)
+                if (m.WParam.ToInt32() == 0x2F) TelaMudou?.Invoke();
+                break;
+            case Nativo.WM_POWERBROADCAST:
+                int ev = m.WParam.ToInt32();
+                if (ev == Nativo.PBT_APMRESUMEAUTOMATIC || ev == Nativo.PBT_APMRESUMESUSPEND) Acordou?.Invoke();
+                break;
+            case Nativo.WM_HOTKEY:
+                Atalho?.Invoke(m.WParam.ToInt32());
+                break;
+        }
+        base.WndProc(ref m);
+    }
+}
+
+/// <summary>
+/// Janela sem conteúdo nenhum, do formato exato da pílula (SetWindowRgn): é ela que recebe o mouse. Fora da
+/// região o clique passa para o que estiver atrás. Nunca vira janela ativa.
+/// </summary>
+internal sealed class JanelaToque : NativeWindow
+{
+    public event Action<int, int>? Moveu;
+    public event Action? Saiu;
+    public event Action<int, int>? Clicou;
+    public event Action<int, int>? CliqueDireito;
+    public event Action<int>? Rolou;
+
+    private bool _rastreando;
+
+    public JanelaToque()
+    {
+        CreateHandle(new CreateParams
+        {
+            Caption = "Ilha (toque)",
+            Style = Nativo.WS_POPUP,
+            ExStyle = Nativo.WS_EX_NOREDIRECTIONBITMAP | Nativo.WS_EX_TOOLWINDOW | Nativo.WS_EX_TOPMOST | Nativo.WS_EX_NOACTIVATE,
+            Width = 1,
+            Height = 1,
+        });
+    }
+
+    private static (int x, int y) Ponto(IntPtr lp)
+    {
+        long v = lp.ToInt64();
+        return ((short)(v & 0xFFFF), (short)((v >> 16) & 0xFFFF));
+    }
+
+    protected override void WndProc(ref Message m)
+    {
+        switch (m.Msg)
+        {
+            case Nativo.WM_MOUSEACTIVATE:
+                m.Result = (IntPtr)Nativo.MA_NOACTIVATE;
+                return;
+            case Nativo.WM_MOUSEMOVE:
+            {
+                if (!_rastreando)
+                {
+                    var t = new Nativo.TRACKMOUSEEVENT { cbSize = 24, dwFlags = Nativo.TME_LEAVE, hwndTrack = Handle };
+                    _rastreando = Nativo.TrackMouseEvent(ref t);
+                }
+                var (x, y) = Ponto(m.LParam);
+                Moveu?.Invoke(x, y);
+                break;
+            }
+            case Nativo.WM_MOUSELEAVE:
+                _rastreando = false;
+                Saiu?.Invoke();
+                break;
+            case Nativo.WM_LBUTTONUP:
+            {
+                var (x, y) = Ponto(m.LParam);
+                Clicou?.Invoke(x, y);
+                break;
+            }
+            case Nativo.WM_RBUTTONUP:
+            {
+                var (x, y) = Ponto(m.LParam);
+                CliqueDireito?.Invoke(x, y);
+                break;
+            }
+            case Nativo.WM_MOUSEWHEEL:
+                Rolou?.Invoke((short)((m.WParam.ToInt64() >> 16) & 0xFFFF));
+                break;
+        }
+        base.WndProc(ref m);
+    }
+}

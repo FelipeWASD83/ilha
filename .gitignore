@@ -1,0 +1,10 @@
+bin/
+obj/
+*.user
+.vs/
+# gerado pelo ferramentas\compilar.ps1 a cada compilação barrada pelo Smart App Control
+src/Ilha/Carimbo.g.cs
+# imagens de terceiros (logo do Claude, fotos oficiais de fones): o repositório é público, elas ficam só no PC.
+# A origem de cada uma está em src/Ilha/imagens/fones/FONTES.md
+src/Ilha/imagens/logo-claude.png
+src/Ilha/imagens/fones/*.png
