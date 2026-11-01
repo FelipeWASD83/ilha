@@ -39,7 +39,7 @@ internal sealed class AtividadeGravando : Atividade
     private string _layout = "";
 
     public override string Tipo => "gravando";
-    public override string Nome => "Gravação";
+    public override string Nome => Lang.T("Gravação", "Recording");
     public override bool EhFerramenta => true;
     public override bool AnunciaChegada => false;
     public override (float De, float Ate)? MeioLivreCompacta => (FIM_ROTULO + 6, LC - RESERVA_TEMPO);
@@ -120,14 +120,14 @@ internal sealed class AtividadeGravando : Atividade
     public string? DetalheDoMenu()
     {
         if (_parado) return null;
-        if (ObsNaFrente) return _gravacao.Pausada ? "pausado" : "gravando";
-        if (CapturaNaFrente) return "capturando";
+        if (ObsNaFrente) return _gravacao.Pausada ? Lang.T("pausado", "paused") : Lang.T("gravando", "recording");
+        if (CapturaNaFrente) return Lang.T("capturando", "capturing");
         if (!_obsLigado) return null;
         return _obs switch
         {
-            EstadoObs.PedeSenha => "falta a senha",
-            EstadoObs.SenhaRecusada => "senha recusada",
-            EstadoObs.Conectado => "OBS conectado",
+            EstadoObs.PedeSenha => Lang.T("falta a senha", "password missing"),
+            EstadoObs.SenhaRecusada => Lang.T("senha recusada", "password rejected"),
+            EstadoObs.Conectado => Lang.T("OBS conectado", "OBS connected"),
             _ => null,
         };
     }
@@ -182,27 +182,27 @@ internal sealed class AtividadeGravando : Atividade
 
     /// <summary>"Discord" ou "Discord e mais 2".</summary>
     public static string Apps(IReadOnlyList<CapturaEmUso> c) =>
-        c.Count == 0 ? "" : c.Count == 1 ? c[0].Nome : $"{c[0].Nome} e mais {c.Count - 1}";
+        c.Count == 0 ? "" : c.Count == 1 ? c[0].Nome : Lang.T($"{c[0].Nome} e mais {c.Count - 1}", $"{c[0].Nome} and {c.Count - 1} more");
 
     public static string TextoObs(EstadoObs e, int porta) => e switch
     {
-        EstadoObs.Desligado => "OBS desligado na configuração",
-        EstadoObs.Fechado => "OBS fechado",
-        EstadoObs.Conectando => "Conectando ao OBS…",
-        EstadoObs.SemServidor => "OBS aberto, sem o servidor WebSocket",
-        EstadoObs.PedeSenha => "O OBS pede a senha do WebSocket",
-        EstadoObs.SenhaRecusada => "O OBS recusou a senha",
-        EstadoObs.Conectado => "OBS conectado, sem gravar",
-        EstadoObs.Caiu => "A conexão com o OBS caiu",
+        EstadoObs.Desligado => Lang.T("OBS desligado na configuração", "OBS turned off in settings"),
+        EstadoObs.Fechado => Lang.T("OBS fechado", "OBS closed"),
+        EstadoObs.Conectando => Lang.T("Conectando ao OBS…", "Connecting to OBS…"),
+        EstadoObs.SemServidor => Lang.T("OBS aberto, sem o servidor WebSocket", "OBS open, WebSocket server off"),
+        EstadoObs.PedeSenha => Lang.T("O OBS pede a senha do WebSocket", "OBS asks for the WebSocket password"),
+        EstadoObs.SenhaRecusada => Lang.T("O OBS recusou a senha", "OBS rejected the password"),
+        EstadoObs.Conectado => Lang.T("OBS conectado, sem gravar", "OBS connected, not recording"),
+        EstadoObs.Caiu => Lang.T("A conexão com o OBS caiu", "The connection to OBS dropped"),
         _ => "",
     };
 
     public static string DicaObs(EstadoObs e, int porta) => e switch
     {
-        EstadoObs.SemServidor => $"No OBS: Ferramentas › Configurações do servidor WebSocket (porta {porta})",
-        EstadoObs.PedeSenha => "A senha fica na mesma tela do OBS (Mostrar informações de conexão)",
-        EstadoObs.SenhaRecusada => "Confira a senha em Configurações do servidor WebSocket",
-        EstadoObs.Fechado => "Abra o OBS: a ilha conecta sozinha",
+        EstadoObs.SemServidor => Lang.T($"No OBS: Ferramentas › Configurações do servidor WebSocket (porta {porta})", $"In OBS: Tools › WebSocket Server Settings (port {porta})"),
+        EstadoObs.PedeSenha => Lang.T("A senha fica na mesma tela do OBS (Mostrar informações de conexão)", "The password is on the same OBS screen (Show Connect Info)"),
+        EstadoObs.SenhaRecusada => Lang.T("Confira a senha em Configurações do servidor WebSocket", "Check the password in WebSocket Server Settings"),
+        EstadoObs.Fechado => Lang.T("Abra o OBS: a ilha conecta sozinha", "Open OBS: the island connects on its own"),
         _ => "",
     };
 
@@ -215,17 +215,17 @@ internal sealed class AtividadeGravando : Atividade
     private List<(string Texto, bool Vermelho)> Extras()
     {
         var l = new List<(string, bool)>();
-        if (_confirmando) l.Add(("Clique de novo no quadrado para parar a gravação", true));
+        if (_confirmando) l.Add((Lang.T("Clique de novo no quadrado para parar a gravação", "Click the square again to stop recording"), true));
         if (_aviso != null) l.Add((_aviso, true));
         if (ObsNaFrente)
         {
-            if (_capturaLigada && _capturas.Count > 0) l.Add(("Também capturando a tela: " + string.Join(", ", _capturas.Select(c => c.Nome)), false));
+            if (_capturaLigada && _capturas.Count > 0) l.Add((Lang.T("Também capturando a tela: ", "Also capturing the screen: ") + string.Join(", ", _capturas.Select(c => c.Nome)), false));
         }
         else if (CapturaNaFrente)
         {
-            l.Add(("Visto pela captura de tela do Windows:", false));
-            l.Add(("pode ser compartilhamento, não gravação.", false));
-            if (_capturas.Count > 1) l.Add(("Também: " + string.Join(", ", _capturas.Skip(1).Select(c => c.Nome)), false));
+            l.Add((Lang.T("Visto pela captura de tela do Windows:", "Seen through Windows screen capture:"), false));
+            l.Add((Lang.T("pode ser compartilhamento, não gravação.", "it may be sharing, not recording."), false));
+            if (_capturas.Count > 1) l.Add((Lang.T("Também: ", "Also: ") + string.Join(", ", _capturas.Skip(1).Select(c => c.Nome)), false));
             if (AnunciaSenha) l.Add((TextoObs(_obs, Porta), false));
         }
         return l;
@@ -236,7 +236,7 @@ internal sealed class AtividadeGravando : Atividade
     private void PausarOuRetomar()
     {
         if (!ObsNaFrente) return;
-        if (!_pedir(_gravacao.Pausada ? "ResumeRecord" : "PauseRecord")) Avisar("Sem conexão com o OBS");
+        if (!_pedir(_gravacao.Pausada ? "ResumeRecord" : "PauseRecord")) Avisar(Lang.T("Sem conexão com o OBS", "No connection to OBS"));
     }
 
     private void PararGravacao()
@@ -252,7 +252,7 @@ internal sealed class AtividadeGravando : Atividade
         }
         _confirmando = false;
         _confirmar.Stop();
-        if (!_pedir("StopRecord")) Avisar("Sem conexão com o OBS");
+        if (!_pedir("StopRecord")) Avisar(Lang.T("Sem conexão com o OBS", "No connection to OBS"));
         AtualizarTela();
     }
 
@@ -333,7 +333,7 @@ internal sealed class AtividadeGravando : Atividade
                 {
                     if (ObsNaFrente)
                     {
-                        string r = _gravacao.Pausada ? "PAUSA" : "REC";
+                        string r = _gravacao.Pausada ? Lang.T("PAUSA", "PAUSE") : "REC";
                         var m = p.Texto.Medir(r, 12, FontWeight.Bold);
                         p.Texto.Desenhar(dc, r, new Vector2(17, (t.Y - m.Y) / 2), 12, CorDoPonto, FontWeight.Bold, largura: FIM_ROTULO - 17);
                     }
@@ -362,7 +362,8 @@ internal sealed class AtividadeGravando : Atividade
         p.Desenho(c, Vector2.Zero, c.Tamanho, (dc, t) =>
         {
             var ex = Extras();
-            string titulo = ObsNaFrente ? (_gravacao.Pausada ? "Gravação pausada · OBS" : "Gravando · OBS") : "Capturando a tela · " + Apps(_capturas);
+            string titulo = ObsNaFrente ? (_gravacao.Pausada ? Lang.T("Gravação pausada · OBS", "Recording paused · OBS") : Lang.T("Gravando · OBS", "Recording · OBS"))
+                : Lang.T("Capturando a tela · ", "Capturing the screen · ") + Apps(_capturas);
             float larguraTempo = ObsNaFrente ? pausar.X - 26 : t.X - 22;
             p.Texto.Desenhar(dc, titulo, new Vector2(0, 0), 13, Cor.Secundario, largura: t.X);
             p.Texto.Desenhar(dc, Tempo(), new Vector2(20, 20), 40, ObsNaFrente && _gravacao.Pausada ? Cor.Secundario : Cor.Branco,
@@ -385,7 +386,7 @@ internal sealed class AtividadeGravando : Atividade
                 p.Texto.Desenhar(dc, texto, new Vector2(0, y), 12, vermelho ? Cor.Vermelho : Cor.Secundario, FontWeight.Normal, largura: t.X);
                 y += 17;
             }
-            if (AnunciaSenha) BotaoPilula(dc, p, new RectangleF(0, y + 4, 130, 30), "Senha do OBS");
+            if (AnunciaSenha) BotaoPilula(dc, p, new RectangleF(0, y + 4, 130, 30), Lang.T("Senha do OBS", "OBS password"));
         });
         if (ObsNaFrente)
         {
@@ -404,16 +405,17 @@ internal sealed class AtividadeGravando : Atividade
         var c = p.NovaCena(new Vector2(L, alturaBase + (temAviso ? 18 : 0)));
         p.Desenho(c, Vector2.Zero, c.Tamanho, (dc, t) =>
         {
-            p.Texto.Desenhar(dc, "Gravação", new Vector2(0, 0), 13, Cor.Secundario, largura: t.X);
+            p.Texto.Desenhar(dc, Lang.T("Gravação", "Recording"), new Vector2(0, 0), 13, Cor.Secundario, largura: t.X);
             var estado = _obsLigado ? _obs : EstadoObs.Desligado;
             var corEstado = estado is EstadoObs.PedeSenha or EstadoObs.SenhaRecusada ? Cor.Laranja : Cor.Branco;
             p.Texto.Desenhar(dc, TextoObs(estado, Porta), new Vector2(0, 21), 15, corEstado, largura: t.X);
             string dica = DicaObs(estado, Porta);
             if (dica.Length > 0) p.Texto.Desenhar(dc, dica, new Vector2(0, 43), 11.5f, Cor.Secundario, FontWeight.Normal, largura: t.X);
-            string cap = !_capturaLigada ? "Captura de tela do Windows: desligada na configuração" : "Captura de tela do Windows: nada agora";
+            string cap = !_capturaLigada ? Lang.T("Captura de tela do Windows: desligada na configuração", "Windows screen capture: turned off in settings")
+                : Lang.T("Captura de tela do Windows: nada agora", "Windows screen capture: nothing right now");
             p.Texto.Desenhar(dc, cap, new Vector2(0, 63), 12, Cor.Secundario, FontWeight.Normal, largura: t.X);
             float y = 84;
-            if (senha) { BotaoPilula(dc, p, new RectangleF(0, 90, 130, 30), "Senha do OBS"); y = 124; }
+            if (senha) { BotaoPilula(dc, p, new RectangleF(0, 90, 130, 30), Lang.T("Senha do OBS", "OBS password")); y = 124; }
             if (_aviso != null) p.Texto.Desenhar(dc, _aviso, new Vector2(0, y), 12, Cor.Vermelho, FontWeight.Normal, largura: t.X);
         });
         if (senha) c.Botoes.Add(new Botao { Area = new RectangleF(0, 90, 130, 30), Acao = AbrirEntrada });
@@ -425,11 +427,11 @@ internal sealed class AtividadeGravando : Atividade
         var c = p.NovaCena(new Vector2(L, _avisoEntrada != null ? 104 : 86));
         p.Desenho(c, Vector2.Zero, c.Tamanho, (dc, t) =>
         {
-            p.Texto.Desenhar(dc, "Senha do servidor WebSocket do OBS", new Vector2(0, 0), 13, Cor.Secundario, largura: t.X);
+            p.Texto.Desenhar(dc, Lang.T("Senha do servidor WebSocket do OBS", "OBS WebSocket server password"), new Vector2(0, 0), 13, Cor.Secundario, largura: t.X);
             Icone.Retangulo(dc, 0, 22, t.X, 36, 10, new Color4(1f, 1f, 1f, 0.09f));
             p.Texto.DesenharCampo(dc, S.Entrada.Texto, S.Entrada.Cursor, true, new Vector2(12, 30), t.X - 24, 15, Cor.Branco,
-                vazio: "a senha que o OBS mostra", comCursor: S.Entrada.Aberta);
-            p.Texto.Desenhar(dc, "Enter guarda no Gerenciador de Credenciais. Vazio apaga.", new Vector2(0, 66), 11.5f, Cor.Secundario, FontWeight.Normal, largura: t.X);
+                vazio: Lang.T("a senha que o OBS mostra", "the password OBS shows"), comCursor: S.Entrada.Aberta);
+            p.Texto.Desenhar(dc, Lang.T("Enter guarda no Gerenciador de Credenciais. Vazio apaga.", "Enter saves it in Credential Manager. Empty deletes it."), new Vector2(0, 66), 11.5f, Cor.Secundario, FontWeight.Normal, largura: t.X);
             if (_avisoEntrada != null) p.Texto.Desenhar(dc, _avisoEntrada, new Vector2(0, 86), 12, Cor.Vermelho, FontWeight.Normal, largura: t.X);
         });
         return c;

@@ -58,11 +58,10 @@ internal static class Contas
 
 internal static class Formato
 {
-    private static readonly CultureInfo Br = CultureInfo.GetCultureInfo("pt-BR");
     private static readonly string[] Unidades = { "KB/s", "MB/s", "GB/s" };
 
     /// <summary>Número com uma casa abaixo de 10 e inteiro a partir dele ("0,5", "9,8", "150").</summary>
-    private static string Num(double v) => Math.Round(v, 1) < 10 ? v.ToString("0.0", Br) : Math.Round(v).ToString("0", Br);
+    private static string Num(double v) => Math.Round(v, 1) < 10 ? v.ToString("0.0", Lang.Culture) : Math.Round(v).ToString("0", Lang.Culture);
 
     /// <summary>Taxa de rede: "0,5 KB/s", "150 KB/s", "1,5 MB/s", "1,2 GB/s" (base 1024, troca de unidade em 1000).</summary>
     public static string Taxa(double bytesPorSegundo)
@@ -75,19 +74,19 @@ internal static class Formato
     }
 
     /// <summary>Gigabytes com uma casa ("14,2"), sem a unidade.</summary>
-    public static string Gb(ulong bytes) => (bytes / 1073741824.0).ToString("0.0", Br);
+    public static string Gb(ulong bytes) => (bytes / 1073741824.0).ToString("0.0", Lang.Culture);
 
     /// <summary>Memória: "512 MB" abaixo de 1 GB, "14,2 GB" acima.</summary>
     public static string Bytes(ulong bytes) => bytes < 1073741824UL
-        ? Math.Round(bytes / 1048576.0).ToString("0", Br) + " MB"
+        ? Math.Round(bytes / 1048576.0).ToString("0", Lang.Culture) + " MB"
         : Gb(bytes) + " GB";
 
     /// <summary>Usada sobre total na mesma unidade: "14,2 / 31,6 GB".</summary>
     public static string Par(ulong usada, ulong total) => $"{Gb(usada)} / {Gb(total)} GB";
 
-    public static string Porcento(double v) => Math.Round(Math.Clamp(v, 0, 100)).ToString("0", Br) + "%";
+    public static string Porcento(double v) => Math.Round(Math.Clamp(v, 0, 100)).ToString("0", Lang.Culture) + "%";
 
-    public static string Graus(double v) => Math.Round(v).ToString("0", Br) + " °C";
+    public static string Graus(double v) => Math.Round(v).ToString("0", Lang.Culture) + " °C";
 }
 
 /// <summary>Os últimos N valores de uma medida, do mais velho para o mais novo.</summary>

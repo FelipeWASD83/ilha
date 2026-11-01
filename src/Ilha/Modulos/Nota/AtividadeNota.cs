@@ -17,7 +17,7 @@ namespace Ilha.Nota;
 internal sealed class AtividadeNota : Atividade
 {
     public override string Tipo => "nota";
-    public override string Nome => "Nota rápida";
+    public override string Nome => Lang.T("Nota rápida", "Quick note");
     public override bool EhFerramenta => true;
     public override bool AnunciaChegada => false;
 
@@ -144,8 +144,8 @@ internal sealed class AtividadeNota : Atividade
     public string? DetalheDoMenu()
     {
         if (_parado) return null;
-        if (!Configurado) return "configurar";
-        return _texto.Trim().Length > 0 ? "rascunho" : null;
+        if (!Configurado) return Lang.T("configurar", "set up");
+        return _texto.Trim().Length > 0 ? Lang.T("rascunho", "draft") : null;
     }
 
     // ------------------------------------------------------------------ texto e gravação
@@ -173,7 +173,7 @@ internal sealed class AtividadeNota : Atividade
         var caminho = Caminho(out var problema);
         if (caminho == null)
         {
-            _erro = problema == "vazio" ? "Falta escolher o arquivo da nota na configuração." : problema;
+            _erro = problema == "vazio" ? Lang.T("Falta escolher o arquivo da nota na configuração.", "Choose the note file in the settings first.") : problema;
             Redesenhar();
             return;
         }
@@ -215,7 +215,7 @@ internal sealed class AtividadeNota : Atividade
             S.Entrada.Definir(_texto);
             _cursor = S.Entrada.Cursor;
         }
-        _erro = "Não anotou: " + erro;
+        _erro = Lang.T("Não anotou: ", "Not saved: ") + erro;
         S.Menu.Redesenhar();
         Redesenhar();
         AlertarErro(_erro);
@@ -242,7 +242,7 @@ internal sealed class AtividadeNota : Atividade
                     Icone.Linha(dc, new Vector2(11.5f, 20.5f), new Vector2(16, 25), 2.4f, preto, F);
                     Icone.Linha(dc, new Vector2(16, 25), new Vector2(24.5f, 15), 2.4f, preto, F);
                     float y = resumo.Length > 0 ? 1 : 10;
-                    p.Texto.Desenhar(dc, "Anotado", new Vector2(42, y), 15, Cor.Branco);
+                    p.Texto.Desenhar(dc, Lang.T("Anotado", "Noted"), new Vector2(42, y), 15, Cor.Branco);
                     if (resumo.Length > 0) p.Texto.Desenhar(dc, resumo, new Vector2(42, 21), 12, Cor.Secundario, FontWeight.Normal, largura: t.X - 42);
                 });
                 return c;
@@ -266,7 +266,7 @@ internal sealed class AtividadeNota : Atividade
                     Icone.Circulo(dc, new Vector2(18, 20), 14, Cor.Vermelho);
                     Icone.Linha(dc, new Vector2(13, 15), new Vector2(23, 25), 2.4f, Cor.Branco, F);
                     Icone.Linha(dc, new Vector2(23, 15), new Vector2(13, 25), 2.4f, Cor.Branco, F);
-                    p.Texto.Desenhar(dc, "Nota não anotada", new Vector2(42, 1), 15, Cor.Branco);
+                    p.Texto.Desenhar(dc, Lang.T("Nota não anotada", "Note not saved"), new Vector2(42, 1), 15, Cor.Branco);
                     p.Texto.Desenhar(dc, erro, new Vector2(42, 21), 12, Cor.Secundario, FontWeight.Normal, largura: t.X - 42);
                 });
                 return c;
@@ -285,7 +285,7 @@ internal sealed class AtividadeNota : Atividade
             p.Desenho(c, Vector2.Zero, c.Tamanho, (dc, t) =>
             {
                 Simbolo(dc, p, 2, 2, 20);
-                if (f == Forma.Compacta) p.Texto.Desenhar(dc, "Nota", new Vector2(30, 3), 13, Cor.Branco);
+                if (f == Forma.Compacta) p.Texto.Desenhar(dc, Lang.T("Nota", "Note"), new Vector2(30, 3), 13, Cor.Branco);
             });
             return c;
         }
@@ -301,19 +301,19 @@ internal sealed class AtividadeNota : Atividade
         p.Desenho(cena, Vector2.Zero, cena.Tamanho, (dc, t) =>
         {
             Simbolo(dc, p, 0, 0, 16);
-            p.Texto.Desenhar(dc, "Nota rápida", new Vector2(22, 0), 12, Cor.Secundario);
-            const string dica = "Enter anota · Shift+Enter quebra · Esc cancela";
+            p.Texto.Desenhar(dc, Lang.T("Nota rápida", "Quick note"), new Vector2(22, 0), 12, Cor.Secundario);
+            string dica = Lang.T("Enter anota · Shift+Enter quebra · Esc cancela", "Enter saves · Shift+Enter new line · Esc cancels");
             var td = p.Texto.Medir(dica, 11, FontWeight.Normal);
             p.Texto.Desenhar(dc, dica, new Vector2(t.X - td.X, 1), 11, Cor.Secundario, FontWeight.Normal);
 
             Color4 cor = Cor.Secundario;
             string baixo;
             if (_erro != null) { baixo = _erro; cor = Cor.Laranja; }
-            else if (_salvando) baixo = "Anotando…";
+            else if (_salvando) baixo = Lang.T("Anotando…", "Saving…");
             else
             {
                 var caminho = Caminho(out _);
-                baixo = caminho == null ? "" : "Vai para " + Path.GetFileNameWithoutExtension(caminho);
+                baixo = caminho == null ? "" : Lang.T("Vai para ", "Goes to ") + Path.GetFileNameWithoutExtension(caminho);
             }
             p.Texto.Desenhar(dc, baixo, new Vector2(0, CAMPO_Y + CAMPO_A + 10), 12, cor, FontWeight.Normal, largura: t.X);
         });
@@ -321,7 +321,7 @@ internal sealed class AtividadeNota : Atividade
         {
             Icone.Retangulo(dc, 0, 0, t.X, t.Y, 12, new Color4(1, 1, 1, 0.10f));
             bool nosso = _aberta && S.Entrada.Aberta;
-            string vazio = nosso ? "Escreva a nota. Shift+Enter quebra a linha." : "Clique aqui para escrever.";
+            string vazio = nosso ? Lang.T("Escreva a nota. Shift+Enter quebra a linha.", "Write the note. Shift+Enter starts a new line.") : Lang.T("Clique aqui para escrever.", "Click here to write.");
             Campo(dc, p, _texto, nosso ? _cursor : _texto.Length, new Vector2(12, 9), t.X - 24, t.Y - 16, vazio, nosso);
         });
         _supCampo = campo;
@@ -337,10 +337,11 @@ internal sealed class AtividadeNota : Atividade
         p.Desenho(cena, Vector2.Zero, cena.Tamanho, (dc, t) =>
         {
             Simbolo(dc, p, 0, 0, 16);
-            p.Texto.Desenhar(dc, "Nota rápida", new Vector2(22, 0), 12, Cor.Secundario);
+            p.Texto.Desenhar(dc, Lang.T("Nota rápida", "Quick note"), new Vector2(22, 0), 12, Cor.Secundario);
             Caminho(out var problema);
             string texto = problema is null or "vazio"
-                ? "Falta escolher o arquivo. Nas configurações da ilha, módulo Nota rápida, ponha em \"Arquivo da nota\" o caminho completo de um .md. Cada nota entra no fim dele como um item \"- data hora texto\"."
+                ? Lang.T("Falta escolher o arquivo. Nas configurações da ilha, módulo Nota rápida, ponha em \"Arquivo da nota\" o caminho completo de um .md. Cada nota entra no fim dele como um item \"- data hora texto\".",
+                    "No file chosen yet. In the island settings, Quick note module, put the full path of a .md file in \"Note file\". Each note goes in at its end as a \"- date time text\" item.")
                 : problema;
             _formatoAviso ??= Formato(p, 12.5f);
             using var l = p.G.Escrita.CreateTextLayout(texto, _formatoAviso, t.X, 1000);
@@ -352,7 +353,7 @@ internal sealed class AtividadeNota : Atividade
 
     private static IDWriteTextFormat Formato(Palco p, float tam)
     {
-        var f = p.G.Escrita.CreateTextFormat("Segoe UI Variable Text", null!, FontWeight.Normal, FontStyle.Normal, FontStretch.Normal, tam, "pt-br");
+        var f = p.G.Escrita.CreateTextFormat("Segoe UI Variable Text", null!, FontWeight.Normal, FontStyle.Normal, FontStretch.Normal, tam, Lang.English ? "en-us" : "pt-br");
         f.WordWrapping = WordWrapping.Wrap;
         return f;
     }

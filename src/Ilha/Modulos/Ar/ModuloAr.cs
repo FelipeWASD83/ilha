@@ -15,6 +15,8 @@ public sealed class ConfigAr
 {
     // origem do servidor do projeto ar-do-quarto (http://IP:8088); vazio = o cartão explica como configurar.
     // A chave não fica aqui: mora no Gerenciador de Credenciais ("Ilha/ar-do-quarto").
+    [Label("Endereço do servidor do ar", "AC server address")]
+    [Help("O do ar-do-quarto (http://IP:8088); a chave fica no Gerenciador de Credenciais", "The ar-do-quarto one (http://IP:8088); the key stays in Credential Manager")]
     [JsonPropertyName("endereco")] public string Endereco { get; set; } = "";
 }
 
@@ -23,7 +25,7 @@ public sealed class ConfigAr
 /// liga e desliga, temperatura de 1 em 1 grau, modo e vento. Abre pelo menu da ilha ou pelo atalho "ar" (Ctrl+Alt+A);
 /// sozinho, só aparece num alerta curto quando o estado do ar muda.
 /// </summary>
-[Modulo("ar", "Ar-condicionado")]
+[Modulo("ar", "Ar-condicionado", English = "Air conditioner")]
 internal sealed class ModuloAr : Modulo
 {
     private ConfigAr _cfg = new();
@@ -42,7 +44,8 @@ internal sealed class ModuloAr : Modulo
         S.Menu.Adicionar(new ItemDoMenu
         {
             Id = "ar",
-            Nome = "Ar-condicionado",
+            // the full name doesn't fit the menu tile
+            Nome = Lang.T("Ar", "AC"),
             Abrir = atv.Abrir,
             Detalhe = atv.DetalheDoMenu,
             Icone = (dc, palco, r) => IconesAr.Aparelho(dc, palco.G.Fabrica, r, atv.Conhecido),
@@ -92,6 +95,33 @@ internal sealed class ModuloAr : Modulo
         """;
 
     public override string Autoteste()
+    {
+        // the assertions below are about the Portuguese texts; English gets its own cases at the end
+        string idioma = Lang.Choice;
+        Lang.Set("pt");
+        try { return AutotestePt() + "\n" + AutotesteIngles(); }
+        finally { Lang.Set(idioma); }
+    }
+
+    private static string AutotesteIngles()
+    {
+        var sb = new StringBuilder();
+        void Conf(bool ok, string nome) => sb.AppendLine((ok ? "ok      " : "FALHOU  ") + "english: " + nome);
+        Lang.Set("en");
+        var lig22 = new EstadoBasico(true, "COOL", 22);
+        Conf(AtividadeAr.TextosDoAlerta(new MudancaAr(TipoMudanca.Ligou, new EstadoBasico(false, "COOL", 22), lig22, false, false, false), 25) == ("AC on", "Cooling · 22°"),
+            "alert: on with mode and target");
+        Conf(AtividadeAr.TextosDoAlerta(new MudancaAr(TipoMudanca.Ajuste, lig22, new EstadoBasico(true, "HEAT", 22), true, false, false), null) == ("AC in Heat mode", "22°"),
+            "alert: new mode");
+        Conf(ContasAr.FormatarNumero(25.5) == "25.5" && ContasAr.NomeModo("AIR_DRY") == "Dry" && ContasAr.NomeVento("MID_HIGH") == "Medium-high"
+             && ContasAr.TempoDesde(1000, 1000 + 125) == "read 2 min ago", "decimal point, mode, fan speed and read time");
+        Conf(RespostaAr.Classificar(400, """{"erro": "A temperatura tem que ficar entre 18° e 30°."}""").Problema == "The AC server refused the request."
+             && ContasAr.TextoSituacao("desconectado", "", null) == "The AC has no Wi-Fi or no power.", "server Portuguese text replaced by English");
+        Lang.Set("pt");
+        return sb.ToString().TrimEnd();
+    }
+
+    private static string AutotestePt()
     {
         var sb = new StringBuilder();
         void Conf(bool ok, string nome) => sb.AppendLine((ok ? "ok      " : "FALHOU  ") + nome);

@@ -21,6 +21,32 @@ internal static class TestesGravando
     public static string Rodar()
     {
         var r = new Relatorio();
+        // the text assertions are about Portuguese; English has its own cases
+        string idioma = Lang.Choice;
+        Lang.Set("pt");
+        try
+        {
+            Rodar(r);
+            Ingles(r);
+        }
+        finally { Lang.Set(idioma); }
+        return r.ToString();
+    }
+
+    private static void Ingles(Relatorio r)
+    {
+        Lang.Set("en");
+        var t = DateTime.UtcNow;
+        r.Conferir("english: apps in the title", AtividadeGravando.Apps(new[] { new CapturaEmUso("Discord", t), new CapturaEmUso("X", t), new CapturaEmUso("Y", t) }) == "Discord and 2 more");
+        r.Conferir("english: refusal reasons", ProtocoloObs.MotivoRecusa("StopRecord", 501, "x") == "OBS is not recording"
+            && ProtocoloObs.MotivoRecusa("PauseRecord", 600, "failed") == "OBS didn't allow pause: failed");
+        r.Conferir("english: OBS state and hint", AtividadeGravando.TextoObs(EstadoObs.Fechado, 4455) == "OBS closed"
+            && AtividadeGravando.DicaObs(EstadoObs.SemServidor, 4460) == "In OBS: Tools › WebSocket Server Settings (port 4460)");
+        Lang.Set("pt");
+    }
+
+    private static void Rodar(Relatorio r)
+    {
         Autenticacao(r);
         Mensagens(r);
         Estado(r);
@@ -28,7 +54,6 @@ internal static class TestesGravando
         Textos(r);
         r.Tentar("cliente contra OBS de mentira", () => Cliente(r));
         Sondas(r);
-        return r.ToString();
     }
 
     private static void Autenticacao(Relatorio r)

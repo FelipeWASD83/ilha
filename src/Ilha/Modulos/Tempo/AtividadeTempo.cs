@@ -269,7 +269,8 @@ internal sealed class AtividadeTempo : Atividade
     private void AlertarTimer(TimerSalvo t)
     {
         long? adiadoAte = null;
-        string titulo = (t.Nome.Length > 0 ? Formato.Maiuscula(t.Nome) : "Timer") + " acabou";
+        string quem = t.Nome.Length > 0 ? Formato.Maiuscula(t.Nome) : "Timer";
+        string titulo = Lang.T(quem + " acabou", quem + " is done");
         Alertar(new Alerta
         {
             Tipo = "timer",
@@ -278,7 +279,7 @@ internal sealed class AtividadeTempo : Atividade
             PermitidoNoCompetitivo = true,
             Segundos = (float)_cfg.SegundosDoAlerta,
             Criar = p => CenaAlerta(p, titulo,
-                () => adiadoAte is long a ? "mais 1 minuto, até " + Formato.Hora(a) : Formato.Duracao(t.DuracaoMs),
+                () => adiadoAte is long a ? Lang.T("mais 1 minuto, até ", "1 more minute, until ") + Formato.Hora(a) : Formato.Duracao(t.DuracaoMs),
                 Cor.Laranja, comMais: adiadoAte == null, mais: () =>
                 {
                     if (adiadoAte != null || _encerrada) return;
@@ -298,20 +299,27 @@ internal sealed class AtividadeTempo : Atividade
             Importante = true,
             PermitidoNoCompetitivo = true,
             Segundos = (float)_cfg.SegundosDoAlerta,
-            Criar = p => CenaAlerta(p, $"{n} timers acabaram", () => "enquanto a ilha estava fechada", Cor.Laranja, false, null),
+            Criar = p => CenaAlerta(p, Lang.T($"{n} timers acabaram", $"{n} timers finished"), () => Lang.T("enquanto a ilha estava fechada", "while the island was closed"), Cor.Laranja, false, null),
         });
     }
 
     private void AlertarFase(Evento e)
     {
         var fase = e.NovaFase ?? Fase.Foco;
-        string titulo = fase switch { Fase.Foco => "Hora de focar", Fase.Pausa => "Hora da pausa", _ => "Pausa longa" };
+        string titulo = fase switch
+        {
+            Fase.Foco => Lang.T("Hora de focar", "Time to focus"),
+            Fase.Pausa => Lang.T("Hora da pausa", "Time for a break"),
+            _ => Lang.T("Pausa longa", "Long break"),
+        };
         int n = _cfg.FocosAteLonga;
         int num = CicloPomodoro.NumeroDoFoco(fase, e.FocosFeitos, n);
         long dur = CicloPomodoro.DuracaoMs(fase, _cfg);
         string nome = _r.E.Pomodoro?.Nome is { Length: > 0 } nm ? Formato.Maiuscula(nm) + " · " : "";
-        string sub = nome + Formato.Duracao(dur) + (fase == Fase.Foco ? $" · foco {num} de {n}" : $" · {num} de {n} focos feitos");
-        if (e.Saltos > 1) sub += " (a ilha ficou fechada)";
+        string sub = nome + Formato.Duracao(dur) + (fase == Fase.Foco
+            ? Lang.T($" · foco {num} de {n}", $" · focus {num} of {n}")
+            : Lang.T($" · {num} de {n} focos feitos", $" · {num} of {n} focus sessions done"));
+        if (e.Saltos > 1) sub += Lang.T(" (a ilha ficou fechada)", " (the island was closed)");
         Alertar(new Alerta
         {
             Tipo = "timer",
@@ -340,7 +348,7 @@ internal sealed class AtividadeTempo : Atividade
             p.Texto.Desenhar(dc, titulo, new Vector2(60, 6), 17, Cor.Branco, largura: larg);
             p.Texto.Desenhar(dc, sub(), new Vector2(60, 30), 13, Cor.Secundario, FontWeight.Normal, largura: larg);
             if (comMais) Pilula(dc, p, mais1, "+1 min", Tom(Cor.Laranja, 0.22f), Cor.Laranja);
-            Pilula(dc, p, ok, "ok", Cor.Fraco, Cor.Branco);
+            Pilula(dc, p, ok, Lang.T("ok", "OK"), Cor.Fraco, Cor.Branco);
         });
         if (comMais && mais != null) c.Botoes.Add(new Botao { Area = mais1, Acao = mais });
         return c;
@@ -471,7 +479,7 @@ internal sealed class AtividadeTempo : Atividade
             DesenharCampo(dc, p);
             if (total == 0)
             {
-                p.Texto.Desenhar(dc, "Vários ao mesmo tempo. \"25m chá\" dá nome ao timer.", new Vector2(4, TOPO), 12, Cor.Secundario, FontWeight.Normal, largura: L - 8);
+                p.Texto.Desenhar(dc, Lang.T("Vários ao mesmo tempo. \"25m chá\" dá nome ao timer.", "Several at once. \"25m tea\" names the timer."), new Vector2(4, TOPO), 12, Cor.Secundario, FontWeight.Normal, largura: L - 8);
                 return;
             }
             foreach (var ln in linhas) DesenharLinha(dc, p, ln, agora);
@@ -519,7 +527,7 @@ internal sealed class AtividadeTempo : Atividade
     private string Previa(Pedido pd) => pd.Tipo switch
     {
         TipoPedido.Pomodoro => $"pomodoro {Formato.Duracao(CicloPomodoro.DuracaoMs(Fase.Foco, _cfg))} + {Formato.Duracao(CicloPomodoro.DuracaoMs(Fase.Pausa, _cfg))}",
-        TipoPedido.Cronometro => "cronômetro",
+        TipoPedido.Cronometro => Lang.T("cronômetro", "stopwatch"),
         _ => Formato.Contagem(pd.DuracaoMs) + (pd.Nome.Length > 0 ? " · " + pd.Nome : ""),
     };
 
@@ -531,7 +539,7 @@ internal sealed class AtividadeTempo : Atividade
             var F = p.G.Fabrica;
             Icone.Linha(dc, new Vector2(12, CAMPO_A / 2), new Vector2(22, CAMPO_A / 2), 2, Cor.Laranja, F);
             Icone.Linha(dc, new Vector2(17, CAMPO_A / 2 - 5), new Vector2(17, CAMPO_A / 2 + 5), 2, Cor.Laranja, F);
-            const string convite = "Novo: 25m, 1h30, 1:30, pomodoro, cron";
+            string convite = Lang.T("Novo: 25m, 1h30, 1:30, pomodoro, cron", "New: 25m, 1h30, 1:30, pomodoro, stopwatch");
             var tc = p.Texto.Medir(convite, 14, FontWeight.Normal);
             p.Texto.Desenhar(dc, convite, new Vector2(32, (CAMPO_A - tc.Y) / 2), 14, Cor.Secundario, FontWeight.Normal, largura: L - 44);
             return;
@@ -540,7 +548,7 @@ internal sealed class AtividadeTempo : Atividade
         string previa;
         Color4 cp;
         if (_erro != null) { previa = _erro; cp = Cor.Vermelho; }
-        else if (texto.Trim().Length == 0) { previa = "Enter cria · Esc sai"; cp = Cor.Secundario; }
+        else if (texto.Trim().Length == 0) { previa = Lang.T("Enter cria · Esc sai", "Enter creates · Esc exits"); cp = Cor.Secundario; }
         else
         {
             var pd = Interpretador.Ler(texto, out _);
@@ -550,7 +558,7 @@ internal sealed class AtividadeTempo : Atividade
         var tp = p.Texto.Medir(previa, 12, FontWeight.Normal);
         float lp = MathF.Min(tp.X, 190);
         p.Texto.Desenhar(dc, previa, new Vector2(L - 12 - lp, (CAMPO_A - tp.Y) / 2), 12, cp, FontWeight.Normal, largura: 190);
-        p.Texto.DesenharCampo(dc, texto, _s.Entrada.Cursor, false, new Vector2(12, 7), L - 36 - lp, 15, Cor.Branco, "25m chá, 1:30, pomodoro, cron");
+        p.Texto.DesenharCampo(dc, texto, _s.Entrada.Cursor, false, new Vector2(12, 7), L - 36 - lp, 15, Cor.Branco, Lang.T("25m chá, 1:30, pomodoro, cron", "25m tea, 1:30, pomodoro, stopwatch"));
     }
 
     private void DesenharLinha(ID2D1DeviceContext dc, Palco p, Linha ln, long agora)
@@ -570,7 +578,7 @@ internal sealed class AtividadeTempo : Atividade
                 prog = Relogios.Progresso(t, agora);
                 tempo = Formato.Contagem(Relogios.Restante(t, agora));
                 titulo = (t.Nome.Length > 0 ? Formato.Maiuscula(t.Nome) : "Timer") + " · " + Formato.Duracao(t.DuracaoMs)
-                    + (t.Pausado ? " · pausado" : " · acaba às " + Formato.Hora(t.FimMs));
+                    + (t.Pausado ? Lang.T(" · pausado", " · paused") : Lang.T(" · acaba às ", " · ends at ") + Formato.Hora(t.FimMs));
                 BotaoPausa(dc, F, new Vector2(B2, cy), t.Pausado, Cor.Laranja);
                 BotaoXis(dc, F, new Vector2(B1, cy));
                 limite = B2;
@@ -586,8 +594,8 @@ internal sealed class AtividadeTempo : Atividade
                 int n = _cfg.FocosAteLonga;
                 int num = CicloPomodoro.NumeroDoFoco(po.Fase, po.FocosFeitos, n);
                 titulo = (po.Nome.Length > 0 ? Formato.Maiuscula(po.Nome) : "Pomodoro") + " · "
-                    + (po.Fase == Fase.Foco ? $"foco {num} de {n}" : CicloPomodoro.NomeDaFase(po.Fase))
-                    + (po.Pausado ? " · pausado" : "");
+                    + (po.Fase == Fase.Foco ? Lang.T($"foco {num} de {n}", $"focus {num} of {n}") : CicloPomodoro.NomeDaFase(po.Fase))
+                    + (po.Pausado ? Lang.T(" · pausado", " · paused") : "");
                 BotaoPausa(dc, F, new Vector2(B3, cy), po.Pausado, acento);
                 BotaoPular(dc, F, new Vector2(B2, cy));
                 BotaoXis(dc, F, new Vector2(B1, cy));
@@ -600,7 +608,10 @@ internal sealed class AtividadeTempo : Atividade
                 cor = cr.Rodando ? Cor.Laranja : Cor.Secundario;
                 prog = Relogios.Progresso(cr, agora);
                 tempo = Formato.Decorrido(Relogios.Decorrido(cr, agora));
-                titulo = "Cronômetro" + (cr.Voltas.Count > 0 ? $" · {cr.Voltas.Count} volta{(cr.Voltas.Count > 1 ? "s" : "")}" : "") + (cr.Rodando ? "" : " · pausado");
+                int nv = cr.Voltas.Count;
+                titulo = Lang.T("Cronômetro", "Stopwatch")
+                    + (nv > 0 ? Lang.T($" · {nv} volta{(nv > 1 ? "s" : "")}", $" · {nv} lap{(nv > 1 ? "s" : "")}") : "")
+                    + (cr.Rodando ? "" : Lang.T(" · pausado", " · paused"));
                 BotaoVolta(dc, F, new Vector2(B3, cy), cr.Rodando);
                 BotaoPausa(dc, F, new Vector2(B2, cy), !cr.Rodando, Cor.Laranja);
                 BotaoXis(dc, F, new Vector2(B1, cy));
@@ -610,7 +621,7 @@ internal sealed class AtividadeTempo : Atividade
                 {
                     int i = cr.Voltas.Count - 1 - k;
                     float vy = y + LINHA + k * VOLTA_A;
-                    p.Texto.Desenhar(dc, $"Volta {i + 1}", new Vector2(40, vy), 12, Cor.Secundario, FontWeight.Normal);
+                    p.Texto.Desenhar(dc, Lang.T($"Volta {i + 1}", $"Lap {i + 1}"), new Vector2(40, vy), 12, Cor.Secundario, FontWeight.Normal);
                     p.Texto.Desenhar(dc, Formato.Volta(Relogios.DuracaoDaVolta(cr, i)), new Vector2(120, vy), 12, Cor.Branco, FontWeight.Medium, tabular: true);
                     p.Texto.Desenhar(dc, Formato.Volta(cr.Voltas[i]), new Vector2(210, vy), 12, Cor.Secundario, FontWeight.Normal, tabular: true);
                 }

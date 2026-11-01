@@ -67,7 +67,7 @@ internal sealed class AtividadeAr : Atividade
     private readonly List<(RectangleF Area, string Vento, bool Nivel)> _pilulasVento = new();
 
     public override string Tipo => "ar";
-    public override string Nome => "Ar-condicionado";
+    public override string Nome => Lang.T("Ar-condicionado", "Air conditioner");
     public override bool EhFerramenta => true;
     public override bool AnunciaChegada => false;
 
@@ -151,9 +151,9 @@ internal sealed class AtividadeAr : Atividade
     public string? DetalheDoMenu()
     {
         if (_parado) return null;
-        if (!Configurado) return Endereco.Length == 0 ? "configurar" : "falta a chave";
-        if (_chaveRecusada) return "chave recusada";
-        if (_conhecido?.Sala is double s && DateTime.UtcNow - _conhecidoEm < Validade) return "sala " + ContasAr.FormatarNumero(s) + " °C";
+        if (!Configurado) return Endereco.Length == 0 ? Lang.T("configurar", "set up") : Lang.T("falta a chave", "key missing");
+        if (_chaveRecusada) return Lang.T("chave recusada", "key rejected");
+        if (_conhecido?.Sala is double s && DateTime.UtcNow - _conhecidoEm < Validade) return Lang.T("sala ", "room ") + ContasAr.FormatarNumero(s) + " °C";
         return null;
     }
 
@@ -455,18 +455,19 @@ internal sealed class AtividadeAr : Atividade
         bool temAlvo = d.Alvo != null && d.Modo != "FAN";
         string acao = d.Modo != null ? ContasAr.AcaoModo(d.Modo) : "";
         string graus = temAlvo ? ContasAr.FormatarGraus(d.Alvo) : "";
-        string salaTxt = sala != null ? "Sala com " + ContasAr.FormatarGraus(sala) : "";
+        string salaTxt = sala != null ? Lang.T("Sala com ", "Room at ") + ContasAr.FormatarGraus(sala) : "";
         static string Juntar(params string[] partes) => string.Join(" · ", Array.FindAll(partes, x => x.Length > 0));
         switch (m.Tipo)
         {
             case TipoMudanca.Ligou:
-                return ("Ar ligado", Juntar(acao, graus));
+                return (Lang.T("Ar ligado", "AC on"), Juntar(acao, graus));
             case TipoMudanca.Desligou:
-                return ("Ar desligado", salaTxt.Length > 0 ? salaTxt : "Ar do quarto");
+                return (Lang.T("Ar desligado", "AC off"), salaTxt.Length > 0 ? salaTxt : Lang.T("Ar do quarto", "Bedroom AC"));
             default:
                 if (m.MudouModo)
-                    return ("Ar no modo " + ContasAr.NomeModo(d.Modo), Juntar(graus, m.MudouAlvo ? "era " + ContasAr.FormatarGraus(m.Antes.Alvo) : ""));
-                return ("Ar em " + graus, Juntar("Era " + ContasAr.FormatarGraus(m.Antes.Alvo), acao));
+                    return (Lang.T("Ar no modo ", "AC in ") + ContasAr.NomeModo(d.Modo) + Lang.T("", " mode"),
+                        Juntar(graus, m.MudouAlvo ? Lang.T("era ", "was ") + ContasAr.FormatarGraus(m.Antes.Alvo) : ""));
+                return (Lang.T("Ar em ", "AC at ") + graus, Juntar(Lang.T("Era ", "Was ") + ContasAr.FormatarGraus(m.Antes.Alvo), acao));
         }
     }
 
@@ -518,19 +519,20 @@ internal sealed class AtividadeAr : Atividade
         {
             string s = ContasAr.TextoSituacao(_resumo.Situacao, _resumo.Mensagem, _resumo.PausadoAte);
             if (s.Length > 0) return (s, _resumo.Situacao != "lendo");
-            if (_resumo.Falhas.Count > 0) return (_resumo.Falhas[0].Mensagem, true);
+            // the server's failure message is Portuguese: English gets a generic line
+            if (_resumo.Falhas.Count > 0) return (Lang.T(_resumo.Falhas[0].Mensagem, "The AC didn't accept the last command."), true);
         }
         if (_resumo?.Estado != null && NoCartao?.Ligado != true)
-            return ("Ligue o ar pra mexer na temperatura, no modo e no vento.", false);
+            return (Lang.T("Ligue o ar pra mexer na temperatura, no modo e no vento.", "Turn the AC on to change temperature, mode and fan."), false);
         return null;
     }
 
     private string Meta()
     {
-        if (_fila.Locais.Count > 0 || _resumo?.Pendente.Count > 0) return "mandando…";
+        if (_fila.Locais.Count > 0 || _resumo?.Pendente.Count > 0) return Lang.T("mandando…", "sending…");
         if (_resumo == null) return "";
         string t = ContasAr.TempoDesde(_resumo.LidoEm, DateTimeOffset.UtcNow.ToUnixTimeSeconds());
-        return _resumo.Simulado ? t + " · simulado" : t;
+        return _resumo.Simulado ? t + Lang.T(" · simulado", " · simulated") : t;
     }
 
     private void Passo(int delta)
@@ -561,20 +563,20 @@ internal sealed class AtividadeAr : Atividade
         if (r.Endereco != null && r.Endereco != Endereco) _guardarEndereco(r.Endereco);
         if (r.Chave == null)
         {
-            _avisoEntrada = "Endereço salvo. Agora cole a chave (ou o link inteiro).";
+            _avisoEntrada = Lang.T("Endereço salvo. Agora cole a chave (ou o link inteiro).", "Address saved. Now paste the key (or the whole link).");
             S.Entrada.Definir("");
             Redesenhar();
             return;
         }
         if (Endereco.Length == 0 && r.Endereco == null)
         {
-            _avisoEntrada = "Falta o endereço do mini PC: cole o link inteiro que o mostrar-link.ps1 mostra.";
+            _avisoEntrada = Lang.T("Falta o endereço do mini PC: cole o link inteiro que o mostrar-link.ps1 mostra.", "The mini PC address is missing: paste the whole link that mostrar-link.ps1 shows.");
             Redesenhar();
             return;
         }
         if (!Credenciais.Gravar(NomeCredencial, r.Chave))
         {
-            _avisoEntrada = "Não consegui guardar a chave no Gerenciador de Credenciais do Windows.";
+            _avisoEntrada = Lang.T("Não consegui guardar a chave no Gerenciador de Credenciais do Windows.", "Couldn't save the key in Windows Credential Manager.");
             Redesenhar();
             return;
         }
@@ -604,7 +606,7 @@ internal sealed class AtividadeAr : Atividade
 
     private static Color4 Alfa(Color4 c, float a) => new(c.R, c.G, c.B, c.A * a);
 
-    private string Titulo => _resumo?.NomeAparelho ?? "Ar do quarto";
+    private string Titulo => _resumo?.NomeAparelho ?? Lang.T("Ar do quarto", "Bedroom AC");
 
     /// <summary>Quebra o texto em até `max` linhas pela largura (a última corta com reticências).</summary>
     private static List<string> Quebrar(Palco p, string texto, float tam, float largura, int max)
@@ -664,10 +666,12 @@ internal sealed class AtividadeAr : Atividade
         {
             Cabecalho(c, dc, p, false);
             string texto = Endereco.Length > 0
-                ? "Falta a chave do ar. Cole o link que o implantar\\mostrar-link.ps1 do ar-do-quarto mostra, ou só a chave."
-                : "Para controlar o ar por aqui, cole o link que o implantar\\mostrar-link.ps1 do ar-do-quarto mostra (http://…:8088/#chave=…).";
+                ? Lang.T("Falta a chave do ar. Cole o link que o implantar\\mostrar-link.ps1 do ar-do-quarto mostra, ou só a chave.",
+                    "The AC key is missing. Paste the link that implantar\\mostrar-link.ps1 from ar-do-quarto shows, or just the key.")
+                : Lang.T("Para controlar o ar por aqui, cole o link que o implantar\\mostrar-link.ps1 do ar-do-quarto mostra (http://…:8088/#chave=…).",
+                    "To control the AC from here, paste the link that implantar\\mostrar-link.ps1 from ar-do-quarto shows (http://…:8088/#chave=…).");
             Paragrafo(dc, p, texto, new Vector2(0, 24), 13, L, 3, Cor.Branco);
-            Pilula(dc, p, new RectangleF(0, 84, 130, 30), "Colar o link", 13, Cor.Fraco, Cor.Branco);
+            Pilula(dc, p, new RectangleF(0, 84, 130, 30), Lang.T("Colar o link", "Paste the link"), 13, Cor.Fraco, Cor.Branco);
         });
         c.Botoes.Add(new Botao { Area = new RectangleF(0, 84, 130, 30), Acao = AbrirEntrada });
         return c;
@@ -678,12 +682,12 @@ internal sealed class AtividadeAr : Atividade
         var c = p.NovaCena(new Vector2(L, 98));
         p.Desenho(c, Vector2.Zero, c.Tamanho, (dc, t) =>
         {
-            p.Texto.Desenhar(dc, "Link ou chave do ar", new Vector2(0, 0), 13, Cor.Secundario);
+            p.Texto.Desenhar(dc, Lang.T("Link ou chave do ar", "AC link or key"), new Vector2(0, 0), 13, Cor.Secundario);
             Icone.Retangulo(dc, 0, 22, L, 36, 11, Cor.Fraco);
             p.Texto.DesenharCampo(dc, S.Entrada.Texto, S.Entrada.Cursor, true, new Vector2(12, 30), L - 24, 15, Cor.Branco,
                 vazio: "http://…:8088/#chave=…", comCursor: S.Entrada.Aberta);
             if (_avisoEntrada != null) Paragrafo(dc, p, _avisoEntrada, new Vector2(0, 66), 12, L, 2, Cor.Vermelho);
-            else p.Texto.Desenhar(dc, "Enter salva · Esc cancela · a chave vai para o Gerenciador de Credenciais", new Vector2(0, 66), 12, Cor.Secundario, FontWeight.Normal, largura: L);
+            else p.Texto.Desenhar(dc, Lang.T("Enter salva · Esc cancela · a chave vai para o Gerenciador de Credenciais", "Enter saves · Esc cancels · the key goes to Credential Manager"), new Vector2(0, 66), 12, Cor.Secundario, FontWeight.Normal, largura: L);
         });
         return c;
     }
@@ -695,7 +699,7 @@ internal sealed class AtividadeAr : Atividade
         {
             Cabecalho(c, dc, p, true);
             var a = Aviso();
-            Paragrafo(dc, p, a?.Texto ?? "Lendo o ar…", new Vector2(0, 26), 13, L, 3, a?.Erro == true ? Cor.Vermelho : Cor.Branco);
+            Paragrafo(dc, p, a?.Texto ?? Lang.T("Lendo o ar…", "Reading the AC…"), new Vector2(0, 26), 13, L, 3, a?.Erro == true ? Cor.Vermelho : Cor.Branco);
         });
         BotaoChave(c);
         return c;
@@ -782,14 +786,14 @@ internal sealed class AtividadeAr : Atividade
                 var m = p.Texto.Medir(graus, 32, FontWeight.Medium, tabular: true);
                 p.Texto.Desenhar(dc, graus, new Vector2(88 - m.X / 2, cy - m.Y / 2), 32, cor, FontWeight.Medium, tabular: true);
             }
-            p.Texto.Desenhar(dc, "Temperatura", new Vector2(190, Y_TEMP + 2), 12, Cor.Secundario);
+            p.Texto.Desenhar(dc, Lang.T("Temperatura", "Temperature"), new Vector2(190, Y_TEMP + 2), 12, Cor.Secundario);
             string sob = faixa == null
-                ? (e.Modo == "FAN" ? "No modo ventilar não tem" : "Este modo não tem")
-                : ContasAr.FaixaInteira(faixa) is (int mn, int mx) ? $"de {mn}° a {mx}°" : "";
+                ? (e.Modo == "FAN" ? Lang.T("No modo ventilar não tem", "Not in fan mode") : Lang.T("Este modo não tem", "Not in this mode"))
+                : ContasAr.FaixaInteira(faixa) is (int mn, int mx) ? Lang.T($"de {mn}° a {mx}°", $"{mn}° to {mx}°") : "";
             p.Texto.Desenhar(dc, sob, new Vector2(190, Y_TEMP + 20), 12, Cor.Secundario, FontWeight.Normal, largura: L - 190);
 
             // modo
-            p.Texto.Desenhar(dc, "Modo", new Vector2(0, Y_MODO), 12, Cor.Secundario);
+            p.Texto.Desenhar(dc, Lang.T("Modo", "Mode"), new Vector2(0, Y_MODO), 12, Cor.Secundario);
             foreach (var (r, modo) in _pilulasModo)
             {
                 bool escolhido = e.Modo == modo;
@@ -800,7 +804,7 @@ internal sealed class AtividadeAr : Atividade
             }
 
             // vento: pílulas para o que não é nível e barrinhas crescentes para os níveis
-            p.Texto.Desenhar(dc, "Vento", new Vector2(0, Y_VENTO), 12, Cor.Secundario);
+            p.Texto.Desenhar(dc, Lang.T("Vento", "Fan speed"), new Vector2(0, Y_VENTO), 12, Cor.Secundario);
             var corEscolha = ligado ? corModo : Alfa(corModo, 0.5f);
             int nivelEscolhido = -1, k = 0, quantos = 0;
             foreach (var (_, v, nivel) in _pilulasVento) if (nivel) { if (v == e.Vento) nivelEscolhido = quantos; quantos++; }

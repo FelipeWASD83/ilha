@@ -14,7 +14,7 @@ namespace Ilha.LimiteClaude;
 /// Vigia o arquivo por evento (FileSystemWatcher), sem polling. Entrada no menu, cartão com as duas barras e um aviso
 /// por janela quando o uso passa do limiar.
 /// </summary>
-[Modulo("limite", "Limite do Claude")]
+[Modulo("limite", "Limite do Claude", English = "Claude limit")]
 internal sealed class ModuloLimite : Modulo
 {
     public const string NOME_DO_ARQUIVO = "uso-claude.json";
@@ -44,7 +44,7 @@ internal sealed class ModuloLimite : Modulo
         {
             Id = "limite",
             // a célula do menu tem 76 DIP de texto: "Limite do Claude" não caberia sem reticências
-            Nome = "Limite",
+            Nome = Lang.T("Limite", "Limit"),
             Abrir = () => S.Ilha.Expandir(atv),
             Icone = (dc, palco, r) => atv.Anel(dc, palco, new Vector2(r.X + r.Width / 2, r.Y + r.Height / 2), r.Width / 2 - 2, 3f),
             Detalhe = () => TextoDoUso.Detalhe(_leitura, AtividadeLimite.Agora()),
@@ -217,8 +217,8 @@ internal sealed class ModuloLimite : Modulo
     {
         var atv = _atv!;
         string pct = TextoDoUso.Porcento(j.Porcentagem);
-        string titulo = j.Semanal ? $"Claude: {pct} da semana" : $"Claude: {pct} da sessão";
-        string sub = (j.Semanal ? "limite semanal · " : "limite de 5 horas · ") + TextoDoUso.Volta(j, DateTime.Now);
+        string titulo = j.Semanal ? Lang.T($"Claude: {pct} da semana", $"Claude: {pct} of the week") : Lang.T($"Claude: {pct} da sessão", $"Claude: {pct} of the session");
+        string sub = (j.Semanal ? Lang.T("limite semanal · ", "weekly limit · ") : Lang.T("limite de 5 horas · ", "5-hour limit · ")) + TextoDoUso.Volta(j, DateTime.Now);
         var cor = AtividadeLimite.CorDe(j.Porcentagem, Limiares);
         float progresso = (float)(j.Porcentagem / 100);
         return new Alerta
@@ -249,12 +249,15 @@ internal sealed class ModuloLimite : Modulo
 public sealed class ConfigLimite
 {
     /// <summary>Avisa uma vez por janela quando o uso passa disto (0 desliga os avisos).</summary>
+    [Label("Limiar do alerta (%)", "Alert threshold (%)")]
     [JsonPropertyName("limiarAlerta")] public int LimiarAlerta { get; set; } = 80;
     /// <summary>Segundo aviso na mesma janela (0 desliga; só vale acima do primeiro).</summary>
+    [Label("Segundo limiar (%)", "Second threshold (%)")]
     [JsonPropertyName("segundoLimiar")] public int SegundoLimiar { get; set; } = 95;
     /// <summary>
     /// A status line que já existia antes, que o ferramentas/statusline_uso.py roda depois de gravar o uso (é ele que
     /// lê este campo; a ilha não usa).
     /// </summary>
+    [Label("Status line anterior", "Previous status line")]
     [JsonPropertyName("statuslineAnterior")] public string StatuslineAnterior { get; set; } = "";
 }

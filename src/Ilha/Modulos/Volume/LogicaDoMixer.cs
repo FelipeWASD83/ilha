@@ -28,7 +28,7 @@ internal static class LogicaDoMixer
     // AudioSessionState
     public const int Inativa = 0, Ativa = 1, Expirada = 2;
     public const string ChaveDoSistema = "sistema";
-    public const string NomeDoSistema = "Sons do sistema";
+    public static string NomeDoSistema => Lang.T("Sons do sistema", "System sounds");
 
     /// <summary>
     /// O caminho do .exe que vem dentro do identificador da sessão, no formato que o Windows usa hoje (não documentado):

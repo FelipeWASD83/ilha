@@ -14,7 +14,7 @@ using Vortice.Mathematics;
 
 namespace Ilha.Calculadora;
 
-[Modulo("calculadora", "Calculadora")]
+[Modulo("calculadora", "Calculadora", English = "Calculator")]
 internal sealed class ModuloCalculadora : Modulo
 {
     private ConfigCalculadora _cfg = new();
@@ -28,8 +28,21 @@ internal sealed class ModuloCalculadora : Modulo
         _atv = new AtividadeCalculadora(S, _cfg);
         S.Ilha.Adicionar(_atv);
         var ficou = S.Atalhos.Registrar("calculadora", new Atalho { Mods = Nativo.MOD_CONTROL | Nativo.MOD_ALT, Tecla = 0x4B }, () => _atv?.Alternar());
+        S.Menu.Adicionar(new ItemDoMenu
+        {
+            Id = "calculadora", Nome = Lang.T("Calculadora", "Calculator"), Ordem = 10, Abrir = () => _atv?.Alternar(),
+            Icone = (dc, palco, r) =>
+            {
+                // calculator: body, display and a 3x2 keypad
+                Icone.Retangulo(dc, r.X + 4, r.Y + 1, 16, 22, 3, Cor.Branco);
+                Icone.Retangulo(dc, r.X + 6.5f, r.Y + 3.5f, 11, 5, 1.2f, new Vortice.Mathematics.Color4(0, 0, 0, 0.85f));
+                for (int i = 0; i < 6; i++)
+                    Icone.Circulo(dc, new System.Numerics.Vector2(r.X + 8 + i % 3 * 4, r.Y + 13 + i / 3 * 5), 1.4f, new Vortice.Mathematics.Color4(0, 0, 0, 0.85f));
+            },
+        });
         if (ficou == null && !(S.Config().AtalhosModulos.TryGetValue("calculadora", out var a) && a.Tecla == 0))
-            S.Avisar("O atalho da calculadora (Ctrl + Alt + K) já é de outro programa. Troque em \"atalhosModulos\" → \"calculadora\" na configuração.");
+            S.Avisar(Lang.T("O atalho da calculadora (Ctrl + Alt + K) já é de outro programa. Troque em \"atalhosModulos\" → \"calculadora\" na configuração.",
+                "The calculator shortcut (Ctrl + Alt + K) already belongs to another program. Change it in \"atalhosModulos\" → \"calculadora\" in the settings."));
     }
 
     public override void ConfigMudou(JsonObject cfg)
@@ -103,16 +116,15 @@ internal sealed class EstadoCalculadora
 internal sealed class AtividadeCalculadora : Atividade
 {
     public override string Tipo => "calculadora";
-    public override string Nome => "Calculadora";
+    public override string Nome => Lang.T("Calculadora", "Calculator");
     public override bool EhFerramenta => true;
     public override bool AnunciaChegada => false;
 
     private static readonly HttpClient Http = Cambio.NovoHttp();
     private static readonly string ArquivoEstado = Path.Combine(Config.Pasta, "calculadora.json");
-    private static readonly (string conta, string resultado)[] Exemplos =
-    {
-        ("200 + 10%", "220"), ("10 km em mi", "6,21371 mi"), ("100 usd em brl", "dólar em real"), ("32 f em c", "0 °C"), ("1 GiB em GB", "1,07374 GB"),
-    };
+    private static (string conta, string resultado)[] Exemplos => Lang.English
+        ? new[] { ("200 + 10%", "220"), ("10 km in mi", "6.21371 mi"), ("100 usd in brl", "dollar to real"), ("32 f in c", "0 °C"), ("1 GiB in GB", "1.07374 GB") }
+        : new[] { ("200 + 10%", "220"), ("10 km em mi", "6,21371 mi"), ("100 usd em brl", "dólar em real"), ("32 f em c", "0 °C"), ("1 GiB em GB", "1,07374 GB") };
 
     private readonly Servicos S;
     private ConfigCalculadora _cfg;
@@ -305,27 +317,30 @@ internal sealed class AtividadeCalculadora : Atividade
     internal static string Hora(DateTime quando, string fonte, DateTime agora)
     {
         // a do BCE é do dia; a da AwesomeAPI tem hora
-        if (fonte == "BCE") return quando.ToString("dd/MM");
-        return quando.Date == agora.Date ? quando.ToString("HH:mm") : quando.ToString("dd/MM HH:mm");
+        var cultura = Lang.Culture;
+        string dia = Lang.T("dd/MM", "MM/dd"), hora = Lang.T("HH:mm", "h:mm tt");
+        if (fonte == "BCE") return quando.ToString(dia, cultura);
+        return quando.Date == agora.Date ? quando.ToString(hora, cultura) : quando.ToString(dia + " " + hora, cultura);
     }
 
     private string LinhaDeBaixo(out Color4 cor)
     {
         cor = Cor.Secundario;
-        if (_copiado) { cor = Cor.Verde; return "Copiado: " + _res.Copia; }
-        if (_res.Tipo == TipoResultado.Vazio) return "Contas, unidades (10 km em mi) e moedas (100 usd em brl)";
+        if (_copiado) { cor = Cor.Verde; return Lang.T("Copiado: ", "Copied: ") + _res.Copia; }
+        if (_res.Tipo == TipoResultado.Vazio) return Lang.T("Contas, unidades (10 km em mi) e moedas (100 usd em brl)", "Math, units (10 km in mi) and currencies (100 usd in brl)");
         if (_res.PrecisaCotacao)
         {
-            if (!_cfg.Cambio) return "A cotação está desligada (\"cambio\" na configuração).";
+            if (!_cfg.Cambio) return Lang.T("A cotação está desligada (\"cambio\" na configuração).", "Exchange rates are off (\"cambio\" in the settings).");
             if (!_buscando && _erroRede != null) return _erroRede;
-            return "Buscando a cotação...";
+            return Lang.T("Buscando a cotação...", "Fetching the exchange rate...");
         }
         if (_res.Tipo == TipoResultado.Moeda && _estado.Cotacoes is { } c)
         {
             var agora = DateTime.Now;
-            string quando = $"{c.Fonte} {Hora(c.QuandoDe(_res.MoedaRef), c.Fonte, agora)}";
+            string quando = $"{Cambio.NomeDaFonte(c.Fonte)} {Hora(c.QuandoDe(_res.MoedaRef), c.Fonte, agora)}";
             bool velha = agora - c.BuscadoEm >= Cambio.Validade;
-            string sufixo = velha && _erroRede != null ? $"sem rede, cotação de {quando}" : velha && _buscando ? $"atualizando ({quando})" : quando;
+            string sufixo = velha && _erroRede != null ? Lang.T($"sem rede, cotação de {quando}", $"offline, rate from {quando}")
+                : velha && _buscando ? Lang.T($"atualizando ({quando})", $"updating ({quando})") : quando;
             return _res.Detalhe.Length > 0 ? $"{_res.Detalhe} · {sufixo}" : sufixo;
         }
         return _res.Detalhe;
@@ -371,7 +386,7 @@ internal sealed class AtividadeCalculadora : Atividade
                 Simbolo(dc, p, 2, 2, 20);
                 if (f == Forma.Compacta)
                 {
-                    string s = _ultimoBom.Length > 0 ? _ultimoBom : "Calculadora";
+                    string s = _ultimoBom.Length > 0 ? _ultimoBom : Lang.T("Calculadora", "Calculator");
                     var tam = p.Texto.Medir(s, 13, FontWeight.SemiBold, tabular: true);
                     float l = MathF.Min(tam.X, t.X - 30);
                     p.Texto.Desenhar(dc, s, new Vector2(t.X - l, (t.Y - tam.Y) / 2), 13, Cor.Branco, tabular: true, largura: t.X - 30);
@@ -384,13 +399,13 @@ internal sealed class AtividadeCalculadora : Atividade
         var cena = p.NovaCena(new Vector2(L, linhasNoCartao > 0 ? Y_HIST + LINHA * linhasNoCartao : Y_HIST - 10));
         p.Desenho(cena, Vector2.Zero, cena.Tamanho, (dc, t) =>
         {
-            p.Texto.Desenhar(dc, "Calculadora", new Vector2(0, 0), 12, Cor.Secundario);
-            string dica = (_cfg.Graus ? "graus" : "radianos") + " · Enter copia · Esc fecha";
+            p.Texto.Desenhar(dc, Lang.T("Calculadora", "Calculator"), new Vector2(0, 0), 12, Cor.Secundario);
+            string dica = (_cfg.Graus ? Lang.T("graus", "degrees") : Lang.T("radianos", "radians")) + Lang.T(" · Enter copia · Esc fecha", " · Enter copies · Esc closes");
             var td = p.Texto.Medir(dica, 11, FontWeight.Normal);
             p.Texto.Desenhar(dc, dica, new Vector2(t.X - td.X, 1), 11, Cor.Secundario, FontWeight.Normal);
 
             // a cópia do módulo, não a S.Entrada: ela é dividida com outras ferramentas e pode ter o texto de outra
-            p.Texto.DesenharCampo(dc, _texto, _cursor, false, new Vector2(0, 20), t.X, 18, Cor.Branco, "Conta ou conversão", comCursor: _aberta);
+            p.Texto.DesenharCampo(dc, _texto, _cursor, false, new Vector2(0, 20), t.X, 18, Cor.Branco, Lang.T("Conta ou conversão", "Calculation or conversion"), comCursor: _aberta);
 
             // errado no meio da digitação ("2+"): o último resultado bom fica, apagado, em vez de piscar
             string grande = _res.Ok ? _res.Principal : _ultimoBom;

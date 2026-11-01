@@ -29,6 +29,8 @@ public sealed class Mola
 public sealed class Config
 {
     [JsonPropertyName("pausada")] public bool Pausada { get; set; }
+    // interface language: "auto" (follows Windows), "pt" or "en"
+    [JsonPropertyName("language")] public string Language { get; set; } = "auto";
     // só a cópia instalada (ferramentas\instalar.ps1) grava no Run do Windows
     [JsonPropertyName("iniciarComWindows")] public bool IniciarComWindows { get; set; } = true;
     // false (padrão) = pílula flutuando um pouco abaixo da borda, como no iPhone; true = colada na borda, estilo notch

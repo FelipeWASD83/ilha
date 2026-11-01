@@ -13,7 +13,7 @@ internal sealed class AtividadeAtualizacao : Atividade
     public enum Fase { Disponivel, Baixando, Trocando, Erro }
 
     public override string Tipo => "atualizacao";
-    public override string Nome => "Atualização";
+    public override string Nome => Lang.T("Atualização", "Update");
 
     public Fase Estado { get; private set; }
     private string _versao = "";
@@ -116,8 +116,8 @@ internal sealed class AtividadeAtualizacao : Atividade
                 string texto = Estado switch
                 {
                     Fase.Baixando => $"{(int)(_progresso * 100)}%",
-                    Fase.Trocando => "Instalando",
-                    Fase.Erro => "Falhou",
+                    Fase.Trocando => Lang.T("Instalando", "Installing"),
+                    Fase.Erro => Lang.T("Falhou", "Failed"),
                     _ => _versao,
                 };
                 var tam = p.Texto.Medir(texto, 15, FontWeight.SemiBold, tabular: true);
@@ -136,33 +136,33 @@ internal sealed class AtividadeAtualizacao : Atividade
             switch (Estado)
             {
                 case Fase.Disponivel:
-                    p.Texto.Desenhar(dc, "Atualização disponível", new Vector2(x, 0), 13, Cor.Secundario, largura: larguraTexto);
+                    p.Texto.Desenhar(dc, Lang.T("Atualização disponível", "Update available"), new Vector2(x, 0), 13, Cor.Secundario, largura: larguraTexto);
                     p.Texto.Desenhar(dc, $"Ilha {_versao}", new Vector2(x, 17), 20, Cor.Branco, largura: larguraTexto);
-                    p.Texto.Desenhar(dc, _resumo.Length > 0 ? _resumo : $"Você está na {_atual}", new Vector2(x, 46), 12, Cor.Secundario, FontWeight.Normal, largura: larguraTexto);
-                    Botao(dc, p, atualizar, "Atualizar", Cor.Azul, Cor.Branco);
-                    Botao(dc, p, depois, "Depois", Cor.Fraco, Cor.Branco);
+                    p.Texto.Desenhar(dc, _resumo.Length > 0 ? _resumo : Lang.T($"Você está na {_atual}", $"You're on {_atual}"), new Vector2(x, 46), 12, Cor.Secundario, FontWeight.Normal, largura: larguraTexto);
+                    Botao(dc, p, atualizar, Lang.T("Atualizar", "Update"), Cor.Azul, Cor.Branco);
+                    Botao(dc, p, depois, Lang.T("Depois", "Later"), Cor.Fraco, Cor.Branco);
                     break;
                 case Fase.Baixando:
-                    p.Texto.Desenhar(dc, $"Baixando a {_versao}", new Vector2(x, 0), 13, Cor.Secundario, largura: larguraTexto);
+                    p.Texto.Desenhar(dc, Lang.T($"Baixando a {_versao}", $"Downloading {_versao}"), new Vector2(x, 0), 13, Cor.Secundario, largura: larguraTexto);
                     p.Texto.Desenhar(dc, $"{(int)(_progresso * 100)}%", new Vector2(x, 17), 20, Cor.Branco, tabular: true);
                     Icone.Retangulo(dc, x, 62, LARGURA - x, 6, 3, AzulFraco);
                     Icone.Retangulo(dc, x, 62, MathF.Max(6, (float)(LARGURA - x) * (float)_progresso), 6, 3, Cor.Azul);
-                    p.Texto.Desenhar(dc, "O SHA-256 é conferido antes de trocar qualquer arquivo", new Vector2(x, 80), 12, Cor.Secundario, FontWeight.Normal, largura: larguraTexto);
+                    p.Texto.Desenhar(dc, Lang.T("O SHA-256 é conferido antes de trocar qualquer arquivo", "The SHA-256 is checked before any file is replaced"), new Vector2(x, 80), 12, Cor.Secundario, FontWeight.Normal, largura: larguraTexto);
                     break;
                 case Fase.Trocando:
-                    p.Texto.Desenhar(dc, $"Instalando a {_versao}", new Vector2(x, 0), 13, Cor.Secundario, largura: larguraTexto);
-                    p.Texto.Desenhar(dc, "A ilha vai fechar e abrir de novo", new Vector2(x, 17), 18, Cor.Branco, largura: larguraTexto);
-                    p.Texto.Desenhar(dc, $"Se a nova não abrir, ela volta sozinha para a {_atual}", new Vector2(x, 46), 12, Cor.Secundario, FontWeight.Normal, largura: larguraTexto);
+                    p.Texto.Desenhar(dc, Lang.T($"Instalando a {_versao}", $"Installing {_versao}"), new Vector2(x, 0), 13, Cor.Secundario, largura: larguraTexto);
+                    p.Texto.Desenhar(dc, Lang.T("A ilha vai fechar e abrir de novo", "The island will close and open again"), new Vector2(x, 17), 18, Cor.Branco, largura: larguraTexto);
+                    p.Texto.Desenhar(dc, Lang.T($"Se a nova não abrir, ela volta sozinha para a {_atual}", $"If the new one doesn't open, it goes back to {_atual} on its own"), new Vector2(x, 46), 12, Cor.Secundario, FontWeight.Normal, largura: larguraTexto);
                     break;
                 case Fase.Erro:
-                    p.Texto.Desenhar(dc, "Não deu para atualizar", new Vector2(x, 0), 13, Cor.Secundario, largura: larguraTexto);
+                    p.Texto.Desenhar(dc, Lang.T("Não deu para atualizar", "Couldn't update"), new Vector2(x, 0), 13, Cor.Secundario, largura: larguraTexto);
                     float y = 18;
                     foreach (var l in Quebrar(p, _erro, 13, larguraTexto, 3))
                     {
                         p.Texto.Desenhar(dc, l, new Vector2(x, y), 13, Cor.Branco, FontWeight.Normal, largura: larguraTexto);
                         y += 18;
                     }
-                    Botao(dc, p, depois, "Fechar", Cor.Fraco, Cor.Branco);
+                    Botao(dc, p, depois, Lang.T("Fechar", "Close"), Cor.Fraco, Cor.Branco);
                     break;
             }
         });

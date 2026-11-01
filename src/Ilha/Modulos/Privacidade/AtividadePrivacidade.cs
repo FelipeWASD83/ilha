@@ -16,7 +16,7 @@ internal sealed class AtividadePrivacidade : Atividade
     private const float LARGURA_CARTAO = 300, LINHA = 26, TOPO = 22;
 
     public override string Tipo => "privacidade";
-    public override string Nome => "Câmera e microfone";
+    public override string Nome => Lang.T("Câmera e microfone", "Camera and microphone");
     public override bool AnunciaChegada => false;
     public override float? LarguraCompactaMinima => 40;
 
@@ -77,7 +77,7 @@ internal sealed class AtividadePrivacidade : Atividade
                 p.Desenho(c, Vector2.Zero, c.Tamanho, (dc, t) =>
                 {
                     var ls = _estado.Linhas();
-                    p.Texto.Desenhar(dc, "Em uso agora", new Vector2(0, 0), 12, Cor.Secundario, FontWeight.Normal);
+                    p.Texto.Desenhar(dc, Lang.T("Em uso agora", "In use now"), new Vector2(0, 0), 12, Cor.Secundario, FontWeight.Normal);
                     float y = TOPO;
                     foreach (var (camera, rotulo, apps) in ls)
                     {

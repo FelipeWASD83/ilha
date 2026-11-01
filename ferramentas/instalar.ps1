@@ -2,7 +2,7 @@
 # A copia instalada grava sozinha o "iniciar com o Windows" (HKCU\...\Run) quando abre.
 # A configuracao fica em %USERPROFILE%\.ilha e nao e tocada.
 #
-# Uso (na pasta do projeto):
+# Usage (in the project folder):
 #   powershell -ExecutionPolicy Bypass -File .\ferramentas\instalar.ps1 [-NaoAbrir]
 #   powershell -ExecutionPolicy Bypass -File .\ferramentas\instalar.ps1 -Desinstalar
 #
@@ -19,7 +19,7 @@ $temp = Join-Path $env:TEMP 'ilha-instalar'
 function Fechar-Ilha {
     $abertas = Get-Process Ilha -ErrorAction SilentlyContinue
     if (-not $abertas) { return }
-    Write-Host 'Fechando a ilha aberta...'
+    Write-Host 'Closing the running island...'
     $exeAberto = $abertas[0].Path
     if ($exeAberto) { Start-Process $exeAberto -ArgumentList '--sair' -Wait -ErrorAction SilentlyContinue }
     foreach ($p in $abertas) { $p.WaitForExit(10000) | Out-Null }
@@ -31,19 +31,19 @@ if ($Desinstalar) {
     Remove-ItemProperty -Path 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Run' -Name 'Ilha' -ErrorAction SilentlyContinue
     if (Test-Path $atalho) { Remove-Item $atalho -Force }
     if (Test-Path $destino) { Remove-Item $destino -Recurse -Force }
-    Write-Host 'Ilha desinstalada (a configuracao em %USERPROFILE%\.ilha ficou).'
+    Write-Host 'Ilha uninstalled (the settings in %USERPROFILE%\.ilha were kept).'
     exit 0
 }
 
-Write-Host 'Compilando (com a checagem do Smart App Control)...'
+Write-Host 'Building (with the Smart App Control check)...'
 if (Test-Path $temp) { Remove-Item $temp -Recurse -Force }
 & powershell -NoProfile -ExecutionPolicy Bypass -File (Join-Path $PSScriptRoot 'compilar.ps1') -Publicar $temp
-if ($LASTEXITCODE -ne 0) { throw 'A compilacao falhou ou o Smart App Control barrou todas as tentativas (veja acima).' }
-if (-not (Test-Path (Join-Path $temp 'animacoes.json'))) { throw 'O animacoes.json nao foi junto na publicacao.' }
+if ($LASTEXITCODE -ne 0) { throw 'The build failed or Smart App Control blocked every attempt (see above).' }
+if (-not (Test-Path (Join-Path $temp 'animacoes.json'))) { throw 'animacoes.json was not included in the published files.' }
 
 Fechar-Ilha
 
-Write-Host "Instalando em $destino"
+Write-Host "Installing to $destino"
 if (Test-Path $destino) { Get-ChildItem $destino -Force | Remove-Item -Recurse -Force }
 New-Item -ItemType Directory -Force $destino | Out-Null
 Copy-Item (Join-Path $temp '*') $destino -Recurse -Force
@@ -55,12 +55,12 @@ $lnk = $shell.CreateShortcut($atalho)
 $lnk.TargetPath = $exe
 $lnk.WorkingDirectory = $destino
 $lnk.IconLocation = "$(Join-Path $destino 'icone.ico'),0"
-$lnk.Description = 'Dynamic Island para o Windows'
+$lnk.Description = 'Dynamic Island for Windows'
 $lnk.Save()
-Write-Host "Atalho no Menu Iniciar: $atalho"
+Write-Host "Start menu shortcut: $atalho"
 
 if (-not $NaoAbrir) {
     Start-Process $exe
-    Write-Host 'Ilha aberta (ela mesma grava o iniciar com o Windows).'
+    Write-Host 'Ilha opened (it registers start with Windows by itself).'
 }
-Write-Host 'Pronto.'
+Write-Host 'Done.'

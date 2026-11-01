@@ -21,7 +21,7 @@ internal sealed class Paragrafo
     private IDWriteTextFormat Formato(float tam, FontWeight peso)
     {
         if (_formatos.TryGetValue((tam, peso), out var f)) return f;
-        f = _f.CreateTextFormat(tam >= 20 ? "Segoe UI Variable Display" : "Segoe UI Variable Text", null!, peso, FontStyle.Normal, FontStretch.Normal, tam, "pt-br");
+        f = _f.CreateTextFormat(tam >= 20 ? "Segoe UI Variable Display" : "Segoe UI Variable Text", null!, peso, FontStyle.Normal, FontStretch.Normal, tam, Lang.T("pt-br", "en-us"));
         f.WordWrapping = WordWrapping.Wrap;
         _formatos[(tam, peso)] = f;
         return f;

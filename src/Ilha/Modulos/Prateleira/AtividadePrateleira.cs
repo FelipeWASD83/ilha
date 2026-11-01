@@ -20,7 +20,7 @@ namespace Ilha.Prateleira;
 internal sealed class AtividadePrateleira : Atividade, IReceptorDeArquivos
 {
     public override string Tipo => "prateleira";
-    public override string Nome => "Prateleira";
+    public override string Nome => Lang.T("Prateleira", "Shelf");
     public override bool EhFerramenta => true;
     public override bool AnunciaChegada => false;
 
@@ -404,8 +404,9 @@ internal sealed class AtividadePrateleira : Atividade, IReceptorDeArquivos
     {
         var f = p.G.Fabrica;
         int n = _itens.Count;
-        p.Texto.Desenhar(dc, "Prateleira", new Vector2(0, 3), 15, Cor.Branco);
-        float lt = p.Texto.Medir("Prateleira", 15).X;
+        string nome = Lang.T("Prateleira", "Shelf");
+        p.Texto.Desenhar(dc, nome, new Vector2(0, 3), 15, Cor.Branco);
+        float lt = p.Texto.Medir(nome, 15).X;
         if (n > 0) p.Texto.Desenhar(dc, LogicaDaPrateleira.Contagem(n), new Vector2(lt + 8, 6.5f), 12, Cor.Secundario, FontWeight.Normal);
 
         if (n == 0)
@@ -416,13 +417,13 @@ internal sealed class AtividadePrateleira : Atividade, IReceptorDeArquivos
 
         var bl = BotaoLimpar;
         Icone.Retangulo(dc, bl.X, bl.Y, bl.Width, bl.Height, bl.Height / 2, _confirmarLimpar ? new Color4(1f, 0.27f, 0.23f, 0.22f) : Fundo);
-        Centrado(dc, p, _confirmarLimpar ? "Confirmar" : "Limpar", bl, 12, _confirmarLimpar ? Cor.Vermelho : Cor.Branco);
+        Centrado(dc, p, _confirmarLimpar ? Lang.T("Confirmar", "Confirm") : Lang.T("Limpar", "Clear"), bl, 12, _confirmarLimpar ? Cor.Vermelho : Cor.Branco);
         var bt = BotaoTudo;
         Icone.Retangulo(dc, bt.X, bt.Y, bt.Width, bt.Height, bt.Height / 2, Fundo);
         for (int i = 0; i < 3; i++)
             for (int j = 0; j < 2; j++)
                 Icone.Circulo(dc, new Vector2(bt.X + 13 + j * 4.5f, bt.Y + 8 + i * 5), 1.2f, Cor.Secundario);
-        p.Texto.Desenhar(dc, "Arrastar tudo", new Vector2(bt.X + 28, bt.Y + 5), 12, Cor.Branco, FontWeight.Medium, largura: bt.Width - 32);
+        p.Texto.Desenhar(dc, Lang.T("Arrastar tudo", "Drag all"), new Vector2(bt.X + 28, bt.Y + 5), 12, Cor.Branco, FontWeight.Medium, largura: bt.Width - 32);
 
         int slots = Math.Min(n, VISIVEIS);
         int px = (int)MathF.Round(MINI * p.Escala);
@@ -444,7 +445,7 @@ internal sealed class AtividadePrateleira : Atividade, IReceptorDeArquivos
             p.Texto.Desenhar(dc, LogicaDaPrateleira.Nome(item.Caminho), new Vector2(TEXTO_X, y + 5), 13, sumiu ? Cor.Secundario : Cor.Branco, largura: lnome);
             if (sumiu)
             {
-                string aviso = item.Lento ? "Não responde" : "Indisponível";
+                string aviso = item.Lento ? Lang.T("Não responde", "Not responding") : Lang.T("Indisponível", "Unavailable");
                 p.Texto.Desenhar(dc, aviso, new Vector2(TEXTO_X, y + 24), 11, Cor.Vermelho, FontWeight.Medium);
                 float la = p.Texto.Medir(aviso, 11, FontWeight.Medium).X + 6;
                 float lp = MathF.Max(10, lnome - la);
@@ -474,7 +475,7 @@ internal sealed class AtividadePrateleira : Atividade, IReceptorDeArquivos
                 dc.FillRoundedRectangle(ref rr, fundo);
             }
             Moldura(dc, f, new System.Drawing.RectangleF(1, 1, t.X - 2, t.Y - 2), true);
-            Centrado(dc, p, "Solte para guardar na prateleira", area, 14, Cor.Branco);
+            Centrado(dc, p, Lang.T("Solte para guardar na prateleira", "Drop to keep on the shelf"), area, 14, Cor.Branco);
         }
     }
 
@@ -484,9 +485,9 @@ internal sealed class AtividadePrateleira : Atividade, IReceptorDeArquivos
         Moldura(dc, f, zona, _soltando);
         var c = new System.Drawing.RectangleF(zona.X + zona.Width / 2 - 12, zona.Y + 14, 24, 24);
         DesenharSeta(dc, f, c, _soltando ? Cor.Azul : Cor.Secundario);
-        string titulo = _soltando ? "Solte para guardar" : "Arraste arquivos ou pastas até a ilha";
+        string titulo = _soltando ? Lang.T("Solte para guardar", "Drop to keep") : Lang.T("Arraste arquivos ou pastas até a ilha", "Drag files or folders onto the island");
         Centrado(dc, p, titulo, new System.Drawing.RectangleF(zona.X, zona.Y + 44, zona.Width, 18), 13, Cor.Branco);
-        Centrado(dc, p, "Eles ficam aqui até você arrastar de volta para qualquer lugar",
+        Centrado(dc, p, Lang.T("Eles ficam aqui até você arrastar de volta para qualquer lugar", "They stay here until you drag them back anywhere"),
             new System.Drawing.RectangleF(zona.X, zona.Y + 64, zona.Width, 16), 11, Cor.Secundario, FontWeight.Normal);
     }
 

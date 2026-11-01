@@ -326,12 +326,12 @@ internal sealed class Audio : IDisposable
             try
             {
                 if (d.OpenPropertyStore(Com.STGM_READ, out var loja) == 0)
-                    try { return Logica.SemHandsFree(Com.LerTexto(loja, Propriedades.NomeDoAparelho) ?? Com.LerTexto(loja, Propriedades.NomeAmigavel) ?? "Aparelho de áudio"); }
+                    try { return Logica.SemHandsFree(Com.LerTexto(loja, Propriedades.NomeDoAparelho) ?? Com.LerTexto(loja, Propriedades.NomeAmigavel) ?? Logica.NomePadraoDoAparelho); }
                     finally { Com.Soltar(loja); }
             }
             finally { Com.Soltar(d); }
         }
-        return "Aparelho de áudio";
+        return Logica.NomePadraoDoAparelho;
     }
 
     public void Dispose()

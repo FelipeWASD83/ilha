@@ -12,16 +12,22 @@ namespace Ilha.Volume;
 public sealed class ConfigVolume
 {
     // quanto tempo a ilha fica com o volume na tela depois da última mudança
+    [Label("Segundos na tela", "Seconds on screen")]
     [JsonPropertyName("segundos")] public double Segundos { get; set; } = 1.8;
     // porcentagem por dente da rodinha do mouse em cima da ilha
+    [Label("Passo da rodinha (%)", "Scroll wheel step (%)")]
     [JsonPropertyName("passoRolar")] public int PassoRolar { get; set; } = 2;
     // mostrar "conectado"/"desconectado" quando um fone, headset ou caixa entra ou sai
+    [Label("Mostrar conexões de aparelhos", "Show device connections")]
     [JsonPropertyName("mostrarConexoes")] public bool MostrarConexoes { get; set; } = true;
     // EXPERIMENTAL: some com o pop-up de volume do Windows (some junto com o de brilho, modo avião e área de trabalho virtual)
+    [Label("Esconder o pop-up de volume do Windows (experimental)", "Hide the Windows volume pop-up (experimental)")]
     [JsonPropertyName("esconderOsdDoWindows")] public bool EsconderOsdDoWindows { get; set; }
     // volume de cada app (Spotify, Discord, navegador, jogo) no cartão, na aba "Apps"
+    [Label("Volume por app", "Per-app volume")]
     [JsonPropertyName("mixer")] public bool Mixer { get; set; } = true;
     // mostrar também os apps com som aberto mas parado agora (como o mixer antigo do Windows)
+    [Label("Mostrar apps parados", "Show idle apps")]
     [JsonPropertyName("mostrarParados")] public bool MostrarParados { get; set; }
 
     internal void Corrigir()
@@ -31,7 +37,7 @@ public sealed class ConfigVolume
     }
 }
 
-[Modulo("volume", "Volume")]
+[Modulo("volume", "Volume", English = "Volume")]
 internal sealed class ModuloVolume : Modulo
 {
     private ConfigVolume _cfg = new();
@@ -68,7 +74,7 @@ internal sealed class ModuloVolume : Modulo
         S.Menu.Adicionar(new ItemDoMenu
         {
             Id = "volume",
-            Nome = "Som",
+            Nome = Lang.T("Som", "Sound"),
             Ordem = 30,
             Abrir = AbrirCartao,
             Icone = (dc, p, r) =>
@@ -132,7 +138,7 @@ internal sealed class ModuloVolume : Modulo
     }
 
     private string? DetalheDoMenu() =>
-        _audio is not { TemAparelho: true } a ? "sem saída" : a.Mudo ? "mudo" : Logica.Porcentagem(a.Escala) + "%";
+        _audio is not { TemAparelho: true } a ? Lang.T("sem saída", "no output") : a.Mudo ? Lang.T("mudo", "muted") : Logica.Porcentagem(a.Escala) + "%";
 
     private void AplicarOsd()
     {
@@ -198,8 +204,15 @@ internal sealed class ModuloVolume : Modulo
         Conferir(Perto(Logica.Amplitude(0f), 1f) && Perto(Logica.Amplitude(-6.0206f), 0.5f, 0.001f) && Perto(Logica.Amplitude(-20f), 0.1f, 0.0001f), "dB para amplitude");
         Conferir(Perto(Logica.Decibeis(0.5f), -6.0206f) && Perto(Logica.Decibeis(1f), 0f) && float.IsNegativeInfinity(Logica.Decibeis(0f)), "amplitude para dB");
         Conferir(Perto(Logica.Decibeis(Logica.Amplitude(-37.5f)), -37.5f), "dB ida e volta");
+        string previousLanguage = Lang.Choice;
+        Lang.Set("pt");
         Conferir(Logica.TextoDb(-12.54f) == "-12,5 dB" && Logica.TextoDb(-0.04f) == "0,0 dB" && Logica.TextoDb(float.NegativeInfinity) == "-∞ dB",
             $"texto dos dB ({Logica.TextoDb(-12.54f)}, {Logica.TextoDb(-0.04f)}, {Logica.TextoDb(float.NegativeInfinity)})");
+        Conferir(LogicaDoMixer.NomeDoSistema == "Sons do sistema" && Logica.NomePadraoDoAparelho == "Aparelho de áudio", "nomes padrão em português");
+        Lang.Set("en");
+        Conferir(Logica.TextoDb(-12.54f) == "-12.5 dB" && Logica.TextoDb(-0.04f) == "0.0 dB", $"texto dos dB em inglês ({Logica.TextoDb(-12.54f)}, {Logica.TextoDb(-0.04f)})");
+        Conferir(LogicaDoMixer.NomeDoSistema == "System sounds" && Logica.NomePadraoDoAparelho == "Audio device", "nomes padrão em inglês");
+        Lang.Set(previousLanguage);
 
         // rodinha e barra
         Conferir(Logica.Porcentagem(Logica.Rolar(0.63f, 120, 2)) == 64 && Logica.Porcentagem(Logica.Rolar(0.64f, 120, 2)) == 66, "rodinha para cima anda na grade de 2%");

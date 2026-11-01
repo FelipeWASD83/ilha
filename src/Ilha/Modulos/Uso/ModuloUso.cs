@@ -13,7 +13,7 @@ namespace Ilha.Uso;
 /// quando algo passa de um limite, e some depois de 30 s com tudo abaixo. Lê a cada 1 s só com a atividade na tela;
 /// fora dela, uma checagem dos limites a cada 5 s (microssegundos de trabalho). No modo competitivo não lê nada.
 /// </summary>
-[Modulo("uso", "Uso do PC")]
+[Modulo("uso", "Uso do PC", English = "PC usage")]
 internal sealed class ModuloUso : Modulo
 {
     private ConfigUso _cfg = new();
@@ -37,6 +37,17 @@ internal sealed class ModuloUso : Modulo
         _atv.CenasMudaram += Ritmo;
         S.Ilha.Adicionar(_atv);
         S.Atalhos.Registrar("uso", new Atalho { Mods = Nativo.MOD_CONTROL | Nativo.MOD_ALT, Tecla = 0x55 }, AlternarPeloAtalho);
+        S.Menu.Adicionar(new ItemDoMenu
+        {
+            Id = "uso", Nome = Lang.T("Uso do PC", "PC usage"), Ordem = 30, Abrir = AlternarPeloAtalho,
+            Icone = (dc, palco, r) =>
+            {
+                // three bars of different heights
+                float[] alturas = { 9, 18, 13 };
+                for (int i = 0; i < 3; i++)
+                    Icone.Retangulo(dc, r.X + 3 + i * 7, r.Y + 22 - alturas[i], 4.5f, alturas[i], 1.5f, i == 1 ? Cor.Verde : Cor.Branco);
+            },
+        });
         _relogio.Tick += (_, _) => Tique();
         IniciarGpu();
         Ritmo();
@@ -227,6 +238,8 @@ internal sealed class ModuloUso : Modulo
         Ok(Contas.Rede(antes, depois, 0) == (0, 0), "rede: intervalo zero = 0");
 
         // formatação
+        string previousLanguage = Lang.Choice;
+        Lang.Set("pt");
         Ok(Formato.Taxa(0) == "0 KB/s", "taxa 0 = " + Formato.Taxa(0));
         Ok(Formato.Taxa(512) == "0,5 KB/s", "taxa 512 B/s = " + Formato.Taxa(512));
         Ok(Formato.Taxa(150 * 1024) == "150 KB/s", "taxa 150 KB/s = " + Formato.Taxa(150 * 1024));
@@ -245,6 +258,11 @@ internal sealed class ModuloUso : Modulo
             && EstadoUso.Rotulo(Medida.Cpu, am) == "CPU 93%" && EstadoUso.Rotulo(Medida.Ram, am) == "RAM 50%", "rótulos da pílula");
         Ok(EstadoUso.Rotulo(Medida.GpuTemp, am with { GpuTemp = null }) == "GPU", "rótulo sem GPU não quebra");
         Ok(AtividadeUso.NomeCurto("NVIDIA GeForce RTX 3060") == "RTX 3060", "nome curto da placa");
+        Lang.Set("en");
+        Ok(Formato.Taxa(512) == "0.5 KB/s" && Formato.Taxa(1.5 * 1048576) == "1.5 MB/s", "taxa em inglês = " + Formato.Taxa(512) + ", " + Formato.Taxa(1.5 * 1048576));
+        Ok(Formato.Par(15246875853UL, 34226438144UL) == "14.2 / 31.9 GB" && Formato.Bytes(12UL * 1073741824) == "12.0 GB", "memória em inglês = " + Formato.Par(15246875853UL, 34226438144UL));
+        Ok(EstadoUso.Rotulo(Medida.GpuTemp, am) == "GPU 86 °C" && EstadoUso.Rotulo(Medida.Cpu, am) == "CPU 93%", "rótulos da pílula em inglês");
+        Lang.Set(previousLanguage);
 
         // histórico
         var h = new Historico(5);
@@ -400,16 +418,25 @@ internal sealed class ModuloUso : Modulo
 public sealed class ConfigUso
 {
     // aparece sozinha quando algo passa do limite; false = só pelo atalho
+    [Label("Avisar quando passar do limite", "Alert when a limit is crossed")]
     [JsonPropertyName("avisarLimites")] public bool AvisarLimites { get; set; } = true;
+    [Label("Limite da CPU (%)", "CPU limit (%)")]
     [JsonPropertyName("limiteCpu")] public double LimiteCpu { get; set; } = 90;
+    [Label("Segundos acima do limite da CPU", "Seconds above the CPU limit")]
     [JsonPropertyName("segundosCpu")] public double SegundosCpu { get; set; } = 10;
+    [Label("Limite da GPU (%)", "GPU limit (%)")]
     [JsonPropertyName("limiteGpu")] public double LimiteGpu { get; set; } = 95;
+    [Label("Segundos acima do limite da GPU", "Seconds above the GPU limit")]
     [JsonPropertyName("segundosGpu")] public double SegundosGpu { get; set; } = 10;
+    [Label("Limite de temperatura da GPU (°C)", "GPU temperature limit (°C)")]
     [JsonPropertyName("limiteTemperaturaGpu")] public double LimiteTemperaturaGpu { get; set; } = 83;
+    [Label("Limite da RAM (%)", "RAM limit (%)")]
     [JsonPropertyName("limiteRam")] public double LimiteRam { get; set; } = 90;
     // tudo abaixo do limite por este tempo e a atividade some
+    [Label("Segundos abaixo do limite para sumir", "Seconds below the limit before hiding")]
     [JsonPropertyName("segundosParaSumir")] public double SegundosParaSumir { get; set; } = 30;
     // de quanto em quanto tempo os limites são checados com a atividade fora da tela
+    [Label("Intervalo de checagem (s)", "Check interval (s)")]
     [JsonPropertyName("intervaloChecagem")] public int IntervaloChecagem { get; set; } = 5;
 
     private static double Faixa(double v, double min, double max, double padrao) => double.IsFinite(v) ? Math.Clamp(v, min, max) : padrao;

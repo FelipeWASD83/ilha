@@ -76,8 +76,9 @@ internal static class Troca
         catch (Exception e)
         {
             try { Reverter(movidos, copiados, destino, anterior); }
-            catch (Exception e2) { throw new ErroDeAtualizacao($"A troca falhou ({e.Message}) e a volta também ({e2.Message}). A versão anterior está em {anterior}."); }
-            throw new ErroDeAtualizacao($"Não deu para trocar os arquivos ({e.Message}); a versão anterior foi restaurada.");
+            catch (Exception e2) { throw new ErroDeAtualizacao(Lang.T($"A troca falhou ({e.Message}) e a volta também ({e2.Message}). A versão anterior está em {anterior}.",
+                $"Replacing failed ({e.Message}) and so did rolling back ({e2.Message}). The previous version is in {anterior}.")); }
+            throw new ErroDeAtualizacao(Lang.T($"Não deu para trocar os arquivos ({e.Message}); a versão anterior foi restaurada.", $"Couldn't replace the files ({e.Message}); the previous version was restored."));
         }
     }
 

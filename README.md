@@ -1,149 +1,160 @@
 # Ilha
 
-A Dynamic Island do iPhone no Windows: uma pílula preta flutuando no topo do monitor principal que cresce,
-encolhe e muda de forma para mostrar o que está acontecendo. Roda o tempo todo, sem pesar (quase nada de
-processador e uns 125 MB de memória com tudo ligado) e só pega o teclado quando você clica nela.
+The iPhone Dynamic Island on Windows: a black pill floating at the top of the main monitor that grows, shrinks and
+changes shape to show what is going on. It runs all the time without weighing the PC down (almost no processor and
+about 125 MB of memory with everything on) and only takes the keyboard when you click it.
 
-**Versão 0.4.0:** menu principal com todas as ferramentas, botão "< Menu" e Esc, borda que aparece em fundo escuro,
-hora na pílula, conta-gotas, prateleira de arquivos, nota rápida, mixer por app, indicador de gravação, limite do
-Claude, mascote que entra e sai da ilha, e o ar só avisando quando muda.
+**Version 1.0.0:** the interface speaks Portuguese and English, following the Windows language, with an option in
+Settings. The documentation is in English. Version 0.4 brought the main menu with every tool, the "< Menu" button and
+Esc, the border that shows up on dark backgrounds, the time on the pill, the color picker, the file shelf, quick
+notes, the per-app mixer, the recording indicator, the Claude limit and the air conditioner that only speaks up when
+it changes.
 
-## Como usar
+## How to use
 
-- **Instalar:** `powershell -ExecutionPolicy Bypass -File .\ferramentas\instalar.ps1` (num terminal normal). Ela vai
-  para `%LOCALAPPDATA%\Programs\Ilha`, ganha o atalho "Ilha" no Menu Iniciar e passa a abrir com o Windows. Rodar
-  de novo atualiza; `-Desinstalar` tira tudo (a configuração fica).
-- Depois de aberta, aparece o ícone da ilha perto do relógio.
-- **Menu do ícone (botão direito):** pausar a ilha, colada na borda (estilo notch) ou flutuante, iniciar com o
-  Windows, demonstração, **Configurações...** (a tela com tudo), abrir o config.json, abrir a pasta dos logs,
-  procurar atualização e sair. Clique esquerdo no ícone abre e fecha a ilha.
-- **Demonstração:** no menu, liga e desliga um timer de 1 minuto, uma música, o Claude Code trabalhando, o uso do
-  PC, o GPT respondendo e a galeria de animações (tudo de mentira), mostra um alerta, ou "Passear por todos os
-  estados" faz um tour sozinho. Pela linha de comando: `Ilha.exe --demo claude` (ou `timer`, `midia`, `uso`, `ia`,
-  `galeria`), com `--expandir` para abrir o cartão.
-- **Atalho global:** `Ctrl + Alt + Espaço` abre a ilha; de novo, fecha. Se outro programa já usa, a ilha pega
-  `Ctrl + Shift + Espaço` e avisa no balão do ícone. Sem nada em andamento, ele abre o **menu principal**.
-- **Mouse:** passar por cima dá uma prévia (cresce um pouco); clicar expande com os controles; tirar o mouse recolhe
-  depois de 600 ms (`atrasoRecolherMs`), e clicar fora também.
-- **Menu e voltar:** todo cartão aberto tem "< Menu" em cima. Depois de clicar na ilha, o Esc volta para o menu e, no
-  menu, recolhe. A ilha só ouve o teclado depois de um clique nela (o Esc nunca é capturado no resto do Windows).
-- **Arrastar arquivos:** solte arquivos na ilha para guardar na prateleira. Com a ilha escondida, segure o arquivo
-  perto do topo do meio da tela que a pílula aparece para receber.
+- **Install:** `powershell -ExecutionPolicy Bypass -File .\ferramentas\instalar.ps1` (in a regular terminal). It goes
+  to `%LOCALAPPDATA%\Programs\Ilha`, gets an "Ilha" shortcut in the Start menu and starts with Windows. Running it again
+  updates it; `-Desinstalar` removes everything (the settings stay).
+- Once it is open, the island icon shows up next to the clock.
+- **Icon menu (right click):** pause the island, docked to the edge (notch style) or floating, start with Windows,
+  demo, **Settings...** (the window with everything), open config.json, open the Ilha folder (logs and measurements),
+  check for updates and quit. Left click on the icon opens and closes the island.
+- **Language:** the interface follows the Windows display language (Portuguese when Windows is in Portuguese, English
+  otherwise). To force one, open **Settings...** and pick **Language: Automatic / Português / English**, or set
+  `language` in `config.json` to `"auto"`, `"pt"` or `"en"`. The change applies right away: the modules restart and
+  the icon menu is rebuilt in the new language.
+- **Demo:** in the menu, turns on and off a 1 minute timer, a song, Claude Code working, PC usage, GPT answering and
+  the animation gallery (all fake), shows an alert, or "Tour all the states" runs a tour by itself. From the command line:
+  `Ilha.exe --demo claude` (or `timer`, `midia`, `uso`, `ia`, `galeria`), with `--expandir` to open the card.
+- **Global hotkey:** `Ctrl + Alt + Space` opens the island; press it again to close it. If another program already
+  uses it, the island takes `Ctrl + Shift + Space` and says so in the icon balloon. With nothing going on, it opens the
+  **main menu**.
+- **Mouse:** hovering gives a preview (it grows a little); clicking expands it with the controls; moving the mouse
+  away collapses it after 600 ms (`atrasoRecolherMs`), and so does clicking outside.
+- **Menu and back:** every open card has "< Menu" at the top. After you click the island, Esc goes back to the menu
+  and, on the menu, collapses it. The island only listens to the keyboard after a click on it (Esc is never captured
+  in the rest of Windows).
+- **Dragging files:** drop files on the island to keep them on the shelf. With the island hidden, hold the file near
+  the top center of the screen and the pill shows up to receive it.
 
-## O que ela faz
+## What it does
 
-- **Sem nada para mostrar**, fica como uma pílula pequena vazia, em qualquer janela.
-- **Some** só em jogo competitivo e em vídeo ou outro conteúdo em tela cheia (os programas de `appsDeConteudo`:
-  navegadores, players, PowerPoint). Jogo comum em tela cheia continua com a ilha. Escondida por um vídeo, encostar o
-  mouse na borda de cima, perto do meio, traz ela de volta.
-- **Algo novo aparece expandindo** por uns segundos e depois vira a pílula compacta.
-- **Duas coisas ao mesmo tempo:** a mais importante na pílula, a outra numa bolha ao lado.
-- **Alertas** (um fone conectou, o timer acabou, o Claude terminou) abrem a ilha por alguns segundos.
-- **Modo competitivo:** com um jogo da lista em foco (CS2, Rocket League, Valorant...), nada aparece, só o timer e o
-  alerta dele. A detecção é só pelo nome do programa em foco, sem tocar no jogo (seguro para anticheat).
-- **Não Incomodar do Windows:** com ele ligado, a ilha não abre sozinha para alertas, só para o timer acabando.
+- **With nothing to show**, it stays as a small empty pill, over any window.
+- **It hides** only in competitive games and in video or other full screen content (the programs in
+  `appsDeConteudo`: browsers, players, PowerPoint). A regular full screen game keeps the island. When a video hides it,
+  touching the top edge of the screen with the mouse, near the middle, brings it back.
+- **Something new shows up expanded** for a few seconds and then turns into the compact pill.
+- **Two things at once:** the most important one on the pill, the other in a bubble next to it.
+- **Alerts** (headphones connected, the timer finished, Claude finished) open the island for a few seconds.
+- **Competitive mode:** with a game from the list in focus (CS2, Rocket League, Valorant...), nothing shows up except
+  the timer and its alert. Detection is only by the name of the program in focus, without touching the game (safe for
+  anti-cheat).
+- **Windows Do Not Disturb:** while it is on, the island does not open by itself for alerts, only for the timer
+  finishing.
 
-## Módulos
+## Modules
 
-Cada um liga e desliga na tela de configurações (ou em `config.json` → `modulos` → id → `ligado`).
+Each one is turned on and off in the settings window (or in `config.json` → `modulos` → id → `ligado`).
 
-| Módulo | O que faz | Atalho |
+| Module | What it does | Hotkey |
 |---|---|---|
-| Mídia | o que está tocando, capa, visualizador, controles, arrastar para avançar, rodinha = volume | |
-| Volume | nível ao mudar; no cartão, troca a saída de áudio e o mixer (volume e mudo de cada app) | |
-| Privacidade | bolinha verde (câmera) e laranja (microfone) com quem está usando | |
-| Timer | timer, cronômetro e pomodoro; digite `25m`, `1h30`, `90s` | `Ctrl + Alt + R` |
-| Uso do PC | aparece com processador, placa ou memória no talo; cartão com tudo | `Ctrl + Alt + U` |
-| Claude Code | aparece só trabalhando ou pedindo atenção; aviso ao terminar, aprovar ou negar permissão | |
-| Mascote | o mascote do app dele morando dentro da ilha, quando você arrasta ele para lá ou escolhe no menu | |
-| Conta-gotas | lupa, cor exata do pixel em hex, RGB e HSL, histórico | `Ctrl + Alt + P` |
-| Prateleira | arquivos e pastas guardados na ilha para arrastar depois (só o caminho, nada é copiado) | |
-| Nota rápida | uma linha com data e hora na caixa de entrada do Obsidian (`arquivo` na config) | `Ctrl + Alt + N` |
-| Gravando | bolinha vermelha e tempo quando o OBS grava ou um app captura a tela | |
-| Limite do Claude | uso da sessão e da semana e quando volta (pela status line do Claude Code) | |
-| Calculadora | contas, unidades e câmbio ao vivo | `Ctrl + Alt + K` |
-| IA | chat com GPT e Claude | `Ctrl + Alt + J` |
-| Tradutor | traduz o texto selecionado em qualquer programa | `Ctrl + Alt + T` |
-| Ar | o ar-condicionado pelo servidor do `ar-do-quarto`, no menu; avisa quando o ar muda | `Ctrl + Alt + A` |
-| Fones | foto e bateria do fone ao conectar | |
-| Print | miniatura do print, arrastável para outro programa | |
-| Render | aviso quando o After Effects ou o Media Encoder termina | |
-| Notificações | notificações do Windows na ilha (experimental, desligado) | |
-| Atualizador | procura versão nova nas releases do GitHub | |
+| Media | what is playing, cover art, visualizer, controls, drag to seek, mouse wheel = volume | |
+| Volume | level when it changes; in the card, switch the audio output and the mixer (volume and mute per app) | |
+| Privacy | green dot (camera) and orange dot (microphone) with who is using them | |
+| Timer | timer, stopwatch and pomodoro; type `25m`, `1h30`, `90s` | `Ctrl + Alt + R` |
+| PC usage | shows up when the processor, graphics card or memory is maxed out; card with everything | `Ctrl + Alt + U` |
+| Claude Code | shows up only while working or asking for attention; notice when done, approve or deny permission | |
+| Color picker | magnifier, exact pixel color in hex, RGB and HSL, history | `Ctrl + Alt + P` |
+| Shelf | files and folders kept on the island to drag out later (only the path, nothing is copied) | |
+| Quick note | one line with date and time in the Obsidian inbox (`arquivo` in the config) | `Ctrl + Alt + N` |
+| Recording | red dot and elapsed time when OBS is recording or an app captures the screen | |
+| Claude limit | session and weekly usage and when it resets (from the Claude Code status line) | |
+| Calculator | math, units and live exchange rates | `Ctrl + Alt + K` |
+| AI | chat with GPT and Claude | `Ctrl + Alt + J` |
+| Translator | translates the selected text in any program | `Ctrl + Alt + T` |
+| Air | the air conditioner through the `ar-do-quarto` server, in the menu; tells you when the air changes | `Ctrl + Alt + A` |
+| Headphones | photo and battery of the headphones when they connect | |
+| Screenshot | thumbnail of the screenshot, draggable into another program | |
+| Render | notice when After Effects or Media Encoder finishes | |
+| Notifications | Windows notifications on the island (experimental, off) | |
+| Updater | looks for a new version in the GitHub releases | |
 
-Os atalhos trocam na tela de configurações (`atalhosModulos` no JSON); ocupado por outro programa, a ilha avisa.
+Hotkeys are changed in the settings window (`atalhosModulos` in the JSON); if another program already uses one, the
+island tells you.
 
-**Chaves (IA e ar):** quem digita é você, na própria ilha (ou na tela de configurações). Elas vão para o
-Gerenciador de Credenciais do Windows (`Ilha/openai`, `Ilha/anthropic`, `Ilha/ar-do-quarto`) e nunca para arquivo.
+**Keys (AI and air):** you type them yourself, on the island (or in the settings window). They go to the Windows
+Credential Manager (`Ilha/openai`, `Ilha/anthropic`, `Ilha/ar-do-quarto`) and never to a file.
 
-**Limite do Claude:** a ilha lê o que a status line do Claude Code recebe. No `~/.claude/settings.json`, o
-`statusLine.command` vira `python "<pasta da ilha>/ferramentas/statusline_uso.py"`, e a status line que você já usava
-vai para `modulos.limite.statuslineAnterior` no `config.json` da ilha (o script chama ela e devolve o que ela
-mostrar). Ele grava só os limites em `%USERPROFILE%\.ilha\uso-claude.json`. Sem a status line rodando, o módulo
-mostra que não tem dado.
+**Claude limit:** the island reads what the Claude Code status line receives. In `~/.claude/settings.json`,
+`statusLine.command` becomes `python "<island folder>/ferramentas/statusline_uso.py"`, and the status line you already
+had goes to `modulos.limite.statuslineAnterior` in the island's `config.json` (the script calls it and passes on
+whatever it shows). It only writes the limits to `%USERPROFILE%\.ilha\uso-claude.json`. Without the status line
+running, the module shows that it has no data.
 
-**Mascote:** o módulo é só o palco. Quem desenha é o app do mascote (outro programa), que conversa com a ilha pelo
-pipe `\\.\pipe\ilha-acompanhante`. `modulos.mascote.comandoAbrir` diz como abrir o app quando você escolhe
-"Mascote" no menu com ele fechado.
-
-**Aprovar permissão do Claude Code pela ilha:** precisa do hook no `~/.claude/settings.json`, em `hooks`:
+**Approving Claude Code permissions from the island:** it needs the hook in `~/.claude/settings.json`, under `hooks`:
 
 ```json
 "PermissionRequest": [ { "matcher": "*", "hooks": [ { "type": "command",
-  "command": "python \"<pasta da ilha>\\ferramentas\\hook_permissao.py\"", "timeout": 120 } ] } ]
+  "command": "python \"<island folder>\\ferramentas\\hook_permissao.py\"", "timeout": 120 } ] } ]
 ```
 
-Sem a ilha aberta, ou com ela escondida (pausada, jogo competitivo, Não Incomodar, tela cheia), o hook sai na hora
-e o diálogo normal do Claude Code segue. A ilha espera o clique por `esperaSegundos` (padrão 45).
+Without the island open, or with it hidden (paused, competitive game, Do Not Disturb, full screen), the hook exits
+right away and the regular Claude Code dialog goes on. The island waits for the click for `esperaSegundos` (default
+45).
 
-## Atualização
+## Updates
 
-"Procurar atualização" (ou sozinha, no máximo a cada 6 horas) olha as releases do repositório. Achou, a ilha mostra; clicou
-em instalar, ela baixa, confere o SHA-256, troca os arquivos e reabre. Se a versão nova não abrir direito, volta
-para a anterior sozinha. O que ela anota fica em `%USERPROFILE%\.ilha\atualizacao\` (`checagem.json`,
-`estado.json`, `resultado.json`, `atualizacao.log` e a cópia da versão anterior em `anterior\`). A configuração
-nunca é apagada.
+"Check for updates" (or by itself, at most every 6 hours) looks at the repository releases. When it finds one, the
+island shows it; click install and it downloads, checks the SHA-256, swaps the files and reopens. If the new version
+does not open properly, it goes back to the previous one by itself. What it records lives in
+`%USERPROFILE%\.ilha\atualizacao\` (`checagem.json`, `estado.json`, `resultado.json`, `atualizacao.log` and the copy
+of the previous version in `anterior\`). The settings are never deleted.
 
-## Configuração
+## Settings
 
-`%USERPROFILE%\.ilha\config.json` (menu do ícone, "Configurações..." ou "Abrir o config.json"). Salvou, vale na hora. Se tiver erro de
-digitação, a ilha avisa e continua com a anterior.
+`%USERPROFILE%\.ilha\config.json` (icon menu, "Settings..." or "Open config.json"). Once saved, it applies right away.
+If there is a typo, the island tells you and keeps the previous settings.
 
-| Chave | O que faz |
+| Key | What it does |
 |---|---|
-| `colada` | `false` (padrão) flutua; `true` cola na borda de cima, estilo notch |
-| `distanciaDoTopo` | distância da borda de cima no modo flutuante (padrão 10) |
-| `tamanho` | escala da ilha inteira (1 = normal, de 0,5 a 3) |
-| `deslocamentoX`, `deslocamentoY` | empurra a ilha para o lado ou para baixo |
-| `sombra` | liga ou desliga a sombra |
-| `atalho` | `mods` (1 Alt, 2 Ctrl, 4 Shift, 8 Win, somados) e `tecla` (código da tecla; 32 = espaço) |
-| `jogosCompetitivos` | lista de `.exe` do modo competitivo |
-| `prioridades` | ordem entre as atividades (alerta sempre passa por cima) |
-| `dividir` | mostrar a segunda atividade na bolha |
-| `pilulaVazia` | a pílula vazia quando não tem nada para mostrar, em qualquer janela (antes `ociosaNaAreaDeTrabalho`) |
-| `appsDeConteudo` | `.exe` cuja tela cheia é conteúdo (vídeo, navegador, apresentação) e esconde a ilha |
-| `respeitarNaoPerturbe` | obedecer o Não Incomodar e a sessão de Foco |
-| `alertaSegundos` | quanto tempo um alerta fica aberto |
-| `atrasoRecolherMs` | quanto esperar depois que o mouse sai antes de recolher (padrão 600) |
-| `bordaAdaptativa` | a borda clara que aparece com fundo escuro (padrão ligada) |
-| `relogio` | a hora no meio da pílula compacta (padrão ligada) |
-| `mola` | `amortecimento` (abaixo de 1 passa do ponto e volta) e `periodoMs` (velocidade) |
-| `desenharNaGpu` | desenhar texto pela placa de vídeo (gasta uns 110 MB a mais; vale ao reabrir) |
-| `pausada` | ilha pausada |
-| `iniciarComWindows` | abrir junto com o Windows (só vale na ilha instalada) |
+| `language` | interface language: `"auto"` (default, follows Windows), `"pt"` or `"en"` |
+| `colada` | `false` (default) floats; `true` docks to the top edge, notch style |
+| `distanciaDoTopo` | distance from the top edge in floating mode (default 10) |
+| `tamanho` | scale of the whole island (1 = normal, from 0.5 to 3) |
+| `deslocamentoX`, `deslocamentoY` | pushes the island sideways or down |
+| `sombra` | turns the shadow on or off |
+| `atalho` | `mods` (1 Alt, 2 Ctrl, 4 Shift, 8 Win, added up) and `tecla` (key code; 32 = space) |
+| `jogosCompetitivos` | list of `.exe` files for competitive mode |
+| `prioridades` | order between activities (an alert always goes on top) |
+| `dividir` | show the second activity in the bubble |
+| `pilulaVazia` | the empty pill when there is nothing to show, over any window (formerly `ociosaNaAreaDeTrabalho`) |
+| `appsDeConteudo` | `.exe` files whose full screen is content (video, browser, presentation) and hides the island |
+| `respeitarNaoPerturbe` | obey Do Not Disturb and Focus sessions |
+| `alertaSegundos` | how long an alert stays open |
+| `atrasoRecolherMs` | how long to wait after the mouse leaves before collapsing (default 600) |
+| `bordaAdaptativa` | the light border that shows up on a dark background (on by default) |
+| `relogio` | the time in the middle of the compact pill (on by default) |
+| `mola` | `amortecimento` (below 1 it overshoots and comes back) and `periodoMs` (speed) |
+| `desenharNaGpu` | draw text on the graphics card (uses about 110 MB more; applies after reopening) |
+| `pausada` | island paused |
+| `iniciarComWindows` | open together with Windows (only works for the installed island) |
 
-## Imagens e animações
+## Images and animations
 
-As logos do Claude e do GPT, os vídeos das animações delas e as fotos dos fones (para a animação de "fone
-conectou") são de terceiros e **não estão neste repositório**. A ilha funciona sem elas (o espaço da imagem fica
-vazio). As animações saem dos vídeos em `videos\` pelo `python ferramentas\preparar_logos.py`, que também desenha
-as bolinhas; a origem de cada foto de fone está em `src/Ilha/imagens/fones/FONTES.md`.
+The Claude and GPT logos, the videos of their animations and the headphone photos (for the "headphones connected"
+animation) belong to third parties and **are not in this repository**. The island works without them (the image space
+stays empty). The animations come from the videos in `videos\` through `python ferramentas\preparar_logos.py`, which
+also draws the dots; the source of each headphone photo is in `src/Ilha/imagens/fones/FONTES.md`.
 
-## Para quem mexe no código
+## For developers
 
-Compilar sempre pelo `ferramentas\compilar.ps1` (ele confere se o Smart App Control aceitou o programa). Os
-autotestes de todos os módulos rodam sem janela: `Ilha.exe --testar` (ou `--testar <id>`). `Ilha.exe --teste-mouse`
-mexe no cursor de verdade para reproduzir os casos de hover (só com ninguém usando o PC). Como escrever um módulo:
-`src/Ilha/Modulos/LEIA.md`. Publicar uma versão: `ferramentas\publicar-versao.ps1` (gera o pacote com o SHA-256 e
-cria a release; confere que a versão do `.csproj` bate com o topo do `CHANGELOG.md`). Detalhes, decisões e medições
-no `CLAUDE.md`.
+Always build through `ferramentas\compilar.ps1` (it checks whether Smart App Control accepted the program). The self
+tests of every module run without a window: `Ilha.exe --testar` (or `--testar <id>`). `Ilha.exe --teste-mouse` moves
+the real cursor to reproduce the hover cases (only with nobody using the PC). How to write a module:
+`src/Ilha/Modulos/README.md`. Publishing a version: `ferramentas\publicar-versao.ps1` (builds the package with the
+SHA-256 and creates the release; it checks that the `.csproj` version matches the top of `CHANGELOG.md`). Details,
+decisions and measurements are in `CLAUDE.md`.
+
+**Private modules:** an optional `src/Ilha/local.props`, ignored by git, can add the sources of private modules to the
+build on one PC. The public build (`ferramentas\compilar.ps1 -Publico`, which `publicar-versao.ps1` uses) skips it, so
+the release only has what is in this repository.

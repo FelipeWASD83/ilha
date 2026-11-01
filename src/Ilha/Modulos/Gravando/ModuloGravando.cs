@@ -19,7 +19,7 @@ namespace Ilha.Gravando;
 /// A Xbox Game Bar fica de fora: a única API de estado de gravação dela só funciona de dentro de um widget dela.
 /// Escondido no modo competitivo (a atividade não é permitida lá e a procura pelo OBS para).
 /// </summary>
-[Modulo("gravando", "Gravação")]
+[Modulo("gravando", "Gravação", English = "Recording")]
 internal sealed class ModuloGravando : Modulo
 {
     public const string CREDENCIAL = "obs";
@@ -50,7 +50,7 @@ internal sealed class ModuloGravando : Modulo
         S.Menu.Adicionar(new ItemDoMenu
         {
             Id = "gravando",
-            Nome = "Gravação",
+            Nome = Lang.T("Gravação", "Recording"),
             Abrir = atv.Abrir,
             Detalhe = atv.DetalheDoMenu,
             Icone = (dc, palco, r) => IconeDoMenu(dc, r, atv.AcesoNoMenu),
@@ -199,7 +199,7 @@ internal sealed class ModuloGravando : Modulo
     private string? GuardarSenha(string texto)
     {
         if (texto.Length == 0) Credenciais.Apagar(CREDENCIAL);
-        else if (!Credenciais.Gravar(CREDENCIAL, texto)) return "Não consegui guardar a senha no Gerenciador de Credenciais do Windows.";
+        else if (!Credenciais.Gravar(CREDENCIAL, texto)) return Lang.T("Não consegui guardar a senha no Gerenciador de Credenciais do Windows.", "Couldn't save the password in Windows Credential Manager.");
         if (_obs != null)
         {
             if (_obs.Estado != EstadoObs.Fechado) _obs.Desconectar();
@@ -248,12 +248,21 @@ internal sealed class ModuloGravando : Modulo
 public sealed class ConfigGravando
 {
     /// <summary>Acompanhar o OBS pelo obs-websocket (servidor ligado no OBS em Ferramentas).</summary>
+    [Label("Acompanhar o OBS", "Follow OBS")]
+    [Help("Pelo obs-websocket (servidor ligado no OBS em Ferramentas)", "Through obs-websocket (server turned on in OBS under Tools)")]
     [JsonPropertyName("obs")] public bool Obs { get; set; } = true;
+    [Label("Porta do WebSocket do OBS", "OBS WebSocket port")]
     [JsonPropertyName("obsPorta")] public int ObsPorta { get; set; } = 4455;
     /// <summary>Mostrar quando um app captura a tela pelo Windows (Ferramenta de Captura, compartilhamento...).</summary>
+    [Label("Mostrar captura de tela do Windows", "Show Windows screen capture")]
+    [Help("Quando um app captura a tela pelo Windows (Ferramenta de Captura, compartilhamento...)", "When an app captures the screen through Windows (Snipping Tool, screen sharing...)")]
     [JsonPropertyName("capturaDeTela")] public bool CapturaDeTela { get; set; } = true;
     /// <summary>Captura mais curta que isso não aparece (print).</summary>
+    [Label("Segundos mínimos de captura", "Minimum capture seconds")]
+    [Help("Captura mais curta que isso não aparece (print)", "Shorter captures don't show up (screenshots)")]
     [JsonPropertyName("minimoSegundos")] public double MinimoSegundos { get; set; } = 2;
     /// <summary>Apps que nunca acendem a captura: nome do .exe, nome que aparece ou família do pacote.</summary>
+    [Label("Apps ignorados", "Ignored apps")]
+    [Help("Nunca acendem a captura: nome do .exe, nome que aparece ou família do pacote", "Never light up the capture: .exe name, display name or package family")]
     [JsonPropertyName("ignorar")] public List<string> Ignorar { get; set; } = new();
 }

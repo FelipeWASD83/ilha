@@ -14,6 +14,9 @@ internal sealed class ModuloAttribute : Attribute
     public string Id { get; }
     public string Nome { get; }
     public bool LigadoPorPadrao { get; set; } = true;
+    /// <summary>The module name in English (the settings window shows Nome or this, following the interface language).</summary>
+    public string? English { get; set; }
+    public string Name => Lang.T(Nome, English ?? Nome);
 
     public ModuloAttribute(string id, string nome)
     {

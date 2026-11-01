@@ -18,7 +18,7 @@
     <RootNamespace>Ilha</RootNamespace>
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <NoWarn>$(NoWarn);WFO0003;CA1416</NoWarn>
-    <Version>0.4.2</Version>
+    <Version>1.0.0</Version>
     <ApplicationIcon>..\..\icone\icone.ico</ApplicationIcon>
     <Product>Ilha</Product>
     <SatelliteResourceLanguages>pt-BR</SatelliteResourceLanguages>
@@ -37,4 +37,6 @@
     <PackageReference Include="Vortice.Direct3D11" Version="3.8.3" />
   </ItemGroup>
 
+  <!-- optional private modules (local.props is not in git); the public release build skips it -->
+  <Import Project="local.props" Condition="Exists('local.props') And '$(PublicBuild)' != 'true'" />
 </Project>

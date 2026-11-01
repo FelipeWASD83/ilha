@@ -13,7 +13,7 @@ namespace Ilha.IA;
 /// selecionado. Os dois usam o mesmo provedor: troca de lado sozinha quando o crédito de um acaba. As chaves
 /// ficam no Gerenciador de Credenciais (Ilha/openai e Ilha/anthropic), digitadas numa tela da própria ilha.
 /// </summary>
-[Modulo("ia", "IA e tradutor")]
+[Modulo("ia", "IA e tradutor", English = "AI and translator")]
 internal sealed class ModuloIA : Modulo
 {
     private ConfigIA _cfg = new();
@@ -35,9 +35,23 @@ internal sealed class ModuloIA : Modulo
         S.Ilha.Adicionar(_chat);
         S.Ilha.Adicionar(_trad);
         var aChat = S.Atalhos.Registrar("ia", new Atalho { Mods = Nativo.MOD_CONTROL | Nativo.MOD_ALT, Tecla = 0x4A }, () => _chat.Atalho()); // J
+        S.Menu.Adicionar(new ItemDoMenu
+        {
+            Id = "ia", Nome = Lang.T("Chat de IA", "AI chat"), Ordem = 12, Abrir = () => _chat.Atalho(),
+            Icone = (dc, palco, r) =>
+            {
+                // speech bubble with three dots
+                Icone.Retangulo(dc, r.X + 1, r.Y + 3, 22, 15, 5, Cor.Branco);
+                Icone.Triangulo(dc, palco.G.Fabrica, new System.Numerics.Vector2(r.X + 6, r.Y + 16), new System.Numerics.Vector2(r.X + 12, r.Y + 16), new System.Numerics.Vector2(r.X + 5, r.Y + 22), Cor.Branco);
+                for (int i = 0; i < 3; i++)
+                    Icone.Circulo(dc, new System.Numerics.Vector2(r.X + 7 + i * 5, r.Y + 10.5f), 1.5f, new Vortice.Mathematics.Color4(0, 0, 0, 0.85f));
+            },
+        });
         var aTrad = S.Atalhos.Registrar("tradutor", new Atalho { Mods = Nativo.MOD_CONTROL | Nativo.MOD_ALT, Tecla = 0x54 }, () => _trad.Atalho(TeclaDoAtalho("tradutor", 0x54))); // T
-        if (aChat == null) S.Avisar("O atalho do chat com IA (Ctrl + Alt + J) está ocupado por outro programa. Troque em atalhosModulos → ia.");
-        if (aTrad == null) S.Avisar("O atalho do tradutor (Ctrl + Alt + T) está ocupado por outro programa. Troque em atalhosModulos → tradutor.");
+        if (aChat == null) S.Avisar(Lang.T("O atalho do chat com IA (Ctrl + Alt + J) está ocupado por outro programa. Troque em atalhosModulos → ia.",
+            "The AI chat shortcut (Ctrl + Alt + J) is taken by another program. Change it in atalhosModulos → ia."));
+        if (aTrad == null) S.Avisar(Lang.T("O atalho do tradutor (Ctrl + Alt + T) está ocupado por outro programa. Troque em atalhosModulos → tradutor.",
+            "The translator shortcut (Ctrl + Alt + T) is taken by another program. Change it in atalhosModulos → tradutor."));
         S.Ilha.EstadoMudou += AoMudarEstado;
     }
 
@@ -88,21 +102,32 @@ internal sealed class ModuloIA : Modulo
 public sealed class ConfigIA
 {
     /// <summary>Modelo do chat (claude-* vai para a Anthropic, o resto para a OpenAI).</summary>
+    [Label("Modelo", "Model")]
     [JsonPropertyName("modelo")] public string Modelo { get; set; } = "gpt-6-luna";
     /// <summary>Os modelos que o botão do chat alterna.</summary>
+    [Label("Modelos", "Models")]
     [JsonPropertyName("modelos")] public List<string> Modelos { get; set; } = new() { "gpt-6-luna", "claude-sonnet-5-5", "gpt-6.1-sol" };
     /// <summary>none, low, medium, high (o 6.1 Sol não aceita none: vai low).</summary>
+    [Label("Esforço", "Effort")]
     [JsonPropertyName("esforco")] public string Esforco { get; set; } = "low";
     /// <summary>"auto" (o par do outro lado), um id do outro lado ou "nenhuma".</summary>
+    [Label("Reserva", "Fallback")]
     [JsonPropertyName("reserva")] public string Reserva { get; set; } = "auto";
+    [Label("Trocas no histórico", "Exchanges in history")]
     [JsonPropertyName("trocasNoHistorico")] public int TrocasNoHistorico { get; set; } = 6;
+    [Label("Saída máxima (tokens)", "Max output (tokens)")]
     [JsonPropertyName("maxSaida")] public int MaxSaida { get; set; } = 8192;
+    [Label("Lado maior da imagem (px)", "Longest image side (px)")]
     [JsonPropertyName("ladoMaiorDaImagem")] public int LadoMaiorDaImagem { get; set; } = 2576;
+    [Label("Modelo do tradutor", "Translator model")]
     [JsonPropertyName("tradutorModelo")] public string TradutorModelo { get; set; } = "gpt-6-luna";
+    [Label("Reserva do tradutor", "Translator fallback")]
     [JsonPropertyName("tradutorReserva")] public string TradutorReserva { get; set; } = "auto";
     /// <summary>Até quantos caracteres vai pelo Google (de graça); acima, pela IA.</summary>
+    [Label("Limite do Google (caracteres)", "Google limit (characters)")]
     [JsonPropertyName("limiteGoogle")] public int LimiteGoogle { get; set; } = 1200;
     /// <summary>Texto maior que isso é cortado antes de ir para a IA (freio de gasto).</summary>
+    [Label("Limite do tradutor por IA (caracteres)", "AI translator limit (characters)")]
     [JsonPropertyName("limiteTradutorIA")] public int LimiteTradutorIA { get; set; } = 12000;
 }
 
@@ -136,8 +161,8 @@ internal static class Modelos
     public static string Dinheiro(double? custo)
     {
         if (custo == null) return "";
-        if (custo < 0.0001) return "< US$ 0,0001";
-        return "US$ " + custo.Value.ToString(custo < 0.01 ? "0.0000" : "0.000", CultureInfo.GetCultureInfo("pt-BR"));
+        if (custo < 0.0001) return Lang.T("< US$ 0,0001", "< $0.0001");
+        return Lang.T("US$ ", "$") + custo.Value.ToString(custo < 0.01 ? "0.0000" : "0.000", Lang.Culture);
     }
 }
 

@@ -14,7 +14,7 @@ namespace Ilha.ContaGotas;
 internal sealed class AtividadeContaGotas : Atividade
 {
     public override string Tipo => "contagotas";
-    public override string Nome => "Conta-gotas";
+    public override string Nome => Lang.T("Conta-gotas", "Color picker");
     public override bool EhFerramenta => true;
     public override bool AnunciaChegada => false;
 
@@ -96,16 +96,16 @@ internal sealed class AtividadeContaGotas : Atividade
         var cena = p.NovaCena(new Vector2(L, altura));
         p.Desenho(cena, Vector2.Zero, cena.Tamanho, (dc, t) =>
         {
-            p.Texto.Desenhar(dc, "Conta-gotas", new Vector2(0, 0), 12, Cor.Secundario);
+            p.Texto.Desenhar(dc, Lang.T("Conta-gotas", "Color picker"), new Vector2(0, 0), 12, Cor.Secundario);
             // botão "Pegar outra" no canto
             Icone.Retangulo(dc, t.X - LARGURA_BOTAO, -2, LARGURA_BOTAO, 20, 10, new Color4(1, 1, 1, 0.1f));
             IconeContaGotas.Desenhar(dc, p, new System.Drawing.RectangleF(t.X - LARGURA_BOTAO + 6, 0, 16, 16), null);
-            p.Texto.Desenhar(dc, _atual == null ? "Pegar cor" : "Pegar outra", new Vector2(t.X - LARGURA_BOTAO + 26, 0), 11.5f, Cor.Branco, FontWeight.Medium);
+            p.Texto.Desenhar(dc, _atual == null ? Lang.T("Pegar cor", "Pick color") : Lang.T("Pegar outra", "Pick another"), new Vector2(t.X - LARGURA_BOTAO + 26, 0), 11.5f, Cor.Branco, FontWeight.Medium);
 
             if (_atual is not { } c)
             {
-                p.Texto.Desenhar(dc, "Nenhuma cor ainda.", new Vector2(0, 30), 15, Cor.Branco, FontWeight.Medium);
-                p.Texto.Desenhar(dc, "\"Pegar cor\" (ou o atalho) abre a lupa; clique copia, Esc cancela.", new Vector2(0, 56), 12, Cor.Secundario, FontWeight.Normal, largura: t.X);
+                p.Texto.Desenhar(dc, Lang.T("Nenhuma cor ainda.", "No colors yet."), new Vector2(0, 30), 15, Cor.Branco, FontWeight.Medium);
+                p.Texto.Desenhar(dc, Lang.T("\"Pegar cor\" (ou o atalho) abre a lupa; clique copia, Esc cancela.", "\"Pick color\" (or the shortcut) opens the magnifier; click copies, Esc cancels."), new Vector2(0, 56), 12, Cor.Secundario, FontWeight.Normal, largura: t.X);
                 return;
             }
 
@@ -121,13 +121,14 @@ internal sealed class AtividadeContaGotas : Atividade
                 p.Texto.Desenhar(dc, Formato(quais[i], c), new Vector2(X_FMT + 36, y), 14, Cor.Branco, i == 0 ? FontWeight.SemiBold : FontWeight.Normal, tabular: true, largura: larguraValor);
                 if (copiado)
                 {
-                    var tm = p.Texto.Medir("Copiado", 11, FontWeight.Medium);
-                    p.Texto.Desenhar(dc, "Copiado", new Vector2(t.X - tm.X, y + 3), 11, Cor.Verde, FontWeight.Medium);
+                    string copiadoTexto = Lang.T("Copiado", "Copied");
+                    var tm = p.Texto.Medir(copiadoTexto, 11, FontWeight.Medium);
+                    p.Texto.Desenhar(dc, copiadoTexto, new Vector2(t.X - tm.X, y + 3), 11, Cor.Verde, FontWeight.Medium);
                 }
             }
             Icone.Retangulo(dc, 0, Y_RECENTES - 8, t.X, 1, 0.5f, Cor.Fraco);
-            p.Texto.Desenhar(dc, "Recentes", new Vector2(0, Y_RECENTES), 11, Cor.Secundario);
-            var dica = "clique numa para copiar";
+            p.Texto.Desenhar(dc, Lang.T("Recentes", "Recent"), new Vector2(0, Y_RECENTES), 11, Cor.Secundario);
+            var dica = Lang.T("clique numa para copiar", "click one to copy");
             var td = p.Texto.Medir(dica, 11, FontWeight.Normal);
             p.Texto.Desenhar(dc, dica, new Vector2(t.X - td.X, Y_RECENTES), 11, Cor.Secundario, FontWeight.Normal);
 

@@ -272,7 +272,7 @@ internal sealed class AtividadeVolume : Atividade
                 p.Desenho(c, Vector2.Zero, c.Tamanho, (dc, t) =>
                 {
                     Desenhos.Fone(dc, p.G.Fabrica, new Vector2(0, 0), 1f, conectou ? Cor.Verde : Cor.Secundario);
-                    string estado = conectou ? "conectado" : "desconectado";
+                    string estado = conectou ? Lang.T("conectado", "connected") : Lang.T("desconectado", "disconnected");
                     var te = p.Texto.Medir(estado, 12, FontWeight.Normal);
                     p.Texto.Desenhar(dc, estado, new Vector2(t.X - te.X, (t.Y - te.Y) / 2), 12, conectou ? Cor.Verde : Cor.Secundario, FontWeight.Normal);
                     var tn = p.Texto.Medir("Ág", 13);
@@ -315,14 +315,15 @@ internal sealed class AtividadeVolume : Atividade
         float altura = aba == Aba.Apps ? LISTA_Y + _linhasApps * APP_A : LISTA_Y + _linhas * LINHA_A;
         var c = p.NovaCena(new Vector2(CARTAO_L, altura));
         var F = p.G.Fabrica;
-        float lApps = p.Texto.Medir("Apps", 12, FontWeight.SemiBold).X, lSaidas = p.Texto.Medir("Saídas", 12, FontWeight.SemiBold).X;
+        string tabApps = "Apps", tabOutputs = Lang.T("Saídas", "Outputs");
+        float lApps = p.Texto.Medir(tabApps, 12, FontWeight.SemiBold).X, lSaidas = p.Texto.Medir(tabOutputs, 12, FontWeight.SemiBold).X;
         float xSaidas = lApps + 20;
         p.Desenho(c, Vector2.Zero, c.Tamanho, (dc, t) =>
         {
             bool mudo = _audio.Mudo;
             float e = _audio.Escala;
             p.Texto.Desenhar(dc, "Volume", new Vector2(0, 0), 13, Cor.Secundario);
-            string db = !_audio.TemAparelho ? "sem saída" : mudo ? "mudo" : Logica.TextoDb(_audio.Db);
+            string db = !_audio.TemAparelho ? Lang.T("sem saída", "no output") : mudo ? Lang.T("mudo", "muted") : Logica.TextoDb(_audio.Db);
             var td = p.Texto.Medir(db, 12, FontWeight.Normal, tabular: true);
             p.Texto.Desenhar(dc, db, new Vector2(t.X - td.X, 1), 12, Cor.Secundario, FontWeight.Normal, tabular: true);
 
@@ -343,18 +344,18 @@ internal sealed class AtividadeVolume : Atividade
             Icone.Retangulo(dc, 0, 70, t.X, 1, 0.5f, Cor.Fraco);
             if (!mixer)
             {
-                p.Texto.Desenhar(dc, _audio.PodeTrocar ? "Saídas" : "Saídas · trocar por aqui não está disponível neste Windows", new Vector2(0, 78), 12, Cor.Secundario, largura: t.X);
+                p.Texto.Desenhar(dc, _audio.PodeTrocar ? tabOutputs : Lang.T("Saídas · trocar por aqui não está disponível neste Windows", "Outputs · switching from here isn't available on this Windows"), new Vector2(0, 78), 12, Cor.Secundario, largura: t.X);
                 DesenharSaidas(dc, p, t, saidas);
                 return;
             }
-            p.Texto.Desenhar(dc, "Apps", new Vector2(0, 78), 12, aba == Aba.Apps ? Cor.Branco : Cor.Secundario, FontWeight.SemiBold);
-            p.Texto.Desenhar(dc, "Saídas", new Vector2(xSaidas, 78), 12, aba == Aba.Saidas ? Cor.Branco : Cor.Secundario, FontWeight.SemiBold);
+            p.Texto.Desenhar(dc, tabApps, new Vector2(0, 78), 12, aba == Aba.Apps ? Cor.Branco : Cor.Secundario, FontWeight.SemiBold);
+            p.Texto.Desenhar(dc, tabOutputs, new Vector2(xSaidas, 78), 12, aba == Aba.Saidas ? Cor.Branco : Cor.Secundario, FontWeight.SemiBold);
             Icone.Retangulo(dc, aba == Aba.Apps ? 0 : xSaidas, 95, aba == Aba.Apps ? lApps : lSaidas, 2, 1, Cor.Branco);
             if (aba == Aba.Saidas)
             {
                 if (!_audio.PodeTrocar)
                 {
-                    const string nota = "trocar não disponível neste Windows";
+                    string nota = Lang.T("trocar não disponível neste Windows", "switching not available on this Windows");
                     var tm = p.Texto.Medir(nota, 11, FontWeight.Normal);
                     p.Texto.Desenhar(dc, nota, new Vector2(t.X - tm.X, 79), 11, Cor.Secundario, FontWeight.Normal);
                 }
@@ -406,7 +407,7 @@ internal sealed class AtividadeVolume : Atividade
         var F = p.G.Fabrica;
         if (saidas.Count == 0)
         {
-            p.Texto.Desenhar(dc, "Nenhuma saída de áudio ativa", new Vector2(26, LISTA_Y + 7), 14, Cor.Secundario, FontWeight.Normal, largura: t.X - 26);
+            p.Texto.Desenhar(dc, Lang.T("Nenhuma saída de áudio ativa", "No active audio output"), new Vector2(26, LISTA_Y + 7), 14, Cor.Secundario, FontWeight.Normal, largura: t.X - 26);
             return;
         }
         for (int i = 0; i < saidas.Count; i++)
@@ -435,7 +436,7 @@ internal sealed class AtividadeVolume : Atividade
         var vis = AppsVisiveis();
         if (!_mixerOk || vis.Count == 0)
         {
-            string msg = !_mixerOk ? "O volume por app não abriu nesta saída" : "Nenhum app tocando som agora";
+            string msg = !_mixerOk ? Lang.T("O volume por app não abriu nesta saída", "Per-app volume didn't open on this output") : Lang.T("Nenhum app tocando som agora", "No app is playing sound right now");
             p.Texto.Desenhar(dc, msg, new Vector2(0, LISTA_Y + 9), 13, Cor.Secundario, FontWeight.Normal, largura: t.X);
             return;
         }

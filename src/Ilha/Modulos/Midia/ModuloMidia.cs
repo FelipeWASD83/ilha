@@ -18,7 +18,7 @@ namespace Ilha.Midia;
 /// A lista de sessões é mantida aqui, relida em qualquer evento e de 20 em 20 s enquanto houver sessão (os eventos
 /// do SMTC às vezes param de chegar), e a escolhida é a que começou a tocar por último.
 /// </summary>
-[Modulo("midia", "Mídia")]
+[Modulo("midia", "Mídia", English = "Media")]
 internal sealed class ModuloMidia : Modulo
 {
     private sealed class Acompanhada
@@ -419,9 +419,12 @@ internal sealed class ModuloMidia : Modulo
 public sealed class ConfigMidia
 {
     /// <summary>Por quantos minutos a mídia pausada continua na ilha.</summary>
+    [Label("Minutos que a mídia pausada fica", "Minutes paused media stays")]
     [JsonPropertyName("pausadaMinutos")] public double PausadaMinutos { get; set; } = 10;
     /// <summary>Barras animadas na pílula e no cartão (escuta o que sai no dispositivo padrão).</summary>
+    [Label("Visualizador", "Visualizer")]
     [JsonPropertyName("visualizador")] public bool Visualizador { get; set; } = true;
     /// <summary>Quanto cada dente da rodinha muda o volume, em por cento.</summary>
+    [Label("Passo do volume na rodinha (%)", "Scroll wheel volume step (%)")]
     [JsonPropertyName("passoVolume")] public int PassoVolume { get; set; } = 2;
 }

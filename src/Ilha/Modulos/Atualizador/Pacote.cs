@@ -93,12 +93,12 @@ internal static class Pacote
     public static void ConferirDigest(string arquivo, string? digest)
     {
         if (string.IsNullOrWhiteSpace(digest) || !digest.StartsWith("sha256:", StringComparison.OrdinalIgnoreCase))
-            throw new ErroDeAtualizacao("O GitHub não informou o SHA-256 do pacote; sem conferir, não instalo.");
+            throw new ErroDeAtualizacao(Lang.T("O GitHub não informou o SHA-256 do pacote; sem conferir, não instalo.", "GitHub didn't provide the package SHA-256; without checking it, nothing gets installed."));
         var esperado = digest[7..].Trim().ToLowerInvariant();
         if (esperado.Length != 64 || !esperado.All(Uri.IsHexDigit))
-            throw new ErroDeAtualizacao("O SHA-256 informado pelo GitHub não está no formato esperado.");
+            throw new ErroDeAtualizacao(Lang.T("O SHA-256 informado pelo GitHub não está no formato esperado.", "The SHA-256 from GitHub is not in the expected format."));
         if (Sha256(arquivo) != esperado)
-            throw new ErroDeAtualizacao("O pacote baixado não confere com o SHA-256 do GitHub. Tente de novo.");
+            throw new ErroDeAtualizacao(Lang.T("O pacote baixado não confere com o SHA-256 do GitHub. Tente de novo.", "The downloaded package doesn't match the GitHub SHA-256. Try again."));
     }
 
     /// <summary>
@@ -117,11 +117,11 @@ internal static class Pacote
             bool pasta = nome.EndsWith('/') || nome.EndsWith('\\');
             var rel = pasta ? nome.TrimEnd('/', '\\') : nome;
             if (rel.Length == 0) continue;
-            if (!RelativoSeguro(rel)) throw new ErroDeAtualizacao($"Pacote com caminho inválido ({nome}).");
+            if (!RelativoSeguro(rel)) throw new ErroDeAtualizacao(Lang.T($"Pacote com caminho inválido ({nome}).", $"Package with an invalid path ({nome})."));
             var alvo = Path.GetFullPath(Path.Combine(raiz, rel));
-            if (!alvo.StartsWith(raiz, StringComparison.OrdinalIgnoreCase)) throw new ErroDeAtualizacao($"Pacote com caminho para fora da pasta ({nome}).");
+            if (!alvo.StartsWith(raiz, StringComparison.OrdinalIgnoreCase)) throw new ErroDeAtualizacao(Lang.T($"Pacote com caminho para fora da pasta ({nome}).", $"Package with a path outside the folder ({nome})."));
             total += e.Length;
-            if (total > LIMITE_EXTRAIDO) throw new ErroDeAtualizacao("O pacote extraído passaria de 1 GB; não parece ser da ilha.");
+            if (total > LIMITE_EXTRAIDO) throw new ErroDeAtualizacao(Lang.T("O pacote extraído passaria de 1 GB; não parece ser da ilha.", "The extracted package would exceed 1 GB; it doesn't look like the island's."));
             alvos.Add((e, alvo, pasta));
         }
         if (Directory.Exists(destino)) Directory.Delete(destino, true);
@@ -141,7 +141,7 @@ internal static class Pacote
         if (Eh(pasta)) return pasta;
         var subs = Directory.GetDirectories(pasta);
         if (subs.Length == 1 && Directory.GetFiles(pasta).Length == 0 && Eh(subs[0])) return subs[0];
-        throw new ErroDeAtualizacao("O pacote baixado não parece ser da ilha (falta o Ilha.exe ou o pacote.json).");
+        throw new ErroDeAtualizacao(Lang.T("O pacote baixado não parece ser da ilha (falta o Ilha.exe ou o pacote.json).", "The downloaded package doesn't look like the island's (Ilha.exe or pacote.json is missing)."));
     }
 
     public static ManifestoDoPacote? LerManifesto(string pasta)
@@ -179,26 +179,26 @@ internal static class Pacote
     /// </summary>
     public static ManifestoDoPacote Conferir(string raiz, string versaoDaRelease)
     {
-        var m = LerManifesto(raiz) ?? throw new ErroDeAtualizacao("O pacote.json do pacote está faltando ou ilegível.");
+        var m = LerManifesto(raiz) ?? throw new ErroDeAtualizacao(Lang.T("O pacote.json do pacote está faltando ou ilegível.", "The package's pacote.json is missing or unreadable."));
         if (!Versoes.Iguais(m.Versao, versaoDaRelease))
-            throw new ErroDeAtualizacao($"O pacote diz versão {m.Versao}, mas a release é {versaoDaRelease}.");
+            throw new ErroDeAtualizacao(Lang.T($"O pacote diz versão {m.Versao}, mas a release é {versaoDaRelease}.", $"The package says version {m.Versao}, but the release is {versaoDaRelease}."));
         var dll = VersaoDoDll(raiz);
         if (dll == null || !Versoes.Iguais(dll, versaoDaRelease))
-            throw new ErroDeAtualizacao($"O Ilha.dll do pacote é da versão {dll ?? "?"}, mas a release é {versaoDaRelease}.");
+            throw new ErroDeAtualizacao(Lang.T($"O Ilha.dll do pacote é da versão {dll ?? "?"}, mas a release é {versaoDaRelease}.", $"The package's Ilha.dll is version {dll ?? "?"}, but the release is {versaoDaRelease}."));
         if (m.Arquivos.Any(a => !RelativoSeguro(a)))
-            throw new ErroDeAtualizacao("O pacote.json lista um caminho inválido.");
+            throw new ErroDeAtualizacao(Lang.T("O pacote.json lista um caminho inválido.", "pacote.json lists an invalid path."));
         var listados = new HashSet<string>(m.Arquivos.Select(Barra), StringComparer.OrdinalIgnoreCase);
         var presentes = new HashSet<string>(Arquivos(raiz), StringComparer.OrdinalIgnoreCase);
         if (!listados.SetEquals(presentes))
         {
             var faltam = listados.Except(presentes).Take(3).ToList();
             var sobram = presentes.Except(listados).Take(3).ToList();
-            throw new ErroDeAtualizacao("O pacote não bate com a própria lista de arquivos" +
-                (faltam.Count > 0 ? $" (faltam: {string.Join(", ", faltam)})" : "") +
-                (sobram.Count > 0 ? $" (sobram: {string.Join(", ", sobram)})" : "") + ".");
+            throw new ErroDeAtualizacao(Lang.T("O pacote não bate com a própria lista de arquivos", "The package doesn't match its own file list") +
+                (faltam.Count > 0 ? Lang.T($" (faltam: {string.Join(", ", faltam)})", $" (missing: {string.Join(", ", faltam)})") : "") +
+                (sobram.Count > 0 ? Lang.T($" (sobram: {string.Join(", ", sobram)})", $" (extra: {string.Join(", ", sobram)})") : "") + ".");
         }
         if (!listados.Contains("Ilha.exe") || !listados.Contains("Ilha.dll"))
-            throw new ErroDeAtualizacao("O pacote não tem o Ilha.exe e o Ilha.dll.");
+            throw new ErroDeAtualizacao(Lang.T("O pacote não tem o Ilha.exe e o Ilha.dll.", "The package doesn't have Ilha.exe and Ilha.dll."));
         return m;
     }
 }

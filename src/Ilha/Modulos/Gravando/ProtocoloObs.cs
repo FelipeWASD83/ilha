@@ -174,14 +174,22 @@ internal static class ProtocoloObs
         // 500/501: OutputRunning/OutputNotRunning; 502/503: OutputPaused/OutputNotPaused
         string? m = codigo switch
         {
-            501 => "O OBS não está gravando",
-            500 => "O OBS já está gravando",
-            502 => "A gravação já está pausada",
-            503 => "A gravação não está pausada",
+            501 => Lang.T("O OBS não está gravando", "OBS is not recording"),
+            500 => Lang.T("O OBS já está gravando", "OBS is already recording"),
+            502 => Lang.T("A gravação já está pausada", "The recording is already paused"),
+            503 => Lang.T("A gravação não está pausada", "The recording is not paused"),
             _ => null,
         };
         if (m != null) return m;
-        string nome = tipo switch { "PauseRecord" => "pausar", "ResumeRecord" => "retomar", "StopRecord" => "parar", _ => tipo ?? "pedido" };
-        return string.IsNullOrWhiteSpace(comentario) ? $"O OBS não deixou {nome} (código {codigo})" : $"O OBS não deixou {nome}: {comentario}";
+        string nome = tipo switch
+        {
+            "PauseRecord" => Lang.T("pausar", "pause"),
+            "ResumeRecord" => Lang.T("retomar", "resume"),
+            "StopRecord" => Lang.T("parar", "stop"),
+            _ => tipo ?? Lang.T("pedido", "request"),
+        };
+        return string.IsNullOrWhiteSpace(comentario)
+            ? Lang.T($"O OBS não deixou {nome} (código {codigo})", $"OBS didn't allow {nome} (code {codigo})")
+            : Lang.T($"O OBS não deixou {nome}: {comentario}", $"OBS didn't allow {nome}: {comentario}");
     }
 }

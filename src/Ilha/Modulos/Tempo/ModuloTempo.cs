@@ -12,7 +12,7 @@ namespace Ilha.Tempo;
 /// "10" (minutos), "pomodoro", "cron". Aparece também no modo competitivo. O que está rodando fica salvo na config do
 /// módulo com o horário de fim absoluto, então fechar e abrir a ilha não perde nada.
 /// </summary>
-[Modulo("tempo", "Timers e cronômetro")]
+[Modulo("tempo", "Timers e cronômetro", English = "Timers and stopwatch")]
 internal sealed class ModuloTempo : Modulo
 {
     private const string ATALHO = "timer";
@@ -30,8 +30,20 @@ internal sealed class ModuloTempo : Modulo
         _atv.Restaurar();
         var padrao = new Atalho { Mods = Nativo.MOD_CONTROL | Nativo.MOD_ALT, Tecla = 0x52 }; // R de relógio (o Ctrl + Alt + M já era de outro programa no PC dele)
         bool desligado = S.Config().AtalhosModulos.TryGetValue(ATALHO, out var trocado) && trocado.Tecla == 0;
+        S.Menu.Adicionar(new ItemDoMenu
+        {
+            Id = "tempo", Nome = Lang.T("Timer", "Timer"), Ordem = 14, Abrir = () => _atv?.Atalho(),
+            Icone = (dc, palco, r) =>
+            {
+                // timer ring, two thirds done
+                var c = new System.Numerics.Vector2(r.X + r.Width / 2, r.Y + r.Height / 2);
+                Icone.Anel(dc, palco.G.Fabrica, c, 9, 3, 1, Cor.Fraco);
+                Icone.Anel(dc, palco.G.Fabrica, c, 9, 3, 0.66f, Cor.Laranja);
+            },
+        });
         if (S.Atalhos.Registrar(ATALHO, padrao, () => _atv?.Atalho()) == null && !desligado)
-            S.Avisar("O atalho dos timers já é de outro programa. Troque em \"atalhosModulos\" → \"timer\" na configuração.");
+            S.Avisar(Lang.T("O atalho dos timers já é de outro programa. Troque em \"atalhosModulos\" → \"timer\" na configuração.",
+                "The timers shortcut already belongs to another program. Change it in \"atalhosModulos\" → \"timer\" in the settings."));
     }
 
     public override void ConfigMudou(JsonObject cfg)
@@ -52,7 +64,42 @@ internal sealed class ModuloTempo : Modulo
 
     // ------------------------------------------------------------------ autoteste (sem janela, sem Serviços)
 
+    // the texts checked here are the Portuguese ones: the language is pinned and the previous choice comes back
     public override string Autoteste()
+    {
+        string previous = Lang.Choice;
+        try
+        {
+            Lang.Set("pt");
+            var r = new StringBuilder(Rodar());
+            Lang.Set("en");
+            EnglishChecks(r);
+            return r.ToString().TrimEnd();
+        }
+        finally { Lang.Set(previous); }
+    }
+
+    private static void EnglishChecks(StringBuilder r)
+    {
+        void Ok(bool cond, string what) => r.AppendLine((cond ? "ok      " : "FALHOU  ") + what);
+        Ok(Interpretador.Ler("abc", out var e1) == null && e1 == "didn't get that", $"English error for \"abc\" ({e1})");
+        Ok(Interpretador.Ler("100h", out var e2) == null && e2 == "99 hours at most", $"English error for \"100h\" ({e2})");
+        Ok(Interpretador.Ler("5parsecs", out var e3) == null && e3 == "unknown unit \"parsecs\"", $"English error for \"5parsecs\" ({e3})");
+        Ok(Formato.Volta(61_999) == "1:01.99", $"lap with a decimal point in English ({Formato.Volta(61_999)})");
+        string hora = Formato.Hora(1_800_000_000_000);
+        Ok(System.Text.RegularExpressions.Regex.IsMatch(hora, @"^\d{1,2}:\d{2} (AM|PM)$"), $"clock time in 12 h in English ({hora})");
+        Ok(CicloPomodoro.NomeDaFase(Fase.PausaLonga) == "long break", "phase name in English");
+        var rel = new Relogios(new EstadoTempo());
+        var cfg = new ConfigTempo();
+        rel.Criar(new Pedido(TipoPedido.Pomodoro, 0, ""), 0, cfg);
+        Ok(rel.Criar(new Pedido(TipoPedido.Pomodoro, 0, ""), 0, cfg) == "a pomodoro is already running", "second pomodoro refused in English");
+        // what is typed does not depend on the interface language
+        var p = Interpretador.Ler("25m chá", out _);
+        Ok(p is { Tipo: TipoPedido.Timer, DuracaoMs: 1_500_000, Nome: "chá" }, "\"25m chá\" still works in English");
+        Ok(Interpretador.Ler("cronômetro", out _)?.Tipo == TipoPedido.Cronometro, "\"cronômetro\" still works in English");
+    }
+
+    private string Rodar()
     {
         var r = new StringBuilder();
         void Ok(bool cond, string o_que) => r.AppendLine((cond ? "ok      " : "FALHOU  ") + o_que);
@@ -91,6 +138,26 @@ internal sealed class ModuloTempo : Modulo
             ("cronometro", TipoPedido.Cronometro, 0, ""),
             ("CRON", TipoPedido.Cronometro, 0, ""),
             ("cron", TipoPedido.Cronometro, 0, ""),
+            // English, understood whatever the interface language
+            ("2 hours", TipoPedido.Timer, 7_200_000, ""),
+            ("1 hour", TipoPedido.Timer, 3_600_000, ""),
+            ("45 seconds", TipoPedido.Timer, 45_000, ""),
+            ("1 second", TipoPedido.Timer, 1_000, ""),
+            ("90 secs", TipoPedido.Timer, 90_000, ""),
+            ("1 minute", TipoPedido.Timer, 60_000, ""),
+            ("10 minutes study", TipoPedido.Timer, 600_000, "study"),
+            ("1 hour 30 minutes", TipoPedido.Timer, 5_400_000, ""),
+            ("25m tea", TipoPedido.Timer, 1_500_000, "tea"),
+            ("tea 25 min", TipoPedido.Timer, 1_500_000, "tea"),
+            ("timer 5m", TipoPedido.Timer, 300_000, ""),
+            ("Timer 5m eggs", TipoPedido.Timer, 300_000, "eggs"),
+            ("timer 1:30", TipoPedido.Timer, 90_000, ""),
+            ("stopwatch", TipoPedido.Cronometro, 0, ""),
+            ("Stopwatch", TipoPedido.Cronometro, 0, ""),
+            ("focus", TipoPedido.Pomodoro, 0, ""),
+            ("focus study", TipoPedido.Pomodoro, 0, "study"),
+            ("foco", TipoPedido.Pomodoro, 0, ""),
+            ("focus 25m", TipoPedido.Timer, 1_500_000, "focus"),
         };
         foreach (var v in validos)
         {
@@ -107,6 +174,7 @@ internal sealed class ModuloTempo : Modulo
         {
             "", "   ", "abc", "0", "0m", "0:00", "-5", "25x", "25mchá", "1:75", "1:5", "1:30:75", "1:2:3:4", "a:b",
             "100h", "5m5m", "30s 1m", "1m30s 5", "h", "min", "0,4s", "1234567", "1,2345h", "25.", "chá",
+            "timer", "timer tea", "hours", "5parsecs", "1 hour 2 hours",
         };
         foreach (var s in invalidos)
         {
@@ -285,6 +353,6 @@ internal sealed class ModuloTempo : Modulo
             $"\"+N\" e hora no tempo encolhem o meio livre ({m2})");
         Ok(AtividadeTempo.MeioLivre(140, 0) == null, "tempo encostando no anel: sem meio livre");
 
-        return r.ToString().TrimEnd();
+        return r.ToString();
     }
 }

@@ -19,6 +19,9 @@ internal static class AutotesteLimite
         // os JSON de teste são montados com interpolação: ponto decimal em qualquer cultura
         var cultura = System.Threading.Thread.CurrentThread.CurrentCulture;
         System.Threading.Thread.CurrentThread.CurrentCulture = System.Globalization.CultureInfo.InvariantCulture;
+        // the texts are asserted in Portuguese: pin the language and give back the choice at the end
+        string idioma = Lang.Choice;
+        Lang.Set("pt");
         try
         {
             Bloco("leitura do arquivo", Leitura);
@@ -26,8 +29,13 @@ internal static class AutotesteLimite
             Bloco("textos", Textos);
             Bloco("avisos", Avisos);
             Bloco("script da status line", Script);
+            Bloco("textos em inglês", EmIngles);
         }
-        finally { System.Threading.Thread.CurrentThread.CurrentCulture = cultura; }
+        finally
+        {
+            System.Threading.Thread.CurrentThread.CurrentCulture = cultura;
+            Lang.Set(idioma);
+        }
         return R.ToString().TrimEnd();
     }
 
@@ -96,6 +104,22 @@ internal static class AutotesteLimite
         int[] lim = { 80, 95 };
         Ok(AtividadeLimite.CorDe(50, lim).Equals(Cor.Coral) && AtividadeLimite.CorDe(85, lim).Equals(Cor.Laranja) && AtividadeLimite.CorDe(96, lim).Equals(Cor.Vermelho)
             && AtividadeLimite.CorDe(99, new[] { 80 }).Equals(Cor.Laranja), "cor da barra pelos limiares");
+    }
+
+    private static void EmIngles()
+    {
+        Lang.Set("en");
+        try
+        {
+            var agora = new DateTime(2026, 11, 2, 10, 0, 0); // Monday
+            Ok(TextoDoUso.Quando(new DateTime(2026, 11, 2, 14, 30, 0), agora, false) == "at 2:30 PM", "en: same day: at 2:30 PM");
+            Ok(TextoDoUso.Quando(new DateTime(2026, 11, 6, 9, 0, 0), agora, true) == "Friday at 9:00 AM", "en: weekday: Friday at 9:00 AM");
+            Ok(TextoDoUso.Quando(new DateTime(2026, 11, 14, 9, 0, 0), agora, true) == "11/14 at 9:00 AM", "en: more than a week: 11/14");
+            Ok(TextoDoUso.Idade(12 * 60 + 5) == "updated 12 min ago" && TextoDoUso.Idade(3 * 86400) == "updated 3 days ago", "en: age");
+            Ok(TextoDoUso.Detalhe(Exemplo(), T0 + 10) == "34% · wk 12%", "en: menu detail");
+            Ok(TextoDoUso.Volta(new Janela(Janela.SESSAO, 5, null), agora) == "no reset time", "en: no reset time");
+        }
+        finally { Lang.Set("pt"); }
     }
 
     private static void Avisos()

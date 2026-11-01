@@ -1,18 +1,18 @@
-"""Hook PermissionRequest do Claude Code que deixa aprovar ou negar o pedido pela ilha.
+"""Claude Code PermissionRequest hook that lets you approve or deny the request from the island.
 
-Lê o pedido do Claude Code no stdin, pergunta à ilha pelo pipe nomeado \\\\.\\pipe\\ilha-permissao e devolve a decisão
-que ele clicar (Permitir ou Negar). Sem a ilha aberta, sem resposta a tempo, ou se a ilha não decidir, sai com
-código 0 sem escrever nada: o fluxo normal do Claude Code segue (o diálogo do app continua valendo). Nunca permite
-por tempo esgotado.
+Reads the Claude Code request on stdin, asks the island through the named pipe \\\\.\\pipe\\ilha-permissao and returns
+the decision the user clicks (Allow or Deny). Without the island open, without an answer in time, or if the island
+does not decide, it exits with code 0 without writing anything: the regular Claude Code flow goes on (the app dialog
+still works). It never allows on a timeout.
 
-Fica de fora, saindo na hora sem saída:
-  - AskUserQuestion e ExitPlanMode, que não se aprovam com um "allow" seco (pedem a resposta junto);
-  - pedido de subagente (agent_id), que não tem diálogo em paralelo: esperar a ilha travaria o subagente.
+Left out, exiting right away with no output:
+  - AskUserQuestion and ExitPlanMode, which are not approved with a bare "allow" (they need the answer along with it);
+  - subagent requests (agent_id), which have no parallel dialog: waiting for the island would stall the subagent.
 
-Só biblioteca padrão. Uso no settings.json (hooks -> PermissionRequest):
-  python "<pasta da ilha>\\ferramentas\\hook_permissao.py"        com "timeout" maior que a espera (padrão 110 s)
-Opções: --pipe <nome> (padrão ilha-permissao), --espera <segundos> (se a ilha não disser) e --log <arquivo>
-(acrescenta uma linha por passo, para conferir depois de instalar; nunca grava o comando nem o tool_input).
+Standard library only. Usage in settings.json (hooks -> PermissionRequest):
+  python "<island folder>\\ferramentas\\hook_permissao.py"        with a "timeout" longer than the wait (default 110 s)
+Options: --pipe <name> (default ilha-permissao), --espera <seconds> (if the island does not say) and --log <file>
+(appends one line per step, to check after installing; never writes the command or the tool_input).
 """
 
 import ctypes
@@ -55,9 +55,9 @@ def anotar(texto):
         pass
 
 
-def sair(motivo="sem decisão"):
+def sair(motivo="no decision"):
     """Sem decisão: o diálogo normal segue. os._exit mata a thread de leitura que ainda espera."""
-    anotar("saiu: " + motivo)
+    anotar("exited: " + motivo)
     sys.stdout.flush()
     os._exit(0)
 
@@ -149,23 +149,23 @@ def main():
     try:
         pedido = json.loads(sys.stdin.buffer.read().decode("utf-8-sig", "replace"))
     except (ValueError, OSError):
-        sair("entrada ilegível")
+        sair("unreadable input")
     if not isinstance(pedido, dict):
-        sair("entrada não é objeto")
+        sair("input is not an object")
     ferramenta = str(pedido.get("tool_name") or "")
     if not ferramenta or ferramenta in FORA or pedido.get("agent_id"):
-        sair(f"fora do hook ({ferramenta or 'sem ferramenta'}{', subagente' if pedido.get('agent_id') else ''})")
+        sair(f"not handled by the hook ({ferramenta or 'no tool'}{', subagent' if pedido.get('agent_id') else ''})")
 
     caminho = "\\\\.\\pipe\\" + pipe
     if not kernel32.WaitNamedPipeW(caminho, CONECTAR_MS):
-        sair(f"ilha fechada (WaitNamedPipe, erro {ctypes.get_last_error()})")
+        sair(f"island closed (WaitNamedPipe, error {ctypes.get_last_error()})")
     try:
         arquivo = open(caminho, "r+b", buffering=0)
     except OSError as erro:
-        sair(f"não abriu o pipe ({erro})")
+        sair(f"could not open the pipe ({erro})")
     if not servidor_e_a_ilha(arquivo):
-        sair("quem serve o pipe não é o Ilha.exe")
-    anotar(f"pedido de {ferramenta} enviado à ilha")
+        sair("the pipe server is not Ilha.exe")
+    anotar(f"{ferramenta} request sent to the island")
 
     mensagem = {
         "v": 1,
@@ -177,11 +177,11 @@ def main():
     try:
         arquivo.write((json.dumps(mensagem, ensure_ascii=False) + "\n").encode("utf-8"))
     except OSError as erro:
-        sair(f"falhou ao escrever ({erro})")
+        sair(f"failed to write ({erro})")
 
     recebido = ler_linha(arquivo, 3)
     if not isinstance(recebido, dict) or not recebido.get("ok"):
-        sair("a ilha não confirmou o pedido")
+        sair("the island did not acknowledge the request")
     espera = recebido.get("espera")
     if not isinstance(espera, (int, float)):
         espera = espera_arg if espera_arg else ESPERA_PADRAO
@@ -189,15 +189,15 @@ def main():
 
     resposta = ler_linha(arquivo, espera)
     if not isinstance(resposta, dict):
-        sair(f"sem resposta em {espera:.0f} s ou a ilha fechou o pedido")
+        sair(f"no answer in {espera:.0f} s or the island closed the request")
     decisao = resposta.get("decisao")
     if decisao == "allow":
         saida = {"behavior": "allow"}
     elif decisao == "deny":
-        saida = {"behavior": "deny", "message": str(resposta.get("mensagem") or "Negado pela ilha.")}
+        saida = {"behavior": "deny", "message": str(resposta.get("mensagem") or "Denied from the island.")}
     else:
-        sair("a ilha não decidiu")
-    anotar("decisão: " + saida["behavior"])
+        sair("the island did not decide")
+    anotar("decision: " + saida["behavior"])
     sys.stdout.write(json.dumps({"hookSpecificOutput": {"hookEventName": "PermissionRequest", "decision": saida}}) + "\n")
     sys.stdout.flush()
     os._exit(0)

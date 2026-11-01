@@ -53,6 +53,7 @@ internal static class Formulario
     /// <summary>"[DisplayName]" se tiver; senão o nome do JSON separado: "procurarSozinha" vira "Procurar sozinha".</summary>
     public static string Rotulo(PropertyInfo p)
     {
+        if (p.GetCustomAttribute<LabelAttribute>() is { } label) return label.Text;
         var dn = p.GetCustomAttribute<DisplayNameAttribute>()?.DisplayName;
         if (!string.IsNullOrWhiteSpace(dn)) return dn;
         return Humanizar(NomeJson(p));
@@ -80,7 +81,7 @@ internal static class Formulario
     {
         if (secao == null) return Activator.CreateInstance(tipo)!;
         try { return secao.Deserialize(tipo, Config.Json) ?? Activator.CreateInstance(tipo)!; }
-        catch (Exception e) { throw new InvalidOperationException("a seção deste módulo no config.json não lê: " + e.Message, e); }
+        catch (Exception e) { throw new InvalidOperationException(Lang.T("a seção deste módulo no config.json não lê: ", "this module's section in config.json does not read: ") + e.Message, e); }
     }
 
     /// <summary>Os controles dos campos editáveis, com o valor atual.</summary>
@@ -92,7 +93,7 @@ internal static class Formulario
             if (!Editavel(p.PropertyType)) continue;
             var t = Nullable.GetUnderlyingType(p.PropertyType) ?? p.PropertyType;
             object? valor = p.GetValue(instancia);
-            string descricao = p.GetCustomAttribute<DescriptionAttribute>()?.Description ?? "";
+            string descricao = p.GetCustomAttribute<HelpAttribute>()?.Text ?? p.GetCustomAttribute<DescriptionAttribute>()?.Description ?? "";
             CampoGerado campo;
             if (t == typeof(bool))
             {
@@ -134,7 +135,7 @@ internal static class Formulario
                     Multiline = true, AcceptsReturn = true, ScrollBars = ScrollBars.Vertical, Width = 320, Height = 96,
                     Text = string.Join(Environment.NewLine, itens),
                 };
-                if (descricao.Length == 0) descricao = "Um item por linha.";
+                if (descricao.Length == 0) descricao = Lang.T("Um item por linha.", "One item per line.");
                 campo = new CampoGerado
                 {
                     Propriedade = p, Rotulo = Rotulo(p), Editor = tb,

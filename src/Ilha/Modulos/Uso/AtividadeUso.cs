@@ -87,7 +87,7 @@ internal sealed class AtividadeUso : Atividade
     public AtividadeUso(EstadoUso e) => _e = e;
 
     public override string Tipo => "uso";
-    public override string Nome => "Uso do PC";
+    public override string Nome => Lang.T("Uso do PC", "PC usage");
     public override bool EhFerramenta => true;
     /// <summary>Estourou com o cartão já aberto pelo atalho: não repete a chegada por cima dele.</summary>
     public bool SemChegada { get; set; }
@@ -137,7 +137,7 @@ internal sealed class AtividadeUso : Atividade
         p.Desenho(c, Vector2.Zero, c.Tamanho, (dc, t) =>
         {
             var m = MotivoOuCpu;
-            string texto = _e.Ultima is Amostra a ? EstadoUso.Rotulo(m, a) : "Uso do PC";
+            string texto = _e.Ultima is Amostra a ? EstadoUso.Rotulo(m, a) : Lang.T("Uso do PC", "PC usage");
             bool acima = _e.Ultima is Amostra b && EstadoUso.Valor(b, m) is double v && _e.Acima(m, v);
             var tam = p.Texto.Medir(texto, 14, FontWeight.SemiBold, tabular: true);
             p.Texto.Desenhar(dc, texto, new Vector2(0, (t.Y - tam.Y) / 2), 14, acima ? Cor.Vermelho : Cor.Branco, FontWeight.SemiBold, tabular: true, largura: t.X - 60);
@@ -156,7 +156,7 @@ internal sealed class AtividadeUso : Atividade
         p.Desenho(c, Vector2.Zero, c.Tamanho, (dc, t) =>
         {
             var F = p.G.Fabrica;
-            p.Texto.Desenhar(dc, "Uso do PC", new Vector2(0, 0), 13, Cor.Secundario);
+            p.Texto.Desenhar(dc, Lang.T("Uso do PC", "PC usage"), new Vector2(0, 0), 13, Cor.Secundario);
             if (_e.Limites.Ligada && _e.Ultima is Amostra am && _e.Limites.Motivo is Medida mot)
             {
                 string r = EstadoUso.Rotulo(mot, am);
@@ -204,7 +204,7 @@ internal sealed class AtividadeUso : Atividade
             }
 
             // rede: descida em azul, subida por cima em branco, na mesma escala
-            Rotulo(p, dc, "Rede", y);
+            Rotulo(p, dc, Lang.T("Rede", "Network"), y);
             float vy = y + 14;
             Icone.Triangulo(dc, F, new Vector2(0, vy + 7), new Vector2(9, vy + 7), new Vector2(4.5f, vy + 14), Cor.Azul);
             string desce = a is Amostra { Descida: double n1 } ? Formato.Taxa(n1) : "...";

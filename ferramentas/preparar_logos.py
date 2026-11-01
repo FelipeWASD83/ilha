@@ -260,7 +260,7 @@ def gerar_bolinhas(indice: dict) -> None:
             indice[f"{familia}-bola-{nome}"] = {"quadros": n, "loop": True}
             indice[f"{familia}-bola-{nome}-entrada"] = {"quadros": len(ida), "loop": False}
             indice[f"{familia}-bola-{nome}-saida"] = {"quadros": len(ida), "loop": False}
-            print(f"bolinhas {familia}: {nome} pronto")
+            print(f"{familia} dots: {nome} done")
 
 
 def main() -> None:
@@ -272,14 +272,14 @@ def main() -> None:
         indice = {k: v for k, v in json.loads(INDICE.read_text(encoding="utf-8"))["animacoes"].items() if "-bola-" not in k and "bola-cresce" not in k and "bola-encolhe" not in k}
     for logo, trechos in ({} if so_bolinhas else TRECHOS).items():
         quadros = ler_quadros(VIDEOS / VIDEO[logo])
-        print(f"{logo}: {len(quadros)} quadros lidos")
+        print(f"{logo}: {len(quadros)} frames read")
         for nome, (a, b, rep) in trechos.items():
             salvar_faixa(f"{logo}-{nome}", list(quadros[a:b + 1]))
             indice[f"{logo}-{nome}"] = {"quadros": b - a + 1, "loop": rep}
         Image.open(PARADAS / PARADA[logo]).convert("RGBA").resize((512, 512), Image.LANCZOS).save(SAIDA / f"{logo}.png", optimize=True)
     gerar_bolinhas(indice)
     INDICE.write_text(json.dumps({"fps": FPS, "lado": LADO, "zoom": ZOOM, "animacoes": indice}, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
-    print(f"{len(indice)} animações em {SAIDA}")
+    print(f"{len(indice)} animations in {SAIDA}")
 
 
 if __name__ == "__main__":

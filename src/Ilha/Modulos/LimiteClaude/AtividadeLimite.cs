@@ -13,7 +13,7 @@ namespace Ilha.LimiteClaude;
 internal sealed class AtividadeLimite : Atividade
 {
     public override string Tipo => "limite";
-    public override string Nome => "Limite do Claude";
+    public override string Nome => Lang.T("Limite do Claude", "Claude limit");
     public override bool EhFerramenta => true;
     public override bool AnunciaChegada => false;
 
@@ -74,7 +74,7 @@ internal sealed class AtividadeLimite : Atividade
                 p.Desenho(c, Vector2.Zero, c.Tamanho, (dc, t) =>
                 {
                     Anel(dc, p, new Vector2(12, 12), 9, 2.6f);
-                    string tx = TextoDoUso.Detalhe(_leitura(), Agora()) ?? "Limite";
+                    string tx = TextoDoUso.Detalhe(_leitura(), Agora()) ?? Lang.T("Limite", "Limit");
                     var tam = p.Texto.Medir(tx, 13, tabular: true);
                     p.Texto.Desenhar(dc, tx, new Vector2(t.X - MathF.Min(tam.X, t.X - 30), (t.Y - tam.Y) / 2), 13, Cor.Branco, tabular: true, largura: t.X - 30);
                 });
@@ -112,16 +112,23 @@ internal sealed class AtividadeLimite : Atividade
             double agora = Agora();
             var l = _leitura();
             Anel(dc, p, new Vector2(9, 10), 7, 2.4f);
-            p.Texto.Desenhar(dc, "Limite do Claude", new Vector2(24, 1), 13, Cor.Secundario, largura: 160);
+            p.Texto.Desenhar(dc, Lang.T("Limite do Claude", "Claude limit"), new Vector2(24, 1), 13, Cor.Secundario, largura: 160);
             if (l == null)
             {
-                p.Texto.Desenhar(dc, _arquivoExiste() ? "Não deu para ler o uso" : "Sem dados ainda", new Vector2(0, 26), 17, Cor.Branco, largura: L);
-                string[] linhas =
-                {
-                    "Depende da status line do Claude Code: o",
-                    "ferramentas/statusline_uso.py grava o uso em",
-                    ".ilha/uso-claude.json a cada resposta.",
-                };
+                p.Texto.Desenhar(dc, _arquivoExiste() ? Lang.T("Não deu para ler o uso", "Couldn't read the usage") : Lang.T("Sem dados ainda", "No data yet"), new Vector2(0, 26), 17, Cor.Branco, largura: L);
+                string[] linhas = Lang.English
+                    ? new[]
+                    {
+                        "Relies on the Claude Code status line:",
+                        "ferramentas/statusline_uso.py writes the usage to",
+                        ".ilha/uso-claude.json after every reply.",
+                    }
+                    : new[]
+                    {
+                        "Depende da status line do Claude Code: o",
+                        "ferramentas/statusline_uso.py grava o uso em",
+                        ".ilha/uso-claude.json a cada resposta.",
+                    };
                 for (int i = 0; i < linhas.Length; i++)
                     p.Texto.Desenhar(dc, linhas[i], new Vector2(0, 52 + i * 16), 12, Cor.Secundario, FontWeight.Normal, largura: L);
                 return;
@@ -131,8 +138,8 @@ internal sealed class AtividadeLimite : Atividade
             p.Texto.Desenhar(dc, idade, new Vector2(L - MathF.Min(ti.X, 140), 2), 12, Cor.Secundario, FontWeight.Normal, largura: 140);
             var limiares = _limiares();
             var agoraLocal = DateTime.Now;
-            Linha(dc, p, TOPO, "Sessão de 5 horas", l.Sessao, agora, agoraLocal, limiares);
-            Linha(dc, p, TOPO + LINHA, "Semana", l.Semana, agora, agoraLocal, limiares);
+            Linha(dc, p, TOPO, Lang.T("Sessão de 5 horas", "5-hour session"), l.Sessao, agora, agoraLocal, limiares);
+            Linha(dc, p, TOPO + LINHA, Lang.T("Semana", "Week"), l.Semana, agora, agoraLocal, limiares);
         });
         return c;
     }
@@ -143,8 +150,8 @@ internal sealed class AtividadeLimite : Atividade
         p.Texto.Desenhar(dc, nome, new Vector2(0, y), 14, Cor.Branco, largura: 200);
         Icone.Retangulo(dc, 0, y + 22, L, 6, 3, Trilho);
         string sub;
-        if (j == null) sub = "sem leitura (só para assinantes, após uma resposta)";
-        else if (venceu) sub = "renovou " + TextoDoUso.Quando(TextoDoUso.Local(j.VoltaEm!.Value), agoraLocal, j.Semanal) + " · sem leitura nova";
+        if (j == null) sub = Lang.T("sem leitura (só para assinantes, após uma resposta)", "no reading (subscribers only, after a reply)");
+        else if (venceu) sub = Lang.T("renovou ", "reset ") + TextoDoUso.Quando(TextoDoUso.Local(j.VoltaEm!.Value), agoraLocal, j.Semanal) + Lang.T(" · sem leitura nova", " · no new reading");
         else
         {
             string pct = TextoDoUso.Porcento(j.Porcentagem);

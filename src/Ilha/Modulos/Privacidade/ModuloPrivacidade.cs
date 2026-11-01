@@ -13,7 +13,7 @@ namespace Ilha.Privacidade;
 /// registro, sem polling. Entrega o estado ao núcleo (S.Indicadores, que desenha as bolinhas no canto da pílula
 /// quando outra atividade está na frente) e mantém a atividade "privacidade" para quando a ilha não tem mais nada.
 /// </summary>
-[Modulo("privacidade", "Câmera e microfone")]
+[Modulo("privacidade", "Câmera e microfone", English = "Camera and microphone")]
 internal sealed class ModuloPrivacidade : Modulo
 {
     private ConfigPrivacidade _cfg = new();
@@ -112,8 +112,14 @@ internal sealed class ModuloPrivacidade : Modulo
         var b = new EstadoPrivacidade(new[] { "App" }, new[] { "App1", "App2" });
         Conferir("estados iguais se comparam iguais", a.Equals(b) && a.GetHashCode() == b.GetHashCode());
         Conferir("estado diferente muda", !a.Equals(new EstadoPrivacidade(new[] { "App" }, new[] { "App1" })) && !a.Equals(EstadoPrivacidade.Vazio));
+        string previousLanguage = Lang.Choice;
+        Lang.Set("pt");
         var linhas = a.Linhas().Select(x => x.Rotulo + " " + x.Apps).ToList();
         Conferir("linhas do cartão", linhas.Count == 2 && linhas[0] == "Câmera: App" && linhas[1] == "Microfone: App1, App2", string.Join(" | ", linhas));
+        Lang.Set("en");
+        var lines = a.Linhas().Select(x => x.Rotulo + " " + x.Apps).ToList();
+        Conferir("linhas do cartão em inglês", lines.Count == 2 && lines[0] == "Camera: App" && lines[1] == "Microphone: App1, App2", string.Join(" | ", lines));
+        Lang.Set(previousLanguage);
         Conferir("só microfone, uma linha", new EstadoPrivacidade(Array.Empty<string>(), new[] { "X" }).Linhas().Count == 1);
         Conferir("largura das bolinhas", AtividadePrivacidade.LarguraDasBolinhas(true, true) == 19 && AtividadePrivacidade.LarguraDasBolinhas(false, true) == 7);
 
@@ -177,5 +183,6 @@ internal sealed class ModuloPrivacidade : Modulo
 public sealed class ConfigPrivacidade
 {
     /// <summary>Apps que nunca acendem as bolinhas: nome do .exe (com ou sem .exe), nome que aparece no cartão ou família do pacote.</summary>
+    [Label("Apps ignorados", "Ignored apps")]
     [JsonPropertyName("ignorar")] public List<string> Ignorar { get; set; } = new();
 }

@@ -200,7 +200,7 @@ internal sealed class Sessoes
             case "ouvindo":
                 s.Inicio = ev.T;
                 s.Pergunta = false;
-                Mudar(s, Fase.Pensando, "Pensando", ev.T);
+                Mudar(s, Fase.Pensando, Lang.T("Pensando", "Thinking"), ev.T);
                 break;
             case "lendo":
             case "digitando":
@@ -210,29 +210,29 @@ internal sealed class Sessoes
                 Mudar(s, Fase.Trabalhando, Neutro.DoEvento(ev), ev.T);
                 break;
             case "compactou":
-                Mudar(s, Fase.Pensando, "Compactando a conversa", ev.T);
+                Mudar(s, Fase.Pensando, Lang.T("Compactando a conversa", "Compacting the conversation"), ev.T);
                 if (s.Inicio <= 0) s.Inicio = ev.T;
                 break;
             case "falhou":
             case "bug":
-                if (s.Trabalhando) s.Texto = "Um comando falhou";
+                if (s.Trabalhando) s.Texto = Lang.T("Um comando falhou", "A command failed");
                 break;
             case "vitoria":
-                if (s.Trabalhando) s.Texto = "Os testes passaram";
+                if (s.Trabalhando) s.Texto = Lang.T("Os testes passaram", "The tests passed");
                 break;
             case "notificacao":
                 if (ev.Aviso == "permission_prompt")
                 {
-                    Mudar(s, Fase.Esperando, "Pedindo permissão", ev.T);
+                    Mudar(s, Fase.Esperando, Lang.T("Pedindo permissão", "Asking for permission"), ev.T);
                     if (s.Pedidos.Count == 0 && !silencioso) ef.PediuPermissaoSemPonte.Add(s);
                 }
                 else if (ev.Aviso == "idle_prompt")
                 {
                     // aviso de 1 minuto parado depois de terminar: o fim já teve o alerta dele, e ficar "esperando" para
                     // sempre depois de cada resposta seria a ilha ocupada o tempo todo
-                    if (s.Trabalhando) Mudar(s, Fase.Esperando, "Esperando você", ev.T);
+                    if (s.Trabalhando) Mudar(s, Fase.Esperando, Lang.T("Esperando você", "Waiting for you"), ev.T);
                 }
-                else Mudar(s, Fase.Esperando, "Precisa de você", ev.T);
+                else Mudar(s, Fase.Esperando, Lang.T("Precisa de você", "Needs you"), ev.T);
                 break;
             case "terminou":
             {
@@ -242,7 +242,7 @@ internal sealed class Sessoes
                 s.Pergunta = ev.Pergunta;
                 s.Inicio = 0;
                 s.IdleDesde = 0;
-                Mudar(s, Fase.Terminou, ev.Pergunta ? "Fez uma pergunta" : "Terminou", ev.T);
+                Mudar(s, Fase.Terminou, ev.Pergunta ? Lang.T("Fez uma pergunta", "Asked a question") : Lang.T("Terminou", "Finished"), ev.T);
                 if (!silencioso && estava) ef.Terminaram.Add((s, dur));
                 break;
             }
@@ -280,16 +280,16 @@ internal sealed class Sessoes
                 if (t > s.FaseDesde && s.Fase is Fase.Nenhuma or Fase.Terminou or Fase.Parada)
                 {
                     s.Inicio = t;
-                    Mudar(s, Fase.Pensando, "Pensando", t);
+                    Mudar(s, Fase.Pensando, Lang.T("Pensando", "Thinking"), t);
                 }
                 else if (s.Fase == Fase.Esperando && antes == "waiting")
-                    Mudar(s, Fase.Pensando, "Pensando", t);
+                    Mudar(s, Fase.Pensando, Lang.T("Pensando", "Thinking"), t);
                 break;
             case "waiting":
                 s.IdleDesde = 0;
                 bool permissao = a.EsperandoPor.Contains("permission", StringComparison.OrdinalIgnoreCase)
                     || a.EsperandoPor.Contains("permiss", StringComparison.OrdinalIgnoreCase) || s.Pedidos.Count > 0;
-                Mudar(s, Fase.Esperando, permissao ? "Pedindo permissão" : "Esperando você", t);
+                Mudar(s, Fase.Esperando, permissao ? Lang.T("Pedindo permissão", "Asking for permission") : Lang.T("Esperando você", "Waiting for you"), t);
                 foreach (var p in s.Pedidos) if (t >= p.Chegou - 1) p.ViuEsperando = true;
                 break;
             case "idle":
@@ -326,7 +326,7 @@ internal sealed class Sessoes
         if (s.Projeto.Length == 0) s.Projeto = p.Projeto;
         s.Pedidos.Add(p);
         if (s.Status == "waiting") p.ViuEsperando = true;
-        Mudar(s, Fase.Esperando, "Pedindo permissão", p.Chegou);
+        Mudar(s, Fase.Esperando, Lang.T("Pedindo permissão", "Asking for permission"), p.Chegou);
         s.UltimoEvento = Math.Max(s.UltimoEvento, p.Chegou);
     }
 
@@ -336,7 +336,7 @@ internal sealed class Sessoes
         var s = Pegar(p.Sessao);
         if (s == null || !s.Pedidos.Remove(p)) return false;
         if (s.Pedidos.Count == 0 && s.Fase == Fase.Esperando && s.Status != "waiting")
-            Mudar(s, Fase.Pensando, "Pensando", Math.Max(s.FaseDesde, p.Chegou));
+            Mudar(s, Fase.Pensando, Lang.T("Pensando", "Thinking"), Math.Max(s.FaseDesde, p.Chegou));
         return true;
     }
 
@@ -353,12 +353,12 @@ internal sealed class Sessoes
                 s.Duracao = s.Inicio > 0 ? Math.Max(0, s.IdleDesde - s.Inicio) : 0;
                 s.Inicio = 0;
                 s.IdleDesde = 0;
-                Mudar(s, Fase.Parada, "Parou", agora);
+                Mudar(s, Fase.Parada, Lang.T("Parou", "Stopped"), agora);
                 ef.Mudou = true;
             }
             else if (PrazoDePensar(s) is double pp && agora >= pp)
             {
-                Mudar(s, Fase.Pensando, "Pensando", agora);
+                Mudar(s, Fase.Pensando, Lang.T("Pensando", "Thinking"), agora);
                 ef.Mudou = true;
             }
             if (PrazoDeEsquecer(s) is double pe && agora >= pe)
@@ -434,22 +434,33 @@ internal static class Neutro
         string d = ev.Detalhe.Trim();
         switch (ev.Tipo)
         {
-            case "ouvindo": return "Pensando";
-            case "compactou": return "Compactando a conversa";
+            case "ouvindo": return Lang.T("Pensando", "Thinking");
+            case "compactou": return Lang.T("Compactando a conversa", "Compacting the conversation");
             case "rodando":
-                if (ev.Ligada || d.Length == 0) return "Rodando um comando";
+                if (ev.Ligada || d.Length == 0) return Lang.T("Rodando um comando", "Running a command");
                 return Curto(d);
             case "digitando":
-                if (ArquivoMecanico.IsMatch(d) && !d.StartsWith("Lendo", StringComparison.Ordinal)) return d;
-                if (!ev.Ligada && (d.StartsWith("Editando", StringComparison.Ordinal) || d.StartsWith("Escrevendo", StringComparison.Ordinal))) return Curto(d);
-                return "Editando arquivos";
+                if (ArquivoMecanico.IsMatch(d) && !d.StartsWith("Lendo", StringComparison.Ordinal)) return NoIdioma(d);
+                if (!ev.Ligada && (d.StartsWith("Editando", StringComparison.Ordinal) || d.StartsWith("Escrevendo", StringComparison.Ordinal))) return NoIdioma(Curto(d));
+                return Lang.T("Editando arquivos", "Editing files");
             case "lendo":
-                if (ArquivoMecanico.IsMatch(d) && d.StartsWith("Lendo", StringComparison.Ordinal)) return d;
-                if (d.StartsWith("Procurando", StringComparison.Ordinal)) return ev.Ligada ? "Procurando nos arquivos" : Curto(d);
-                if (!ev.Ligada && d.StartsWith("Lendo", StringComparison.Ordinal)) return Curto(d);
-                return "Lendo arquivos";
+                if (ArquivoMecanico.IsMatch(d) && d.StartsWith("Lendo", StringComparison.Ordinal)) return NoIdioma(d);
+                if (d.StartsWith("Procurando", StringComparison.Ordinal)) return ev.Ligada ? Lang.T("Procurando nos arquivos", "Searching the files") : NoIdioma(Curto(d));
+                if (!ev.Ligada && d.StartsWith("Lendo", StringComparison.Ordinal)) return NoIdioma(Curto(d));
+                return Lang.T("Lendo arquivos", "Reading files");
             default: return "";
         }
+    }
+
+    // the hook writes its details in Portuguese ("Editando x.cs"): in English only the leading verb is translated
+    private static readonly (string Pt, string En)[] Verbos = { ("Lendo", "Reading"), ("Editando", "Editing"), ("Escrevendo", "Writing"), ("Procurando", "Searching") };
+
+    private static string NoIdioma(string d)
+    {
+        if (!Lang.English) return d;
+        foreach (var (pt, en) in Verbos)
+            if (d.StartsWith(pt + " ", StringComparison.Ordinal)) return en + d[pt.Length..];
+        return d;
     }
 
     private static string Curto(string s)

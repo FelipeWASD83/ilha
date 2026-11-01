@@ -1,25 +1,25 @@
 #!/usr/bin/env python3
-"""Status line do Claude Code que guarda o uso do plano para a ilha.
+"""Claude Code status line that keeps the plan usage for the island.
 
-O Claude Code manda o JSON da sessão pela entrada padrão do comando da status line. Para assinantes do claude.ai
-(Pro, Max, Ultra) esse JSON traz `rate_limits.five_hour` e `rate_limits.seven_day`, cada um com
-`used_percentage` (0 a 100) e `resets_at` (segundos desde 1970), conforme a documentação oficial da status line.
+Claude Code sends the session JSON on the standard input of the status line command. For claude.ai subscribers
+(Pro, Max, Ultra) that JSON has `rate_limits.five_hour` and `rate_limits.seven_day`, each with `used_percentage`
+(0 to 100) and `resets_at` (seconds since 1970), according to the official status line documentation.
 
-Este script:
-  1. lê o JSON da entrada;
-  2. grava só as duas janelas (porcentagem e reset) e a hora da coleta em `~/.ilha/uso-claude.json`, de forma
-     atômica, e só quando o JSON traz alguma janela (nunca troca dado bom por nada, nem dado novo por um mais velho
-     de uma sessão parada);
-  3. roda a status line que você já tinha, com a mesma entrada, e repassa a saída e o código dela. Se qualquer coisa
-     aqui der errado, a status line anterior continua aparecendo.
+This script:
+  1. reads the JSON from the input;
+  2. writes only the two windows (percentage and reset) and the collection time to `~/.ilha/uso-claude.json`,
+     atomically, and only when the JSON has some window (it never replaces good data with nothing, nor new data with
+     older data from an idle session);
+  3. runs the status line you already had, with the same input, and passes on its output and exit code. If anything
+     here goes wrong, the previous status line keeps showing.
 
-A status line anterior vem de `--anterior "<comando>"` ou de `~/.ilha/config.json` -> modulos -> limite ->
-statuslineAnterior. Sem nenhuma das duas, não imprime nada.
+The previous status line comes from `--anterior "<command>"` or from `~/.ilha/config.json` -> modulos -> limite ->
+statuslineAnterior. Without either of them, it prints nothing.
 
-Uso no settings.json do Claude Code (barras normais no caminho, por causa do Git Bash):
-    "statusLine": {"type": "command", "command": "python C:/caminho/ilha/ferramentas/statusline_uso.py"}
+Usage in the Claude Code settings.json (forward slashes in the path, because of Git Bash):
+    "statusLine": {"type": "command", "command": "python C:/path/ilha/ferramentas/statusline_uso.py"}
 
-Só biblioteca padrão. `--testar` roda o autoteste numa pasta temporária, sem tocar em nada seu.
+Standard library only. `--testar` runs the self test in a temporary folder, without touching anything of yours.
 """
 
 import argparse
@@ -249,7 +249,7 @@ def rodar_anterior(comando, entrada_bytes, tempo):
     try:
         p = subprocess.Popen(argv_do_shell(comando), stdin=subprocess.PIPE, stdout=subprocess.PIPE, env=env, **extra)
     except OSError as e:
-        sys.stderr.write(f"statusline_uso: não deu para rodar a status line anterior: {e}\n")
+        sys.stderr.write(f"statusline_uso: could not run the previous status line: {e}\n")
         return b"", 1
     try:
         saida, _ = p.communicate(entrada_bytes, timeout=tempo)
@@ -262,7 +262,7 @@ def rodar_anterior(comando, entrada_bytes, tempo):
             parcial = saida or parcial
         except Exception:
             pass
-        sys.stderr.write(f"statusline_uso: a status line anterior passou de {tempo:g} s\n")
+        sys.stderr.write(f"statusline_uso: the previous status line took longer than {tempo:g} s\n")
         return parcial, 0 if parcial.strip() else 1
 
 
@@ -294,7 +294,7 @@ def principal(argv, entrada_bytes, saida_buffer):
         try:
             guardar(entrada_bytes, ns.saida or os.path.join(pasta, "uso-claude.json"))
         except Exception as e:
-            sys.stderr.write(f"statusline_uso: não gravou o uso: {e}\n")
+            sys.stderr.write(f"statusline_uso: could not save the usage: {e}\n")
     comando = ns.anterior if ns.anterior is not None else cfg.get("statuslineAnterior", "")
     if not isinstance(comando, str) or not comando.strip():
         return 0
@@ -358,27 +358,27 @@ def testar():
                           "spend_limit": {"used_percentage": 5, "resets_at": agora + 999}}}
     ex = extrair(js)
     ok(ex == {"five_hour": {"used_percentage": 23.5, "resets_at": agora + 3600},
-              "seven_day": {"used_percentage": 41.2, "resets_at": agora + 86400}}, "extrai só as duas janelas")
-    ok(extrair({"model": {}}) == {}, "sem rate_limits: nada")
+              "seven_day": {"used_percentage": 41.2, "resets_at": agora + 86400}}, "extracts only the two windows")
+    ok(extrair({"model": {}}) == {}, "no rate_limits: nothing")
     ok(extrair({"rate_limits": {"five_hour": {"used_percentage": True}, "seven_day": {"used_percentage": "40"}}}) == {},
-       "porcentagem que não é número: ignorada")
+       "percentage that is not a number: ignored")
     ok(extrair({"rate_limits": {"five_hour": {"used_percentage": 10}}}) == {"five_hour": {"used_percentage": 10.0}},
-       "janela sem resets_at continua valendo")
+       "window without resets_at still counts")
 
     g = {"five_hour": {"used_percentage": 50.0, "resets_at": agora + 3600}}
     r, a = mesclar(g, {"five_hour": {"used_percentage": 20.0, "resets_at": agora + 3600 - 7200}}, agora)
-    ok(not a and r == g, "janela mais velha (de uma sessão parada) não troca a guardada")
+    ok(not a and r == g, "older window (from an idle session) does not replace the stored one")
     r, a = mesclar(g, {"five_hour": {"used_percentage": 40.0, "resets_at": agora + 3610}}, agora)
-    ok(not a and r == g, "mesma janela com uso menor: fica a guardada")
+    ok(not a and r == g, "same window with lower usage: the stored one stays")
     r, a = mesclar(g, {"five_hour": {"used_percentage": 55.0, "resets_at": agora + 3600}}, agora)
-    ok(a and r["five_hour"]["used_percentage"] == 55.0, "mesma janela com uso maior: troca")
+    ok(a and r["five_hour"]["used_percentage"] == 55.0, "same window with higher usage: replaced")
     r, a = mesclar(g, {"five_hour": {"used_percentage": 3.0, "resets_at": agora + 3600 + 18000}}, agora)
-    ok(a and r["five_hour"]["used_percentage"] == 3.0, "janela nova: troca mesmo com uso menor")
+    ok(a and r["five_hour"]["used_percentage"] == 3.0, "new window: replaced even with lower usage")
     r, a = mesclar(g, {"seven_day": {"used_percentage": 9.0, "resets_at": agora + 86400}}, agora)
-    ok(a and set(r) == {"five_hour", "seven_day"}, "janela que não veio fica a guardada")
+    ok(a and set(r) == {"five_hour", "seven_day"}, "window that did not come keeps the stored one")
     r, a = mesclar({"five_hour": {"used_percentage": 90.0, "resets_at": agora - 1}},
                    {"seven_day": {"used_percentage": 9.0, "resets_at": agora + 86400}}, agora)
-    ok(a and set(r) == {"seven_day"}, "janela guardada que já venceu sai")
+    ok(a and set(r) == {"seven_day"}, "stored window that already expired is dropped")
 
     with tempfile.TemporaryDirectory() as d:
         destino = os.path.join(d, "uso-claude.json")
@@ -401,56 +401,56 @@ def testar():
         out = io.BytesIO()
         cod = principal(["--saida", destino, "--config", cfg, "--anterior", comando], entrada, out)
         texto = out.getvalue().decode("utf-8", "replace")
-        ok(cod == 3 and texto == "anterior: X ção", f"repassa saída e código da anterior ({cod}, {texto!r}, shell {os.path.basename(shell)})")
+        ok(cod == 3 and texto == "anterior: X ção", f"passes on the output and exit code of the previous one ({cod}, {texto!r}, shell {os.path.basename(shell)})")
         with open(destino, encoding="utf-8") as f:
             gravado = json.load(f)
         ok(set(gravado) == {"coletado_em", "rate_limits"} and set(gravado["rate_limits"]) == set(JANELAS)
-           and gravado["rate_limits"]["five_hour"]["used_percentage"] == 23.5, "grava só o uso e a hora da coleta")
-        ok(not [n for n in os.listdir(d) if n.endswith(".tmp")], "nenhum arquivo temporário sobrando")
+           and gravado["rate_limits"]["five_hour"]["used_percentage"] == 23.5, "writes only the usage and the collection time")
+        ok(not [n for n in os.listdir(d) if n.endswith(".tmp")], "no temporary file left over")
         antes = open(destino, encoding="utf-8").read()
 
         out = io.BytesIO()
         sem = json.dumps({"model": {"display_name": "Y"}}).encode("utf-8")
         cod = principal(["--saida", destino, "--config", cfg, "--anterior", comando], sem, out)
         ok(cod == 3 and out.getvalue().decode("utf-8") == "anterior: Y ção" and open(destino, encoding="utf-8").read() == antes,
-           "sem rate_limits: não mexe no arquivo e a anterior aparece")
+           "no rate_limits: file untouched and the previous one shows")
 
         out = io.BytesIO()
         cod = principal(["--saida", destino, "--config", cfg, "--anterior", comando], b"isto nao e json", out)
-        ok(cod != 0 and open(destino, encoding="utf-8").read() == antes, "entrada quebrada: arquivo intacto, a anterior roda mesmo assim")
+        ok(cod != 0 and open(destino, encoding="utf-8").read() == antes, "broken input: file intact, the previous one runs anyway")
 
         with open(cfg, "w", encoding="utf-8") as f:
             f.write('{\n  // comentario\n  "modulos": {"limite": {"ligado": true, "statuslineAnterior": ' + json.dumps(comando) + '},},\n}\n')
         out = io.BytesIO()
         cod = principal(["--saida", destino, "--config", cfg], entrada, out)
-        ok(cod == 3 and out.getvalue().decode("utf-8") == "anterior: X ção", "a anterior vem do config.json da ilha (com comentário)")
+        ok(cod == 3 and out.getvalue().decode("utf-8") == "anterior: X ção", "the previous one comes from the island config.json (with a comment)")
 
         with open(cfg, "w", encoding="utf-8") as f:
             json.dump({"modulos": {"limite": {"ligado": False}}}, f)
         os.remove(destino)
         out = io.BytesIO()
         cod = principal(["--saida", destino, "--config", cfg], entrada, out)
-        ok(cod == 0 and out.getvalue() == b"" and not os.path.exists(destino), "módulo desligado e sem anterior: não grava nem imprime")
+        ok(cod == 0 and out.getvalue() == b"" and not os.path.exists(destino), "module off and no previous one: writes and prints nothing")
 
         out = io.BytesIO()
         t0 = time.time()
         cod = principal(["--saida", destino, "--config", cfg, "--anterior", f'{prefixo}"{py}" "{sc}" dorme', "--tempo", "1.5"], entrada, out)
         dur = time.time() - t0
-        ok(out.getvalue().startswith(b"antes") and dur < 6, f"anterior lenta: corta no tempo e repassa o que saiu ({out.getvalue()!r}, {dur:.1f} s)")
+        ok(out.getvalue().startswith(b"antes") and dur < 6, f"slow previous one: cut at the time limit, passes on what came out ({out.getvalue()!r}, {dur:.1f} s)")
 
         out = io.BytesIO()
         cod = principal(["--saida", destino, "--config", cfg, "--anterior", "comando-que-nao-existe-ilha"], entrada, out)
-        ok(cod != 0 and out.getvalue() == b"", f"anterior que não existe: sem exceção (código {cod})")
+        ok(cod != 0 and out.getvalue() == b"", f"previous one that does not exist: no exception (code {cod})")
 
         os.environ[VAR_ANINHADA] = "1"
         try:
             out = io.BytesIO()
             cod = principal(["--saida", destino, "--config", cfg, "--anterior", comando], entrada, out)
-            ok(cod == 0 and out.getvalue() == b"", "chamado de dentro de si mesmo: não roda de novo")
+            ok(cod == 0 and out.getvalue() == b"", "called from inside itself: does not run again")
         finally:
             del os.environ[VAR_ANINHADA]
 
-    print(f"{'FALHOU' if falhas else 'ok'}: {len(falhas)} falha(s)")
+    print(f"{'FALHOU' if falhas else 'ok'}: {len(falhas)} failure(s)")
     return 1 if falhas else 0
 
 

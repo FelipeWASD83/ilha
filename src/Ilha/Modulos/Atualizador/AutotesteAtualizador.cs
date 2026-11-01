@@ -53,6 +53,28 @@ internal sealed partial class ModuloAtualizador
 
     public override string Autoteste()
     {
+        // the refusal checks look for Portuguese words; English has its own cases at the end
+        string idioma = Lang.Choice;
+        Lang.Set("pt");
+        try { return AutotestePt() + "\n" + AutotesteIngles(); }
+        finally { Lang.Set(idioma); }
+    }
+
+    private static string AutotesteIngles()
+    {
+        var r = new StringBuilder();
+        void Conferir(string nome, bool ok) => r.AppendLine((ok ? "ok      " : "FALHOU  ") + "english: " + nome);
+        Lang.Set("en");
+        try { Atualizador.Interpretar("""{"tag_name":"v9.0.0","assets":[]}""", "0.2.0", "x/y"); Conferir("release without the package is refused", false); }
+        catch (ErroDeAtualizacao e) { Conferir("release without the package is refused in English", e.Message == "Release 9.0.0 doesn't have the Ilha-9.0.0.zip package.") ; }
+        var info = Atualizador.Interpretar("""{"tag_name":"v9.0.0","body":"## 9.0.0\n\n**New**\n- English interface.\n","assets":[{"name":"Ilha-9.0.0.zip","browser_download_url":"https://x/Ilha-9.0.0.zip","size":1}]}""", "0.2.0", "x/y");
+        Conferir("English changelog heading is skipped in the summary", info.Resumo() == "English interface.");
+        Lang.Set("pt");
+        return r.ToString().TrimEnd();
+    }
+
+    private static string AutotestePt()
+    {
         var r = new StringBuilder();
         void Conferir(string nome, bool ok, string detalhe = "") =>
             r.AppendLine((ok ? "ok      " : "FALHOU  ") + nome + (detalhe.Length > 0 ? $" ({detalhe})" : ""));

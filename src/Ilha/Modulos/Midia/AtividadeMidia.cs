@@ -17,7 +17,7 @@ namespace Ilha.Midia;
 internal sealed class AtividadeMidia : Atividade
 {
     public override string Tipo => "midia";
-    public override string Nome => "Mídia tocando";
+    public override string Nome => Lang.T("Mídia tocando", "Now playing");
 
     private const float LARGURA = 340f;
     private const float Y_LINHA = 78f, A_LINHA = 26f;
@@ -291,7 +291,7 @@ internal sealed class AtividadeMidia : Atividade
         p.Desenho(c, Vector2.Zero, new Vector2(LARGURA, 72), (dc, t) =>
         {
             Capa.Desenhar(dc, p, _capa, 0, 0, 64, 14);
-            string titulo = _titulo.Length > 0 ? _titulo : "Sem título";
+            string titulo = _titulo.Length > 0 ? _titulo : Lang.T("Sem título", "Untitled");
             p.Texto.Desenhar(dc, titulo, new Vector2(78, 7), 16, Cor.Branco, largura: LARGURA - 78 - 32);
             if (_artista.Length > 0)
                 p.Texto.Desenhar(dc, _artista, new Vector2(78, 31), 13, Cor.Secundario, FontWeight.Normal, largura: LARGURA - 78);

@@ -1,276 +1,305 @@
 # CLAUDE.md: ilha
 
-Dynamic Island para o Windows: uma pílula preta no topo do monitor principal que se transforma para mostrar o
-que está acontecendo (mídia, timer, Claude Code, alertas). Criada em 01/11/2026, pedido do Felipe com plano
-aprovado em 7 fases. Repositório **público** (`FelipeWASD83/ilha`, MIT), escolha dele ao criar. O README
-explica o uso; aqui ficam as decisões e as armadilhas.
+Dynamic Island for Windows: a black pill at the top of the main monitor that changes shape to show what is going on
+(media, timer, Claude Code, alerts). Created on 01/11/2026, requested by Felipe with a plan approved in 7 phases.
+**Public** repository (`FelipeWASD83/ilha`, MIT), his choice when it was created. The README explains how to use it;
+this file holds the decisions and the traps.
 
-**0.4.0 (01/11/2026): menu principal, foco só no clique, borda adaptativa, relógio, conta-gotas, prateleira, nota,
-mixer, gravando, limite do Claude, mascote como palco e o ar só avisando quando muda.** Fases 1 a 7 entregues na 0.3.0. 0.1.0 foi o núcleo; 0.2.0 as animações das logos e das
-bolinhas, o instalador, o Menu Iniciar e o iniciar com o Windows; 0.3.0 todos os módulos (mídia, volume,
-câmera/mic, sons, timer, uso do PC, Claude Code, mascote, calculadora, IA, tradutor, ar, fones, print, render,
-notificações), a tela de configurações e o atualizador. Os módulos foram escritos em paralelo por agentes, cada um
-num worktree, sem abrir a ilha (regra deles); a integração e o teste na tela vieram depois. O que cada módulo
-deixou sem testar está em "Testado e não testado". A pesquisa de viabilidade de cada feature (API, o que é frágil, o que exige algo especial) foi feita
-antes do plano; o resumo está no plano aprovado na conversa de 01/11/2026 e os pontos que importam estão aqui.
+**1.0.0 (01/11/2026): bilingual interface (Portuguese and English, following Windows, with the `language` option),
+documentation in English, and the mascot module out of the public repo.** 0.4.0 brought the main menu, focus only on
+click, the adaptive border, the clock, the color picker, the shelf, the note, the mixer, recording, the Claude limit
+and the air only speaking up when it changes. Phases 1 to 7 were delivered in 0.3.0. 0.1.0 was the core; 0.2.0 the
+logo and dot animations, the installer, the Start menu and start with Windows; 0.3.0 every module (media, volume,
+camera/mic, sounds, timer, PC usage, Claude Code, calculator, AI, translator, air, headphones, screenshot, render,
+notifications), the settings window and the updater. The modules were written in parallel by agents, each in a
+worktree, without opening the island (their rule); integration and on-screen testing came afterwards. What each module
+left untested is in "Tested and not tested". The feasibility research for each feature (API, what is fragile, what
+needs something special) was done before the plan; the summary is in the plan approved in the 01/11/2026 conversation
+and the points that matter are here.
 
-## Arquitetura (não desfazer sem medir)
+**The mascot module is private now:** it lives outside this repository and is compiled only through the git-ignored
+`src/Ilha/local.props`; the public release is built with `ferramentas\compilar.ps1 -Publico`, which skips it.
 
-- **C# .NET 10 + Windows.UI.Composition do sistema** numa janela Win32 (`DesktopWindowTarget`). As molas
-  (`SpringVector2/3`) rodam **dentro do DWM**: o app só decide o alvo e troca as cenas. Medido: 250 fps de
-  mediana nas transições, CPU do app ~0. WinUI 3 anima no processo do app; WPF anima no processo e usa janela
-  layered; Python traria `.pyd` nativo para o Smart App Control.
-- **Duas janelas.** `JanelaVisual` (layered + `WS_EX_TRANSPARENT` + `NOREDIRECTIONBITMAP`) só desenha e é
-  transparente ao mouse, então sombra e margem de animação nunca seguram clique. `JanelaToque` não tem conteúdo,
-  usa `SetWindowRgn` no formato exato da pílula e recebe o mouse. `HTTRANSPARENT` não serve entre processos.
-  As duas: `NOACTIVATE`, `TOOLWINDOW`, `TOPMOST`. O `--autoteste` confere isso na tela de verdade.
-- **Esconder = cloak do DWM** (`DWMWA_CLOAK`), não `SW_HIDE`: encoberta, a janela não é composta (nada por cima
-  do jogo) e volta sem atraso.
-- **Direct2D sobre WARP (Direct3D por software) por padrão.** O desenho é só texto e ícone, raro e pequeno. Com
-  a GPU, o driver da NVIDIA sozinho custava ~110 MB de RAM privada (123 MB contra 72 MB). `desenharNaGpu` na
-  config volta para a placa (vale ao reabrir).
-- **Sombra em nine-grid**, duas camadas de desfoque gaussiano desenhadas uma vez. A `DropShadow` do compositor
-  refaz o desfoque a cada quadro e, com a GPU ocupada, derrubava a animação de ~184 para 96 fps.
-- **Conteúdo recortado pela forma** (`GeometricClip` com uma geometria que copia a da pílula por expressão):
-  o que entra e sai nunca aparece fora dela.
-- **Transição de cena**: a cena vive fora da árvore e aparece por `CompositionVisualSurface`; entra com fade,
-  escala e desfoque (efeito escrito à mão em `Desfoque.cs`, sem Win2D) e, ao assentar, troca para o pincel sem
-  efeito (desfoque parado ainda custaria GPU por quadro).
-- **Modo flutuante é o padrão** (pedido dele em 01/11/2026: colado parecia notch e, como o monitor não é OLED,
-  o preto não some na moldura). `colada: true` volta ao estilo notch, com os "ombros" côncavos.
-- **Visibilidade por evento**: `SetWinEventHook(EVENT_SYSTEM_FOREGROUND)` fora de contexto (nada injetado) e o
-  nome do `.exe` pela lista Toolhelp, **sem abrir handle no processo do jogo** (anticheat). Não Incomodar: WNF
-  não documentada `0x0D83063EA3BF1C75` (0 desligado, 1 e 2 ligado), lida a cada 10 s e a cada troca de janela;
-  falhou, vira "desconhecido" e não muda nada. Sessão de Foco: `FocusSessionManager` (documentado).
-- **Aplicar não reanima se o alvo não mudou** (assinatura do plano): cada troca de janela da frente fazia o DWM
-  compor ~35 quadros por cima do jogo à toa.
-- **Config em `%USERPROFILE%\.ilha\`**, não no AppData: processo aberto de dentro do app do Claude (MSIX) vê um
-  AppData virtual. Log em `ilha.log` (1 MB, depois gira para `.1`), medição em `medicao.txt`.
+## Architecture (do not undo without measuring)
 
-## Animações das logos e das bolinhas (0.2.0)
+- **C# .NET 10 + the system Windows.UI.Composition** in a Win32 window (`DesktopWindowTarget`). The springs
+  (`SpringVector2/3`) run **inside the DWM**: the app only decides the target and swaps the scenes. Measured: 250 fps
+  median in transitions, app CPU ~0. WinUI 3 animates in the app process; WPF animates in the process and uses a
+  layered window; Python would bring a native `.pyd` to Smart App Control.
+- **Two windows.** `JanelaVisual` (layered + `WS_EX_TRANSPARENT` + `NOREDIRECTIONBITMAP`) only draws and is transparent
+  to the mouse, so the shadow and the animation margin never hold a click. `JanelaToque` has no content, uses
+  `SetWindowRgn` in the exact shape of the pill and receives the mouse. `HTTRANSPARENT` does not work across
+  processes. Both: `NOACTIVATE`, `TOOLWINDOW`, `TOPMOST`. `--autoteste` checks this on the real screen.
+- **Hiding = DWM cloak** (`DWMWA_CLOAK`), not `SW_HIDE`: while cloaked, the window is not composited (nothing on top of
+  the game) and it comes back with no delay.
+- **Direct2D on WARP (software Direct3D) by default.** The drawing is only text and icons, rare and small. With the
+  GPU, the NVIDIA driver alone cost ~110 MB of private RAM (123 MB against 72 MB). `desenharNaGpu` in the config goes
+  back to the graphics card (applies after reopening).
+- **Nine-grid shadow**, two layers of gaussian blur drawn once. The compositor `DropShadow` redoes the blur every frame
+  and, with the GPU busy, dropped the animation from ~184 to 96 fps.
+- **Content clipped by the shape** (`GeometricClip` with a geometry that copies the pill's through an expression):
+  whatever comes in and out never shows outside it.
+- **Scene transition**: the scene lives outside the tree and shows up through `CompositionVisualSurface`; it comes in
+  with fade, scale and blur (an effect written by hand in `Desfoque.cs`, without Win2D) and, once settled, switches to
+  the brush with no effect (a still blur would still cost GPU per frame).
+- **Floating mode is the default** (his request on 01/11/2026: docked looked like a notch and, since the monitor is not
+  OLED, the black does not disappear into the bezel). `colada: true` goes back to notch style, with the concave
+  "shoulders".
+- **Visibility by event**: `SetWinEventHook(EVENT_SYSTEM_FOREGROUND)` out of context (nothing injected) and the `.exe`
+  name from the Toolhelp list, **without opening a handle on the game process** (anti-cheat). Do Not Disturb:
+  undocumented WNF `0x0D83063EA3BF1C75` (0 off, 1 and 2 on), read every 10 s and on every window switch; if it fails,
+  it becomes "unknown" and changes nothing. Focus session: `FocusSessionManager` (documented).
+- **Applying does not re-animate if the target did not change** (plan signature): every foreground window switch made
+  the DWM compose ~35 frames on top of the game for nothing.
+- **Config in `%USERPROFILE%\.ilha\`**, not in AppData: a process opened from inside the Claude app (MSIX) sees a
+  virtual AppData. Log in `ilha.log` (1 MB, then rotates to `.1`), measurement in `medicao.txt`.
 
-- **Fonte**: os vídeos que o Felipe fez, `videos\ChatGPT-logo.mov` e `videos\Claude-logo.mov` (ProRes 4444 com alfa,
-  23,976 fps, 4320 e 7680 px), e as logos paradas em `imagens\`. Fora do git (3,3 GB e marcas de terceiros).
-- **`ferramentas\preparar_logos.py`** recorta cada trecho numa faixa horizontal de quadros de 128 px em
-  `src\Ilha\imagens\logos\` (fora do git) e escreve `src\Ilha\animacoes.json` (no git: nome, quadros, se repete,
-  fps e zoom). `--so-bolinhas` refaz só as bolinhas sem reler os vídeos. Os trechos foram achados pela diferença
-  entre quadros seguidos: loop 0-119 (o 120 é igual ao 0, emenda perfeita), volta 143/144-217, saída 240-289,
-  entrada 312-361, pulso 384/385-431 (e as metades "some" e "surge"), Claude virando bola 455-480.
-- **Ficam a 24 fps, como ele fez** (decisão dele: "não precisa fazer em 250 fps"). As bolinhas também saem a
-  23,976 fps, no mesmo ritmo. No tamanho da ilha uma volta a 72°/s anda menos de 1 px por quadro.
-- **Bolinhas**: desenhadas pelo script (Pillow, 4x e reduzido), em 3D (órbita inclinada 26°, vista de cima,
-  perspectiva), as de trás escurecem até 40% (só atrás do centro), borrão de movimento por média de 8 instantes
-  com obturador de 180°. Órbita, cometa, onda, divisão e anel; cada uma com entrada (sai da bola única) e saída
-  (volta para ela), para nenhuma troca dar pulo. Começam na bola do vídeo dele (5,86% do quadro, `#D97757`). O
-  GPT tem as mesmas em branco e um "virando bola" feito aqui (o trecho "some" dele + a bolinha nascendo).
-- **Corte (0.4.2):** a família Claude com zoom 1,8x chega a 56% do lado da caixa, e as bolinhas do GPT, desenhadas
-  1,8x maiores no quadro, passavam da borda dele (18 de 36 quadros da órbita encostavam). Agora toda cena entra na
-  ilha com `FOLGA_CENA` (12 DIP) em volta da superfície, e as bolinhas do GPT são desenhadas a 0,72 como as do Claude,
-  com zoom próprio pela chave `chatgpt-bola-` do `animacoes.json` (chave terminada em "-" casa por prefixo, a mais
-  longa ganha). O "virando bola" do GPT (`chatgpt-bola`, sem o "-") continua a 0,72 x 1,8 sem zoom, para emendar.
-- **Zoom**: a logo do Claude ocupa 50% do quadro dela (ele renderizou maior porque ela é assimétrica e saía da
-  tela) e a do GPT 90%. A ilha mostra a família Claude com zoom 1,8x; as bolinhas do Claude são desenhadas a 72%
-  e as do GPT a 130% para todas aparecerem do mesmo tamanho.
-- **Tocador** (`Faixas.cs`): cada faixa é reamostrada uma vez no tamanho exato em pixels (GDI+ bicúbica) e o
-  compositor desliza o pincel pela faixa em degraus (keyframes com step). Roda no DWM: com a logo e as bolinhas
-  animando, a ilha gasta 0,026% do processador. As de uma vez emendam na seguinte pelo `Completed` do lote; a
-  cena que some para o encadeamento (`LogoAnimada.Soltar`).
+## Language (1.0.0)
 
-## Módulos (0.3.0)
+- **`Lang`** (`Lang.cs`): every user-facing text is written as `Lang.T("português", "English")`. Logs, code
+  identifiers and code comments stay in Portuguese (owner's decision). Dates and numbers shown to the user use
+  `Lang.Culture` (pt-BR or en-US).
+- **Choice**: the config key `language` (`"auto"`, `"pt"` or `"en"`, default `"auto"`). `auto` is Portuguese when the
+  Windows display language is Portuguese and English otherwise. The settings window has the selector (Language:
+  Automatic / Português / English).
+- **Config fields in the settings window**: `[Label("pt", "en")]` for the label and `[Help("pt", "en")]` for the help
+  line under the field (they win over `[DisplayName]` and `[Description]`).
+- **Module names**: `[Modulo("id", "Nome", English = "Name")]`; the settings window shows the name in the interface
+  language (`Modulo.Name`).
+- **Changing the language** restarts all modules and rebuilds the tray menu, so every text is built again in the new
+  language.
+- **From 1.0 on, commits and the changelog of this repository are in English.**
 
-- **Sistema**: `src/Ilha/Modulos/<Nome>/`, classe com `[Modulo(id, nome)]`, achada por reflexão
-  (`CatalogoDeModulos`, em `Modulo.cs`). Guia de como escrever um: `src/Ilha/Modulos/LEIA.md`. Namespace
-  `Ilha.<Nome>`, nunca `Ilha.Modulos.<Nome>` (colidia com a classe que hoje é `CatalogoDeModulos`). Dentro do
-  namespace `Ilha`, `Ilha.X` resolve para a **classe** `Ilha`: para chegar num namespace use `global::Ilha.X`.
-- Cada módulo tem a seção dele em `config.json` → `modulos` → id (com `ligado`), conversa com o resto só pelos
-  `Servicos` e tem autoteste sem janela (`Ilha.exe --testar [id]`, relatório em `~/.ilha/testes.txt`; linha com
-  `FALHOU` = falha; 884 ok em 01/11/2026).
-- **Desligar um módulo** solta os atalhos e as atividades dele: o núcleo marca o dono (`Atalhos.Dono`,
-  `Ilha.DonoAtual`) enquanto o `Iniciar` roda.
-- APIs do núcleo que os módulos pediram: `Ilha.FecharAlerta`, `Ilha.Remover`, `Ilha.Ativas`, `Ilha.SoltarArraste`
-  (depois do `DoDragDrop`, que engole o botão solto), `Ilha.PodeMostrarAlerta`, `Atividade.ExpandidaMudou`,
-  `Atalhos.Padroes`/`Remover`, `Entrada.Tecla`/`Trocar`. Ferramenta (`EhFerramenta`) redesenhando com o cartão
-  aberto não fecha mais o cartão; a privacidade nunca vai para a bolha (as bolinhas já ficam na pílula); apertar
-  num botão arrastável e soltar sem mexer vale como clique.
-- **Chaves** (IA, ar): só no Gerenciador de Credenciais (`Ilha/openai`, `Ilha/anthropic`, `Ilha/ar-do-quarto`),
-  digitadas por ele na ilha. Nunca em arquivo nem em log.
-- **Ar**: só `GET /api/estado` com o cartão aberto (cada GET faz o servidor ler a LG), `GET /api/historico` de 15 em
-  15 min, `POST /api/comando` um por vez; `/api/atualizar` nunca sai da ilha. O autoteste ao vivo usa o simulador
-  em `127.0.0.1:8089`, **nunca o servidor da casa**.
-- **Notificações**: lê o `wpndatabase.db` (a API oficial exige identidade de pacote); esquema não documentado,
-  desligado por padrão e com lista de apps vazia.
-- **Config local do Felipe** (fora do git, em `~/.ilha/config.json`): `claude.arquivoEventos` (a fila que os hooks
-  do mascote escrevem), `mascote.comandoAbrir` (o mesmo comando do atalho "Mascote" do Menu Iniciar),
-  `nota.arquivo` (a `Vida\Caixa de entrada.md` do cofre), `limite.statuslineAnterior` (a status line de antes) e
-  `ar.endereco` (o mini PC). Os caminhos ficam só lá: nada de caminho pessoal nem nome de projeto privado no
-  repositório (é público).
+## Logo and dot animations (0.2.0)
 
-## Núcleo da 0.4.0 (não desfazer sem ler)
+- **Source**: the videos Felipe made, `videos\ChatGPT-logo.mov` and `videos\Claude-logo.mov` (ProRes 4444 with alpha,
+  23.976 fps, 4320 and 7680 px), and the still logos in `imagens\`. Outside git (3.3 GB and third party brands).
+- **`ferramentas\preparar_logos.py`** cuts each segment into a horizontal strip of 128 px frames in
+  `src\Ilha\imagens\logos\` (outside git) and writes `src\Ilha\animacoes.json` (in git: name, frames, whether it
+  loops, fps and zoom). `--so-bolinhas` redoes only the dots without rereading the videos. The segments were found by
+  the difference between consecutive frames: loop 0-119 (120 equals 0, a perfect seam), turn 143/144-217, exit
+  240-289, entry 312-361, pulse 384/385-431 (and the "vanish" and "appear" halves), Claude turning into a ball 455-480.
+- **They stay at 24 fps, as he made them** (his decision: "no need to make it at 250 fps"). The dots also come out at
+  23.976 fps, at the same pace. At the island size, a turn at 72°/s moves less than 1 px per frame.
+- **Dots**: drawn by the script (Pillow, 4x and downscaled), in 3D (orbit tilted 26°, seen from above, perspective),
+  the ones in the back darken down to 40% (only behind the center), motion blur from an average of 8 instants with a
+  180° shutter. Orbit, comet, wave, split and ring; each one with an entry (leaves the single ball) and an exit (goes
+  back to it), so no switch jumps. They start from the ball in his video (5.86% of the frame, `#D97757`). GPT has the
+  same ones in white and a "turning into a ball" made here (its "vanish" segment + the dot being born).
+- **Clipping (0.4.2):** the Claude family with 1.8x zoom reaches 56% of the side of the box, and the GPT dots, drawn
+  1.8x larger in the frame, went past its edge (18 of 36 orbit frames touched it). Now every scene goes into the island
+  with `FOLGA_CENA` (12 DIP) around the surface, and the GPT dots are drawn at 0.72 like the Claude ones, with their
+  own zoom from the `chatgpt-bola-` key in `animacoes.json` (a key ending in "-" matches by prefix, the longest one
+  wins). The GPT "turning into a ball" (`chatgpt-bola`, without the "-") stays at 0.72 x 1.8 with no zoom, so it
+  joins seamlessly.
+- **Zoom**: the Claude logo fills 50% of its frame (he rendered it larger because it is asymmetric and went off
+  screen) and the GPT one 90%. The island shows the Claude family with 1.8x zoom; the Claude dots are drawn at 72% and
+  the GPT ones at 130% so they all show up at the same size.
+- **Player** (`Faixas.cs`): each strip is resampled once at the exact pixel size (GDI+ bicubic) and the compositor
+  slides the brush along the strip in steps (keyframes with step). It runs in the DWM: with the logo and the dots
+  animating, the island uses 0.026% of the processor. One-shot animations chain into the next one through the batch
+  `Completed`; the scene that disappears stops the chaining (`LogoAnimada.Soltar`).
 
-- **Menu principal** (`Menu.cs`): substitui o painel de hora e data. Cada módulo põe as entradas dele por
-  `S.Menu.Adicionar(new ItemDoMenu {...})` (ícone só com formas, nunca letra); o núcleo marca o dono e tira as entradas
-  quando o módulo desliga. Todo cartão aberto que não é o menu ganha a faixa "< Menu" em cima: o núcleo embrulha a
-  cena (`ComVoltar`, `Cena.Interna`), e os botões da cena de dentro continuam valendo com o deslocamento.
-- **Teclado:** a ilha só pega o foco num clique nela (`Entrada.Focar`, a mesma janela invisível dos campos, em modo só
-  teclas). O Esc volta para o menu **só se a ilha foi clicada** (`_clicada`); aberta pelo atalho, o Esc fecha e
-  devolve o foco, como antes. Recolher sempre devolve o foco (`Entrada.Fechar`). Esc nunca é capturado no Windows
-  todo (o conta-gotas registra o Esc só enquanto a lupa está aberta).
-- **Mouse e região (o bug "fica em cima do mouse", reproduzido com o `--teste-mouse` em 01/11/2026):** um alerta que
-  nascia embaixo do cursor parado ganhava um WM_MOUSEMOVE falso do Windows, a ilha achava que o mouse estava em cima
-  e o alerta nunca saía (ficou 10 s quando devia sumir em 4). Agora o movimento com o cursor no mesmo ponto da última
-  troca de região não conta (`_cursorNaMudanca`), um vigia de 150 ms confere com `WindowFromPoint` enquanto a ilha
-  acha que o mouse está em cima, e a região de toque só cresce quando a mola assenta (antes ia para o tamanho final
-  na hora e segurava clique em cima de outro app), menos quando foi o próprio mouse que abriu. Botão solto que não
-  desceu na janela de toque não é clique.
-- **Atraso para recolher:** `atrasoRecolherMs` (600).
-- **Quando ela some (0.4.1, decisão dele):** só em jogo competitivo e em conteúdo em tela cheia
-  (`Contexto.ConteudoEmTelaCheia`: tela cheia de um `.exe` de `appsDeConteudo`, ou modo apresentação; tela cheia
-  exclusiva do Direct3D é sempre jogo). Sem nada para mostrar, a pílula vazia fica em qualquer janela (`pilulaVazia`,
-  que substituiu `ociosaNaAreaDeTrabalho`). Escondida por conteúdo, o mouse na borda de cima, perto do meio, revela
-  (`_revelada`, vigia de 150 ms só nesse estado) até ele ficar ~0,9 s longe. A `Visibilidade` reavalia a cada 3 s
-  porque vídeo entrando em tela cheia não troca a janela da frente.
-- **Borda adaptativa** (`SondaDeFundo.cs`): traço de 1 px por fora da pílula e da bolha, aceso só com fundo escuro.
-  A sonda faz um BitBlt das faixas logo fora da pílula e da sombra (atrás dela a própria ilha cobre), 2 vezes por
-  segundo, só com a ilha visível e nunca com tela cheia na frente; histerese 0,22/0,30. Medido em 01/11/2026: cada
-  leitura espera o compositor ~10 ms e, a 4 por segundo, custava +0,01% de processador (0,020% contra 0,010%); a
-  espera é que motivou baixar para 2 e parar em tela cheia (jogo). O custo vai para o log a cada minuto ("borda: N
-  leituras"). Não existe no modo colado.
-- **Relógio:** a atividade declara `MeioLivreCompacta`; o núcleo desenha a hora ali quando cabe, nunca na área de
-  trabalho.
-- **Soltar arquivos** (`Soltura.cs`): alvo OLE na janela de toque, só caminhos de verdade, efeito atalho ou cópia
-  (nunca mover). Com a ilha escondida, a pílula vazia aparece no topo do meio quando um arraste de arquivo (a captura
-  do mouse está numa janela `CLIPBRDWNDCLASS`, a do DoDragDrop) que começou fora dali chega perto. **Não confirmado
-  na tela** se essa classe é a do arraste do Explorer neste Windows: se a zona nunca aparecer, o log diz qual classe
-  viu ("zona de soltar: captura com ...").
-- **Mascote:** o módulo é só o palco. O app do mascote (projeto privado, fora daqui) manda o quadro pronto pelo pipe
-  `\\.\pipe\ilha-acompanhante` (servido pela ilha, só o mesmo usuário) e recebe onde a pílula está, para entrar
-  quando é solto em cima dela e sair quando é arrastado de dentro.
-- **Limite do Claude:** `ferramentas/statusline_uso.py` fica no lugar da status line do Claude Code, grava só
-  `rate_limits` em `~/.ilha/uso-claude.json` e chama a status line de antes (instalado em 01/11/2026; cópia do
-  settings em `settings.json.antes-limite`). **Em aberto:** se as sessões do app Desktop rodam a status line; até o
-  fim da sessão de 01/11/2026 o arquivo não tinha aparecido (a sessão já estava aberta antes da troca).
-- **Ar:** saiu da pílula. O módulo lê `GET /api/historico` (que não faz o servidor ler a LG) de 45 em 45 s e avisa
-  quando ligado, modo ou alvo mudam; temperatura da sala sozinha não avisa. Mudança feita pela ilha avisa na hora e a
-  confirmação que vem depois fica calada. Mudança pelo controle remoto aparece em até 15 min (a cadência do servidor
-  com ninguém olhando), ou 3 min com algo olhando.
+## Modules (0.3.0)
 
-## Aprovar permissão do Claude Code pela ilha
+- **System**: `src/Ilha/Modulos/<Nome>/`, a class with `[Modulo(id, nome)]`, found by reflection
+  (`CatalogoDeModulos`, in `Modulo.cs`). Guide on how to write one: `src/Ilha/Modulos/README.md`. Namespace
+  `Ilha.<Nome>`, never `Ilha.Modulos.<Nome>` (it collided with the class that is now `CatalogoDeModulos`). Inside the
+  `Ilha` namespace, `Ilha.X` resolves to the **class** `Ilha`: to reach a namespace use `global::Ilha.X`.
+- Each module has its own section in `config.json` → `modulos` → id (with `ligado`), talks to the rest only through
+  `Servicos` and has a windowless self test (`Ilha.exe --testar [id]`, report in `~/.ilha/testes.txt`; a line with
+  `FALHOU` = failure; 884 ok on 01/11/2026).
+- **Turning a module off** releases its hotkeys and activities: the core marks the owner (`Atalhos.Dono`,
+  `Ilha.DonoAtual`) while `Iniciar` runs.
+- Core APIs the modules asked for: `Ilha.FecharAlerta`, `Ilha.Remover`, `Ilha.Ativas`, `Ilha.SoltarArraste` (after
+  `DoDragDrop`, which swallows the button release), `Ilha.PodeMostrarAlerta`, `Atividade.ExpandidaMudou`,
+  `Atalhos.Padroes`/`Remover`, `Entrada.Tecla`/`Trocar`. A tool (`EhFerramenta`) redrawing with the card open no
+  longer closes the card; privacy never goes to the bubble (the dots already stay on the pill); pressing a draggable
+  button and releasing it without moving counts as a click.
+- **Keys** (AI, air): only in the Credential Manager (`Ilha/openai`, `Ilha/anthropic`, `Ilha/ar-do-quarto`), typed by
+  him on the island. Never in a file or in a log.
+- **Air**: only `GET /api/estado` with the card open (each GET makes the server read the LG unit), `GET
+  /api/historico` every 15 min, `POST /api/comando` one at a time; `/api/atualizar` never leaves the island. The live
+  self test uses the simulator at `127.0.0.1:8089`, **never the house server**.
+- **Notifications**: reads `wpndatabase.db` (the official API requires package identity); undocumented schema, off by
+  default and with an empty app list.
+- **Felipe's local config** (outside git, in `~/.ilha/config.json`): `claude.arquivoEventos` (the event queue written
+  by his Claude Code hooks), `nota.arquivo` (the `Vida\Caixa de entrada.md` of the vault),
+  `limite.statuslineAnterior` (the previous status line) and `ar.endereco` (the mini PC). The paths stay only there: no
+  personal path or private project name in the repository (it is public).
 
-- `ferramentas/hook_permissao.py` é o hook `PermissionRequest`, instalado em 01/11/2026 no `~/.claude/settings.json`
-  dele (cópia de antes em `settings.json.antes-ilha`). Conversa com a ilha pelo pipe `\\.\pipe\ilha-permissao`
-  (confere que quem serve é o `Ilha.exe`). Sem ilha, sem resposta ou sem decisão: sai sem saída e o diálogo normal
-  segue. Nunca permite por tempo esgotado. Subagente, `AskUserQuestion` e `ExitPlanMode` ficam de fora.
-- **Não confirmado:** se o diálogo do Claude Code aparece junto com o hook ou só depois que ele sai (a documentação
-  não diz; o teste no terminal falhou porque o login do CLI de lá tinha expirado). Por isso a espera é curta
-  (`esperaSegundos` 45) e, com a ilha sem poder aparecer (pausada, jogo competitivo, Não Incomodar, tela cheia), o
-  pedido volta na hora para o diálogo normal, inclusive se isso mudar com o pedido esperando. Se ele disser que o
-  diálogo demora a aparecer, é isso.
+## Core of 0.4.0 (do not undo without reading)
 
-## Atualizador
+- **Main menu** (`Menu.cs`): replaces the time and date panel. Each module adds its entries through
+  `S.Menu.Adicionar(new ItemDoMenu {...})` (icon made only of shapes, never a letter); the core marks the owner and
+  removes the entries when the module is turned off. Every open card that is not the menu gets the "< Menu" strip at
+  the top: the core wraps the scene (`ComVoltar`, `Cena.Interna`), and the buttons of the inner scene keep working
+  with the offset.
+- **Keyboard:** the island only takes focus on a click on it (`Entrada.Focar`, the same invisible window used by the
+  fields, in keys-only mode). Esc goes back to the menu **only if the island was clicked** (`_clicada`); opened by the
+  hotkey, Esc closes it and gives the focus back, as before. Collapsing always gives the focus back
+  (`Entrada.Fechar`). Esc is never captured in the whole of Windows (the color picker registers Esc only while the
+  magnifier is open).
+- **Mouse and region (the "stays under the mouse" bug, reproduced with `--teste-mouse` on 01/11/2026):** an alert that
+  appeared under a still cursor got a fake WM_MOUSEMOVE from Windows, the island thought the mouse was over it and the
+  alert never left (it stayed 10 s when it should vanish in 4). Now a move with the cursor at the same point as the
+  last region change does not count (`_cursorNaMudanca`), a 150 ms watcher checks with `WindowFromPoint` while the
+  island thinks the mouse is over it, and the touch region only grows when the spring settles (before, it went to the
+  final size right away and held clicks on top of another app), except when the mouse itself opened it. A button
+  release that was not pressed in the touch window is not a click.
+- **Collapse delay:** `atrasoRecolherMs` (600).
+- **When it hides (0.4.1, his decision):** only in competitive games and in full screen content
+  (`Contexto.ConteudoEmTelaCheia`: full screen of an `.exe` from `appsDeConteudo`, or presentation mode; exclusive
+  Direct3D full screen is always a game). With nothing to show, the empty pill stays over any window (`pilulaVazia`,
+  which replaced `ociosaNaAreaDeTrabalho`). When hidden by content, the mouse at the top edge, near the middle, reveals
+  it (`_revelada`, a 150 ms watcher only in that state) until it stays ~0.9 s away. `Visibilidade` re-evaluates every
+  3 s because a video going full screen does not switch the foreground window.
+- **Adaptive border** (`SondaDeFundo.cs`): a 1 px line outside the pill and the bubble, lit only on a dark background.
+  The probe does a BitBlt of the strips just outside the pill and the shadow (behind it the island itself covers the
+  background), 2 times per second, only with the island visible and never with full screen in front; hysteresis
+  0.22/0.30. Measured on 01/11/2026: each read waits ~10 ms for the compositor and, at 4 per second, cost +0.01% of
+  processor (0.020% against 0.010%); the wait is what led to lowering it to 2 and stopping in full screen (games). The
+  cost goes to the log every minute ("borda: N leituras"). It does not exist in docked mode.
+- **Clock:** the activity declares `MeioLivreCompacta`; the core draws the time there when it fits, never on the
+  desktop.
+- **Dropping files** (`Soltura.cs`): an OLE target on the touch window, only real paths, link or copy effect (never
+  move). With the island hidden, the empty pill shows up at the top center when a file drag (the mouse capture is in a
+  `CLIPBRDWNDCLASS` window, the DoDragDrop one) that started elsewhere comes close. **Not confirmed on screen** whether
+  that class is the one Explorer uses for dragging on this Windows: if the zone never shows up, the log says which
+  class it saw ("zona de soltar: captura com ...").
+- **Claude limit:** `ferramentas/statusline_uso.py` takes the place of the Claude Code status line, writes only
+  `rate_limits` to `~/.ilha/uso-claude.json` and calls the previous status line (installed on 01/11/2026; copy of the
+  settings in `settings.json.antes-limite`). **Open question:** whether Desktop app sessions run the status line; by
+  the end of the 01/11/2026 session the file had not shown up (that session was already open before the switch).
+- **Air:** it left the pill. The module reads `GET /api/historico` (which does not make the server read the LG unit)
+  every 45 s and gives a notice when power, mode or target change; the room temperature alone does not trigger a
+  notice. A change made from the island gives the notice right away and the confirmation that comes later stays quiet.
+  A change from the remote control shows up within 15 min (the server cadence with nobody watching), or 3 min with
+  something watching.
 
-- `Modulos/Atualizador`: procura nas releases de `FelipeWASD83/ilha` (cache de 6 h), baixa, confere o SHA-256,
-  troca os arquivos por um executor (`Ilha.exe --instalar-atualizacao`, tratado na primeira linha do `Main`) e volta
-  para a anterior se a nova não sinalizar que abriu bem (`Atualizador.AbriuBem`, chamado pelo `Programa` com o
-  núcleo montado). Estado em `~/.ilha/atualizacao/`. Nunca apaga nada de `~/.ilha`.
-- Publicar: `ferramentas/publicar-versao.ps1` (recusa se o `.csproj` e o topo do `CHANGELOG.md` não baterem;
-  `-SoGerar` só monta o pacote). **Publicar release é decisão dele.** Ainda não existe release (01/11/2026).
-- O executável da release é compilado aqui e tem o hash desta compilação; o SAC pode barrar o `.exe` baixado
-  mesmo tendo aceitado o local. Testar o pacote antes de publicar.
+## Approving Claude Code permissions from the island
 
-## Instalação e início com o Windows
+- `ferramentas/hook_permissao.py` is the `PermissionRequest` hook, installed on 01/11/2026 in his
+  `~/.claude/settings.json` (copy of the previous one in `settings.json.antes-ilha`). It talks to the island through
+  the pipe `\\.\pipe\ilha-permissao` (it checks that the server is `Ilha.exe`). No island, no answer or no decision:
+  it exits with no output and the regular dialog goes on. It never allows on a timeout. Subagents,
+  `AskUserQuestion` and `ExitPlanMode` are left out.
+- **Not confirmed:** whether the Claude Code dialog shows up together with the hook or only after it exits (the
+  documentation does not say; the terminal test failed because the CLI login there had expired). That is why the wait
+  is short (`esperaSegundos` 45) and, when the island cannot show up (paused, competitive game, Do Not Disturb, full
+  screen), the request goes back to the regular dialog right away, even if that changes while the request is waiting.
+  If he says the dialog takes a while to show up, this is why.
 
-- `ferramentas\instalar.ps1` publica pelo `compilar.ps1` (checagem do SAC), fecha a ilha aberta, copia para
-  `%LOCALAPPDATA%\Programs\Ilha`, cria `Ilha.lnk` no Menu Iniciar com o `icone\icone.ico` e abre a cópia
-  instalada. **Rodar num terminal normal** (o `run_in_terminal`), nunca do shell do Claude: processo aberto pelo app
-  (MSIX) vê AppData e registro virtuais e instalaria na cópia virtual.
-- O `Run` (`HKCU\...\Run`, valor "Ilha") é gravado **só pela cópia instalada** (`Inicio.cs`), conforme
-  `iniciarComWindows` (padrão ligado). A compilação da pasta muda a cada build e pode ser barrada pelo SAC.
-- Ícone: `ilha()` no `_organizacao\atalhos\desenhar_icones.py` (pílula preta com o anel do timer e as barras do
-  visualizador sobre azul-violeta), renderizado pelo `gerar_icones.py ilha` em `icone\`.
+## Updater
 
-## Smart App Control (importante)
+- `Modulos/Atualizador`: looks at the releases of `FelipeWASD83/ilha` (6 h cache), downloads, checks the SHA-256,
+  swaps the files through an executor (`Ilha.exe --instalar-atualizacao`, handled on the first line of `Main`) and goes
+  back to the previous version if the new one does not signal that it opened fine (`Atualizador.AbriuBem`, called by
+  `Programa` with the core built). State in `~/.ilha/atualizacao/`. It never deletes anything from `~/.ilha`.
+- Publishing: `ferramentas/publicar-versao.ps1` (refuses if the `.csproj` and the top of `CHANGELOG.md` do not match;
+  `-SoGerar` only builds the package; it builds with `compilar.ps1 -Publico`, so no private module goes into the
+  release). **Publishing a release is his decision.** There is no release yet (01/11/2026).
+- The release executable is compiled here and has the hash of this build; Smart App Control may block the downloaded
+  `.exe` even after accepting the local one. Test the package before publishing.
 
-Em 01/11/2026 uma compilação do `Ilha.dll` foi **barrada** (0x800711C7, "política de Controle de Aplicativo")
-depois de várias passarem, e mais tarde o **`Ilha.exe`** também (aí o `Start-Process` nem abre). O SAC julga cada
-binário pela reputação na nuvem. `dotnet Ilha.dll` **não** escapa (o bloqueio é no DLL). Por isso: **compilar
-sempre por `ferramentas\compilar.ps1`**. Ele compila, roda `Ilha.exe --ping` e, se o SAC barrar, troca o carimbo
-e compila de novo, até 8 vezes: `Carimbo.g.cs` (constante com bloco de letras de tamanho sorteado, fora do git)
-muda o DLL, e `-p:SourceRevisionId=<sorteado>` muda a versão informativa, que vai para os recursos do `.exe` (sem
-isso o apphost sai igual em toda compilação). Num dia chegou a barrar três seguidas. Mesmo método do `quadra`. Desligar o SAC está fora de
-questão. Release feita fora deste PC terá outro hash: testar o `.exe` do pacote, não o da compilação local.
+## Installation and start with Windows
 
-## Comandos
+- `ferramentas\instalar.ps1` publishes through `compilar.ps1` (SAC check), closes the open island, copies to
+  `%LOCALAPPDATA%\Programs\Ilha`, creates `Ilha.lnk` in the Start menu with `icone\icone.ico` and opens the installed
+  copy. **Run it in a regular terminal** (`run_in_terminal`), never from the Claude shell: a process opened by the app
+  (MSIX) sees a virtual AppData and registry and would install into the virtual copy.
+- The `Run` entry (`HKCU\...\Run`, value "Ilha") is written **only by the installed copy** (`Inicio.cs`), following
+  `iniciarComWindows` (on by default). The build in the project folder changes with every build and may be blocked by
+  SAC.
+- Icon: `ilha()` in `_organizacao\atalhos\desenhar_icones.py` (black pill with the timer ring and the visualizer bars
+  on blue-violet), rendered by `gerar_icones.py ilha` into `icone\`.
 
-- Compilar (com a checagem do SAC): `powershell -ExecutionPolicy Bypass -File .\ferramentas\compilar.ps1`
-  (`-Publicar <pasta>` publica com ReadyToRun). Saída em `src\Ilha\bin\Release\net10.0-windows10.0.26100.0\win-x64`.
-- Abrir: `Ilha.exe`. Fechar o que está aberto: `Ilha.exe --sair`. Uma instância só.
-- Demonstração automática de todos os estados: `Ilha.exe --roteiro`. Uma atividade só: `Ilha.exe --demo <tipo>`
-  (`timer`, `midia`, `claude`, `uso`, `ia`, `galeria`), com `--expandir` para abrir o cartão.
-- Instalar ou atualizar a cópia do PC: `ferramentas\instalar.ps1` (num terminal normal); `-Desinstalar` tira tudo.
-- Refazer as animações: `python ferramentas\preparar_logos.py` (precisa de ffmpeg, numpy e Pillow).
-- Medir fps, CPU e memória: `Ilha.exe --medir` (passeia pelos estados, ~1 min, resultado em
-  `~/.ilha/medicao.txt`, fecha sozinho). Abre a captura do Windows, que liga a GPU: a memória do fim da medição
-  não é a do uso normal.
-- Autoteste das janelas na tela real: `Ilha.exe --autoteste` (pisca uma pílula de teste 0,7 s; resultado em
-  `~/.ilha/autoteste.txt`, código 0 = ok).
+## Smart App Control (important)
 
-## Medições (01/11/2026, 3440x1440 a 250 Hz, escala 125%)
+On 01/11/2026 a build of `Ilha.dll` was **blocked** (0x800711C7, "Application Control policy") after several passed,
+and later **`Ilha.exe`** too (then `Start-Process` does not even open it). SAC judges each binary by its cloud
+reputation. `dotnet Ilha.dll` does **not** get around it (the block is on the DLL). So: **always build through
+`ferramentas\compilar.ps1`**. It builds, runs `Ilha.exe --ping` and, if SAC blocks it, swaps the stamp and builds
+again, up to 8 times: `Carimbo.g.cs` (a constant with a block of letters of random length, outside git) changes the
+DLL, and `-p:SourceRevisionId=<random>` changes the informational version, which goes into the `.exe` resources
+(without it the apphost comes out the same in every build). One day it blocked three in a row. Same method as
+`quadra`. Turning SAC off is out of the question. A release built outside this PC will have another hash: test the
+`.exe` in the package, not the one from the local build.
 
-- Transições: intervalo mediano 4,00 ms (250 fps). Com a GPU ocupada por outros programas (Unreal do `quadra`,
-  Blender, Wallpaper Engine) ficou em ~188 fps, **igual** a uma referência mínima (um retângulo animado e nada
-  mais) rodando na mesma hora: a ilha não perde quadro além do que a GPU ocupada já tira. Acima do mínimo de 60.
-- CPU parada: ~0,01% (compacta com timer redesenhando 1x/s) e ~0,02% escondida.
-- RAM: ~77 MB privados depois de abrir; ~79 MB com tudo aparecendo (0.2.0, sem módulos). **Com os 16 módulos
-  (0.3.0): ~125 MB privados**, 33 threads, ~1000 handles; CPU parada medida em 0,010% (média de 20 s, compacta com o
-  Claude Code e o timer na tela).
-- Primeira aparição depois de escondida: começa a animar na hora (o atraso de ~70 ms sumiu com o tamanho de
-  partida pequeno e o aquecimento de fontes e janela ao abrir).
+## Commands
 
-## Testado e não testado
+- Build (with the SAC check): `powershell -ExecutionPolicy Bypass -File .\ferramentas\compilar.ps1`
+  (`-Publicar <folder>` publishes with ReadyToRun; `-Publico` skips the private modules of `local.props`). Output in
+  `src\Ilha\bin\Release\net10.0-windows10.0.26100.0\win-x64`.
+- Open: `Ilha.exe`. Close the running one: `Ilha.exe --sair`. Single instance.
+- Automatic demo of every state: `Ilha.exe --roteiro`. A single activity: `Ilha.exe --demo <tipo>` (`timer`,
+  `midia`, `claude`, `uso`, `ia`, `galeria`), with `--expandir` to open the card.
+- Install or update the PC copy: `ferramentas\instalar.ps1` (in a regular terminal); `-Desinstalar` removes
+  everything.
+- Redo the animations: `python ferramentas\preparar_logos.py` (needs ffmpeg, numpy and Pillow).
+- Measure fps, CPU and memory: `Ilha.exe --medir` (tours the states, ~1 min, result in `~/.ilha/medicao.txt`, closes by
+  itself). It opens Windows capture, which wakes the GPU: the memory at the end of the measurement is not the memory of
+  normal use.
+- Window self test on the real screen: `Ilha.exe --autoteste` (flashes a test pill for 0.7 s; result in
+  `~/.ilha/autoteste.txt`, code 0 = ok).
 
-**0.4.0 (01/11/2026):** autotestes de todos os 21 módulos passam (`--testar`: 1195 ok). O bug do mouse foi
-reproduzido na 0.3.0 com o `--teste-mouse` (alerta preso 10 s, região cobrindo o cursor aos 12 ms). Revisão com
-agentes achou e corrigiu 11 defeitos do núcleo novo (Esc pelo atalho prendia o menu, zona de soltar abrindo com
-qualquer clique segurado, foco roubado da tela de configurações, entre outros) e os módulos tiveram conferência
-própria. O resto do que foi visto ou não na tela fica na seção da versão no `CHANGELOG.md` e no relatório da sessão.
+## Measurements (01/11/2026, 3440x1440 at 250 Hz, 125% scale)
 
-**0.3.0 (01/11/2026):** os autotestes de todos os módulos passam (`--testar`: 912 ok, 1 pulou porque o simulador do
-ar não estava aberto). Na tela, com a ilha de verdade e os atalhos globais: pílula com o Claude Code real (sessões
-desta máquina pela fila de eventos e pelos arquivos de sessão), cartão das duas sessões, calculadora, uso do PC
-(RTX 3060 pela NVML), tela de chaves da IA, ar pedindo a chave, e o timer de ponta a ponta (campo, "1m", bolha
-com o anel, alerta "Timer acabou"); o foco voltou para a janela de antes em todos. **Não visto na tela:** mídia com
-música tocando, volume e troca de saída (só o QueryInterface do IPolicyConfig foi testado; a troca mexe no áudio do
-sistema), bolinhas de câmera e mic, mascote, tradutor, chat de verdade (sem chave), ar de verdade (sem chave),
-fones conectando, print, render, notificações, tela de configurações, atualizador (não existe release), aprovar
-permissão pelo hook com o Claude Code chamando, hover e clique com o mouse de verdade.
+- Transitions: median interval 4.00 ms (250 fps). With the GPU busy with other programs (Unreal from `quadra`,
+  Blender, Wallpaper Engine) it stayed at ~188 fps, **the same** as a minimal reference (one animated rectangle and
+  nothing else) running at the same time: the island does not lose frames beyond what the busy GPU already takes.
+  Above the 60 minimum.
+- Idle CPU: ~0.01% (compact with the timer redrawing 1x/s) and ~0.02% hidden.
+- RAM: ~77 MB private after opening; ~79 MB with everything showing (0.2.0, no modules). **With the 16 modules
+  (0.3.0): ~125 MB private**, 33 threads, ~1000 handles; idle CPU measured at 0.010% (20 s average, compact with Claude
+  Code and the timer on screen).
+- First appearance after being hidden: it starts animating right away (the ~70 ms delay went away with the small
+  starting size and the warm-up of fonts and window on open).
 
-- Testado: autoteste das janelas; medição; fotos de todos os estados no escuro e no claro (flutuante e colada);
-  modo competitivo (com o `claude.exe` posto na lista: só o timer fica, mídia e alerta somem); o Não Incomodar do
-  PC dele lido como ligado (por isso o alerta de teste não aparece com `respeitarNaoPerturbe: true`).
-- **Não testado, fica com ele**: hover e clique de verdade com o mouse; atalho global; área de trabalho (Win+D);
-  troca de monitor principal e de resolução; suspensão; reinício do Explorer; reinício do driver
-  (Win+Ctrl+Shift+B); jogo de verdade (com e sem tela cheia exclusiva) e a medição com o PresentMon; se o valor
-  da WNF do Não Incomodar bate com o botão real.
+## Tested and not tested
 
-## Armadilhas
+**0.4.0 (01/11/2026):** the self tests of all 21 modules pass (`--testar`: 1195 ok). The mouse bug was reproduced in
+0.3.0 with `--teste-mouse` (alert stuck for 10 s, region covering the cursor at 12 ms). A review with agents found and
+fixed 11 defects in the new core (Esc from the hotkey trapped the menu, the drop zone opening with any held click,
+focus stolen from the settings window, among others) and the modules had their own check. The rest of what was seen
+or not on screen is in that version's section of `CHANGELOG.md` and in the session report.
 
-- **Uma classe `[ComImport]` por objeto COM do processo inteiro.** O `MMDeviceEnumerator` devolve o mesmo objeto
-  para o processo todo; com uma classe por módulo (mídia e volume tinham), o .NET embrulha com a primeira e o `new`
-  da outra falha no cast (o visualizador da mídia travava). Criar pelo `ComDeAudio.NovoEnumerador()` e converter
-  para a interface do módulo.
+**0.3.0 (01/11/2026):** the self tests of every module pass (`--testar`: 912 ok, 1 skipped because the air simulator
+was not open). On screen, with the real island and the global hotkeys: pill with the real Claude Code (sessions on
+this machine from the event queue and the session files), card with two sessions, calculator, PC usage (RTX 3060
+through NVML), AI keys screen, air asking for the key, and the timer end to end (field, "1m", bubble with the ring,
+"Timer acabou" alert); the focus went back to the previous window in all of them. **Not seen on screen:** media with
+music playing, volume and output switching (only the IPolicyConfig QueryInterface was tested; switching changes the
+system audio), camera and mic dots, translator, real chat (no key), real air (no key), headphones connecting,
+screenshot, render, notifications, settings window, updater (no release exists), approving a permission through the
+hook with Claude Code calling it, hover and click with the real mouse.
 
-- No PC dele, `Ctrl + Alt + M` e `Ctrl + Alt + L` são de outro programa: o timer usa `Ctrl + Alt + R`. Atalho
-  ocupado não quebra nada, o módulo só avisa pela bandeja; antes de escolher padrão novo, testar com
-  `RegisterHotKey` se está livre.
-- `Ctrl + Alt + Espaço` (atalho padrão) estava ocupado no PC dele; a ilha cai para `Ctrl + Shift + Espaço` e
-  avisa pela bandeja. A config guarda o preferido, não o que ficou.
-- Testar janela na tela atrapalha quem está usando o PC: conferir a janela da frente antes de `--roteiro`,
-  `--medir` e `--autoteste`. Em 01/11/2026 uma foto de teste pegou o Brave em tela cheia com o `cordilheira`.
-- Medir fps com outro programa usando a GPU dá número mais baixo: comparar sempre com uma referência rodando
-  na mesma hora antes de culpar a ilha.
-- **Imagens de terceiros ficam fora do git** (o repositório é público): as fotos oficiais de fones em
-  `imagens/fones/*.png` (Apple, Logitech e outras marcas, origem em `imagens/fones/FONTES.md`, que vai no git) e
-  as logos e animações do Claude e do GPT (`imagens\`, `videos\`, `src\Ilha\imagens\logos\`). Estão no PC dele
-  e no backup do SSD; o `.gitignore` as segura. Imagem nova de marca entra do mesmo jeito. Sem elas a ilha abre
-  normal (fica vazio).
-- A foto da HyperX tem fundo branco: recortar na fase 6 antes de usar. A da Razer tem só 500 px.
+- Tested: window self test; measurement; photos of every state on dark and light (floating and docked); competitive
+  mode (with `claude.exe` put on the list: only the timer stays, media and alerts go away); Do Not Disturb on his PC
+  read as on (that is why the test alert does not show up with `respeitarNaoPerturbe: true`).
+- **Not tested, left to him**: real hover and click with the mouse; global hotkey; desktop (Win+D); switching the main
+  monitor and the resolution; sleep; Explorer restart; driver restart (Win+Ctrl+Shift+B); a real game (with and
+  without exclusive full screen) and the measurement with PresentMon; whether the Do Not Disturb WNF value matches the
+  real button.
+
+## Traps
+
+- **One `[ComImport]` class per COM object for the whole process.** `MMDeviceEnumerator` returns the same object for
+  the whole process; with one class per module (media and volume had one each), .NET wraps it with the first one and
+  the `new` of the other fails on the cast (the media visualizer froze). Create it through
+  `ComDeAudio.NovoEnumerador()` and cast it to the module's interface.
+- On his PC, `Ctrl + Alt + M` and `Ctrl + Alt + L` belong to another program: the timer uses `Ctrl + Alt + R`. A taken
+  hotkey does not break anything, the module just says so through the tray; before choosing a new default, test with
+  `RegisterHotKey` whether it is free.
+- `Ctrl + Alt + Space` (the default hotkey) was taken on his PC; the island falls back to `Ctrl + Shift + Space` and
+  says so through the tray. The config keeps the preferred one, not the one it ended up with.
+- Testing a window on screen gets in the way of whoever is using the PC: check the foreground window before
+  `--roteiro`, `--medir` and `--autoteste`. On 01/11/2026 a test photo caught Brave in full screen with `cordilheira`.
+- Measuring fps with another program using the GPU gives a lower number: always compare with a reference running at
+  the same time before blaming the island.
+- **Third party images stay outside git** (the repository is public): the official headphone photos in
+  `imagens/fones/*.png` (Apple, Logitech and other brands, source in `imagens/fones/FONTES.md`, which is in git) and the
+  Claude and GPT logos and animations (`imagens\`, `videos\`, `src\Ilha\imagens\logos\`). They are on his PC and in the
+  SSD backup; `.gitignore` holds them back. A new brand image goes in the same way. Without them the island opens
+  normally (the spot stays empty).
+- The HyperX photo has a white background: cut it out in phase 6 before using it. The Razer one is only 500 px.

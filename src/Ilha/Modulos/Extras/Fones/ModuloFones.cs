@@ -19,7 +19,7 @@ namespace Ilha.Extras;
 /// estão conectados. Outros: a bateria que o Windows guarda (quando o aparelho informa). G733 (receptor LIGHTSPEED,
 /// não é Bluetooth): HID++ direto, "G733 conectado" quando o headset liga e a bateria estimada pela tensão.
 /// </summary>
-[Modulo("fones", "Fones e Bluetooth")]
+[Modulo("fones", "Fones e Bluetooth", English = "Headphones and Bluetooth")]
 internal sealed class ModuloFones : Modulo
 {
     private sealed class Fone
@@ -312,19 +312,19 @@ internal sealed class ModuloFones : Modulo
         var r = new List<(string, int, bool)>();
         if (apple != null)
         {
-            if (apple.Esquerdo is int e) r.Add(("E", e, apple.CarregandoEsquerdo));
-            if (apple.Direito is int d) r.Add(("D", d, apple.CarregandoDireito));
-            if (apple.Estojo is int c) r.Add(("estojo", c, apple.CarregandoEstojo));
+            if (apple.Esquerdo is int e) r.Add((Lang.T("E", "L"), e, apple.CarregandoEsquerdo));
+            if (apple.Direito is int d) r.Add((Lang.T("D", "R"), d, apple.CarregandoDireito));
+            if (apple.Estojo is int c) r.Add((Lang.T("estojo", "case"), c, apple.CarregandoEstojo));
         }
-        else if (bateria is int b) r.Add((g733 ? "estimada" : "bateria", b, carregando));
+        else if (bateria is int b) r.Add((g733 ? Lang.T("estimada", "estimate") : Lang.T("bateria", "battery"), b, carregando));
         return r;
     }
 
     internal static string Subtitulo(bool apple, bool g733, BateriaApple? ba, bool carregando)
     {
-        if (g733) return carregando ? "Ligado · carregando" : "Ligado · bateria estimada pela tensão";
-        if (apple && ba == null) return "Conectado · lendo a bateria";
-        return carregando ? "Conectado · carregando" : "Conectado";
+        if (g733) return carregando ? Lang.T("Ligado · carregando", "On · charging") : Lang.T("Ligado · bateria estimada pela tensão", "On · battery estimated from voltage");
+        if (apple && ba == null) return Lang.T("Conectado · lendo a bateria", "Connected · reading the battery");
+        return carregando ? Lang.T("Conectado · carregando", "Connected · charging") : Lang.T("Conectado", "Connected");
     }
 
     private void Desenhar(Palco p, Vortice.Direct2D1.ID2D1DeviceContext dc, Vector2 t, Fone f)
@@ -347,7 +347,7 @@ internal sealed class ModuloFones : Modulo
         const float PASSO = 42;
         float larguraPartes = partes.Count * PASSO;
         float x0 = 64, largura = t.X - x0 - larguraPartes - 6;
-        p.Texto.Desenhar(dc, f.G733 ? "G733 conectado" : f.Nome, new Vector2(x0, 9), 16, Cor.Branco, largura: largura);
+        p.Texto.Desenhar(dc, f.G733 ? Lang.T("G733 conectado", "G733 connected") : f.Nome, new Vector2(x0, 9), 16, Cor.Branco, largura: largura);
         p.Texto.Desenhar(dc, Subtitulo(f.Apple, f.G733, f.BateriaApple, f.Carregando), new Vector2(x0, 33), 12.5f, Cor.Secundario, FontWeight.Normal, largura: largura);
         for (int i = 0; i < partes.Count; i++)
         {
@@ -371,16 +371,30 @@ internal sealed class ModuloFones : Modulo
 public sealed class ConfigFones
 {
     /// <summary>Pedaços de nome de aparelho que não abrem a ilha (ex.: "Teclado").</summary>
+    [Label("Aparelhos ignorados", "Ignored devices")]
+    [Help("Pedaços de nome de aparelho que não abrem a ilha (ex.: \"Teclado\")", "Parts of a device name that don't open the island (e.g. \"Keyboard\")")]
     [JsonPropertyName("ignorar")] public List<string> Ignorar { get; set; } = new();
     /// <summary>Pedaço do nome do aparelho -> arquivo de imagens/fones (quando o casamento automático erra).</summary>
+    [Label("Fotos por aparelho", "Photos per device")]
+    [Help("Pedaço do nome do aparelho -> arquivo de imagens/fones (quando o casamento automático erra)", "Part of the device name -> file in imagens/fones (when the automatic match is wrong)")]
     [JsonPropertyName("fotos")] public Dictionary<string, string> Fotos { get; set; } = new();
+    [Label("Cor do G733 (foto)", "G733 color (photo)")]
+    [Help("Palavra do nome do arquivo da foto, como \"preto\"", "Word from the photo file name, such as \"preto\"")]
     [JsonPropertyName("corG733")] public string CorG733 { get; set; } = "preto";
+    [Label("Ler a bateria dos AirPods", "Read AirPods battery")]
     [JsonPropertyName("bateriaAirPods")] public bool BateriaAirPods { get; set; } = true;
     /// <summary>De quanto em quanto tempo uma rajada de varredura BLE relê a bateria dos AirPods (0 = só ao conectar).</summary>
+    [Label("Intervalo da bateria dos AirPods (segundos)", "AirPods battery interval (seconds)")]
+    [Help("De quanto em quanto tempo uma varredura BLE relê a bateria (0 = só ao conectar)", "How often a BLE scan rereads the battery (0 = only when connecting)")]
     [JsonPropertyName("intervaloAirPodsSegundos")] public int IntervaloAirPodsSegundos { get; set; } = 60;
+    [Label("Duração da varredura (segundos)", "Scan duration (seconds)")]
     [JsonPropertyName("rajadaSegundos")] public int RajadaSegundos { get; set; } = 5;
     /// <summary>Sinal mínimo (dBm) para aceitar um anúncio: AirPods de outra pessoa na sala chegam mais fracos.</summary>
+    [Label("Sinal mínimo (dBm)", "Minimum signal (dBm)")]
+    [Help("AirPods de outra pessoa na sala chegam mais fracos", "Someone else's AirPods in the room arrive weaker")]
     [JsonPropertyName("sinalMinimo")] public int SinalMinimo { get; set; } = -75;
+    [Label("Headset Logitech G733", "Logitech G733 headset")]
     [JsonPropertyName("g733")] public bool G733 { get; set; } = true;
+    [Label("Intervalo da bateria do G733 (minutos)", "G733 battery interval (minutes)")]
     [JsonPropertyName("intervaloG733Minutos")] public int IntervaloG733Minutos { get; set; } = 5;
 }

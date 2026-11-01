@@ -25,6 +25,16 @@ internal static class AutotesteClaude
     public static string Rodar()
     {
         R.Clear();
+        // the texts below are asserted in Portuguese: pin the language and give back the choice at the end
+        string idioma = Lang.Choice;
+        Lang.Set("pt");
+        try { RodarTudo(); }
+        finally { Lang.Set(idioma); }
+        return R.ToString().TrimEnd();
+    }
+
+    private static void RodarTudo()
+    {
         Bloco("parser de eventos", Parser);
         Bloco("leitor da fila", Leitor);
         Bloco("vigia da fila (arquivo de verdade)", VigiaDeVerdade);
@@ -38,7 +48,24 @@ internal static class AutotesteClaude
         Bloco("hook em python", HookPython);
         Bloco("sonda: arquivos de sessão", SondaSessoes);
         Bloco("sonda: app do Claude", SondaApp);
-        return R.ToString().TrimEnd();
+        Bloco("textos em inglês", EmIngles);
+    }
+
+    private static void EmIngles()
+    {
+        Lang.Set("en");
+        try
+        {
+            Ok(Neutro.DoEvento(Ev(1, "ouvindo")) == "Thinking", "en: ouvindo vira Thinking");
+            Ok(Neutro.DoEvento(Ev(1, "digitando", detalhe: "Editando Demo.cs", ligada: true)) == "Editing Demo.cs", "en: o verbo do hook é traduzido, o arquivo fica");
+            Ok(Neutro.DoEvento(Ev(1, "rodando", detalhe: "descrição na voz dela", ligada: true)) == "Running a command", "en: comando com persona vira Running a command");
+            Ok(BotaoDoModelo.Rotulos[1] == "Medium" && BotaoDoModelo.Rotulos[5] == "Ultracode", "en: rótulos de esforço em inglês");
+            Ok(BotaoDoModelo.Ler("Modelo: Sonnet 5.5 Médio").Nivel == 1, "en: o botão do app em português continua sendo lido");
+            var m = new Sessoes();
+            m.Aplicar(Ev(100, "ouvindo"), false);
+            Ok(m.Pegar("s")!.Texto == "Thinking", "en: a máquina escreve Thinking");
+        }
+        finally { Lang.Set("pt"); }
     }
 
     private static void Bloco(string nome, Action a)

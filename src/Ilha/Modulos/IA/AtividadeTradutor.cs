@@ -20,7 +20,7 @@ namespace Ilha.IA;
 internal sealed class AtividadeTradutor : Atividade
 {
     public override string Tipo => "tradutor";
-    public override string Nome => "Tradutor";
+    public override string Nome => Lang.T("Tradutor", "Translator");
     public override bool EhFerramenta => true;
     public override bool AnunciaChegada => false;
 
@@ -128,11 +128,11 @@ internal sealed class AtividadeTradutor : Atividade
             _traducao.Append(r.Texto);
             _fase = Fase.Pronto;
         }
-        catch (OperationCanceledException) { if (g == _geracao) { _fase = Fase.Erro; _erro = "Interrompida."; } }
+        catch (OperationCanceledException) { if (g == _geracao) { _fase = Fase.Erro; _erro = Lang.T("Interrompida.", "Stopped."); } }
         catch (ErroIA e) { if (g == _geracao) { _fase = Fase.Erro; _erro = e.Message; } }
         catch (Exception e)
         {
-            if (g == _geracao) { _fase = Fase.Erro; _erro = "Deu um erro inesperado (" + e.GetType().Name + ")."; }
+            if (g == _geracao) { _fase = Fase.Erro; _erro = Lang.T("Deu um erro inesperado (", "Unexpected error (") + e.GetType().Name + ")."; }
             Log.Escrever("tradutor: " + Segredo.Limpar(e.ToString()));
         }
         if (g == _geracao) Redesenhar();
@@ -185,7 +185,7 @@ internal sealed class AtividadeTradutor : Atividade
         }
         if (_fase != Fase.Pronto || _traducao.Length == 0) return;
         try { Clipboard.SetDataObject(_traducao.ToString(), true, 5, 20); }
-        catch (Exception e) { _erro = "Não consegui copiar (" + e.GetType().Name + ")."; Redesenhar(); return; }
+        catch (Exception e) { _erro = Lang.T("Não consegui copiar (", "Couldn't copy (") + e.GetType().Name + ")."; Redesenhar(); return; }
         _copiado = true;
         Redesenhar();
         await Task.Delay(450);
@@ -211,8 +211,8 @@ internal sealed class AtividadeTradutor : Atividade
             var pc = p.NovaCena(f == Forma.Bolha ? new Vector2(22, 22) : new Vector2(120, 24));
             p.Desenho(pc, Vector2.Zero, pc.Tamanho, (dc, t) =>
             {
-                var tam = p.Texto.Medir("Tradutor", 13);
-                p.Texto.Desenhar(dc, f == Forma.Bolha ? "Aa" : "Tradutor", new Vector2(f == Forma.Bolha ? 1 : t.X - tam.X, (t.Y - tam.Y) / 2), 13, Cor.Azul);
+                var tam = p.Texto.Medir(Lang.T("Tradutor", "Translator"), 13);
+                p.Texto.Desenhar(dc, f == Forma.Bolha ? "Aa" : Lang.T("Tradutor", "Translator"), new Vector2(f == Forma.Bolha ? 1 : t.X - tam.X, (t.Y - tam.Y) / 2), 13, Cor.Azul);
             });
             return pc;
         }
@@ -222,7 +222,9 @@ internal sealed class AtividadeTradutor : Atividade
         {
             Icone.Retangulo(dc, 0, 0, t.X, t.Y, 13, new Color4(1, 1, 1, 0.10f));
             bool aberto = _entradaNossa && S.Entrada.Aberta;
-            string vazio = _copiado ? "Copiada." : _fase == Fase.Pronto ? "Enter copia a tradução. Ou digite outro texto." : "Digite ou cole um texto e aperte Enter.";
+            string vazio = _copiado ? Lang.T("Copiada.", "Copied.")
+                : _fase == Fase.Pronto ? Lang.T("Enter copia a tradução. Ou digite outro texto.", "Enter copies the translation. Or type another text.")
+                : Lang.T("Digite ou cole um texto e aperte Enter.", "Type or paste a text and press Enter.");
             p.Texto.DesenharCampo(dc, aberto ? S.Entrada.Texto : "", aberto ? S.Entrada.Cursor : 0, false, new Vector2(12, 8), t.X - 24, 13,
                 _copiado ? Cor.Verde : Cor.Branco, vazio, aberto);
         });
@@ -240,10 +242,10 @@ internal sealed class AtividadeTradutor : Atividade
     private void DesenharTexto(ID2D1DeviceContext dc, Palco p, Vector2 t)
     {
         var par = _par!;
-        p.Texto.Desenhar(dc, "Tradutor", new Vector2(0, 0), 13, Cor.Secundario);
+        p.Texto.Desenhar(dc, Lang.T("Tradutor", "Translator"), new Vector2(0, 0), 13, Cor.Secundario);
         string motor = _fase is Fase.Vazio or Fase.Lendo ? "" : _viaIA
-            ? "IA · " + Modelos.Rotulo(_resultado?.Modelo ?? _tradutor.ModeloIA)
-            : "Google · o texto passa pelo Google";
+            ? Lang.T("IA · ", "AI · ") + Modelos.Rotulo(_resultado?.Modelo ?? _tradutor.ModeloIA)
+            : Lang.T("Google · o texto passa pelo Google", "Google · the text goes through Google");
         if (motor.Length > 0)
         {
             var tm = p.Texto.Medir(motor, 11, FontWeight.Normal);
@@ -253,8 +255,8 @@ internal sealed class AtividadeTradutor : Atividade
         // original (apagado, até 3 linhas)
         string original = _fase switch
         {
-            Fase.Lendo => "Lendo o texto selecionado…",
-            Fase.Vazio => "Nada selecionado (ou o app não deixou ler). Digite ou cole o texto embaixo.",
+            Fase.Lendo => Lang.T("Lendo o texto selecionado…", "Reading the selected text…"),
+            Fase.Vazio => Lang.T("Nada selecionado (ou o app não deixou ler). Digite ou cole o texto embaixo.", "Nothing selected (or the app didn't let it be read). Type or paste the text below."),
             _ => _original,
         };
         dc.PushAxisAlignedClip(new System.Drawing.RectangleF(0, 22, t.X, 58), AntialiasMode.Aliased);
@@ -265,12 +267,12 @@ internal sealed class AtividadeTradutor : Atividade
         string idiomas = "";
         if (_resultado is { Motor: "google" } rg)
             idiomas = $"{Tradutor.NomeDoIdioma(rg.Origem)} → {Tradutor.NomeDoIdioma(rg.Destino)}";
-        else if (_fase == Fase.Pronto) idiomas = "para português (ou inglês, se já era português)";
+        else if (_fase == Fase.Pronto) idiomas = Lang.T("para português (ou inglês, se já era português)", "to Portuguese (or English, if it was already Portuguese)");
         Icone.Retangulo(dc, 0, 86, t.X, 1, 0.5f, Cor.Fraco);
         if (idiomas.Length > 0) p.Texto.Desenhar(dc, idiomas, new Vector2(0, 88), 11, Cor.Secundario, FontWeight.Normal, largura: t.X);
 
         string trad = _fase == Fase.Erro && _traducao.Length == 0 ? _erro
-            : _traducao.Length == 0 ? "Traduzindo…" : _traducao.ToString();
+            : _traducao.Length == 0 ? Lang.T("Traduzindo…", "Translating…") : _traducao.ToString();
         var cor = _fase == Fase.Erro && _traducao.Length == 0 ? Cor.Vermelho : _traducao.Length == 0 ? Cor.Secundario : Cor.Branco;
         using (var lt = par.Layout(trad, 15, t.X - 6))
         {

@@ -31,8 +31,8 @@ internal sealed class EstadoPrivacidade : IEquatable<EstadoPrivacidade>
     public List<(bool Camera, string Rotulo, string Apps)> Linhas()
     {
         var l = new List<(bool, string, string)>();
-        if (Camera.Count > 0) l.Add((true, "Câmera:", AppsDaCamera));
-        if (Microfone.Count > 0) l.Add((false, "Microfone:", AppsDoMicrofone));
+        if (Camera.Count > 0) l.Add((true, Lang.T("Câmera:", "Camera:"), AppsDaCamera));
+        if (Microfone.Count > 0) l.Add((false, Lang.T("Microfone:", "Microphone:"), AppsDoMicrofone));
         return l;
     }
 

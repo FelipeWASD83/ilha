@@ -18,7 +18,7 @@ namespace Ilha.Extras;
 /// de capturas do Windows (FOLDERID_Screenshots, o nome em português é só o que o Explorador mostra), vigiada por
 /// evento; o arquivo só é lido depois que o Recorte termina de gravar.
 /// </summary>
-[Modulo("print", "Prints")]
+[Modulo("print", "Prints", English = "Screenshots")]
 internal sealed class ModuloPrint : Modulo
 {
     private const float L = 380, A = 96, MINI_L = 150, MINI_A = 84;
@@ -123,8 +123,8 @@ internal sealed class ModuloPrint : Modulo
                     Icone.Retangulo(dc, mx - 1, my - 1, tam.X + 2, tam.Y + 2, 9, Cor.Fraco);
                     mini.Desenhar(dc, p.Escala, mx, my, 8);
                     float x0 = MINI_L + 16, l = t.X - x0;
-                    p.Texto.Desenhar(dc, "Print salvo", new Vector2(x0, 14), 17, Cor.Branco, largura: l);
-                    p.Texto.Desenhar(dc, "Arraste a miniatura para outro app", new Vector2(x0, 40), 12.5f, Cor.Secundario, FontWeight.Normal, largura: l);
+                    p.Texto.Desenhar(dc, Lang.T("Print salvo", "Screenshot saved"), new Vector2(x0, 14), 17, Cor.Branco, largura: l);
+                    p.Texto.Desenhar(dc, Lang.T("Arraste a miniatura para outro app", "Drag the thumbnail into another app"), new Vector2(x0, 40), 12.5f, Cor.Secundario, FontWeight.Normal, largura: l);
                     p.Texto.Desenhar(dc, Path.GetFileName(caminho), new Vector2(x0, 62), 11, Cor.Secundario, FontWeight.Normal, largura: l);
                 });
                 c.Botoes.Add(new Botao
@@ -272,7 +272,11 @@ internal sealed class Arraste
 public sealed class ConfigPrint
 {
     /// <summary>Pasta vigiada; vazio = a pasta de capturas do Windows (Imagens\Capturas de Tela).</summary>
+    [Label("Pasta vigiada", "Watched folder")]
+    [Help("Vazio = a pasta de capturas do Windows (Imagens\\Capturas de Tela)", "Empty = the Windows screenshots folder (Pictures\\Screenshots)")]
     [JsonPropertyName("pasta")] public string Pasta { get; set; } = "";
     /// <summary>Quanto tempo a miniatura fica na ilha.</summary>
+    [Label("Segundos na ilha", "Seconds on the island")]
+    [Help("Quanto tempo a miniatura fica na ilha", "How long the thumbnail stays on the island")]
     [JsonPropertyName("segundos")] public float Segundos { get; set; } = 7;
 }

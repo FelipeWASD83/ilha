@@ -17,7 +17,7 @@ namespace Ilha.Extras;
 /// arquivo -wal do banco mudou (o serviço gravou alguma coisa), com espera para juntar a rajada; aí abre, lê o que
 /// é mais novo que a última vista e fecha. Esquema não documentado: pode quebrar num update do Windows.
 /// </summary>
-[Modulo("notificacoes", "Notificações do Windows (experimental)", LigadoPorPadrao = false)]
+[Modulo("notificacoes", "Notificações do Windows (experimental)", English = "Windows notifications (experimental)", LigadoPorPadrao = false)]
 internal sealed class ModuloNotificacoes : Modulo
 {
     private ConfigNotificacoes _cfg = new();
@@ -219,10 +219,17 @@ internal sealed class ModuloNotificacoes : Modulo
 public sealed class ConfigNotificacoes
 {
     /// <summary>Pedaços do id do app cujas notificações aparecem na ilha (ex.: "Discord"). Vazio = nenhuma.</summary>
+    [Label("Apps mostrados", "Apps shown")]
+    [Help("Pedaços do id do app cujas notificações aparecem na ilha (ex.: \"Discord\"). Vazio = nenhuma.", "Parts of the app id whose notifications show on the island (e.g. \"Discord\"). Empty = none.")]
     [JsonPropertyName("apps")] public List<string> Apps { get; set; } = new();
     /// <summary>Pedaço do id do app -> nome mostrado (quando o nome tirado do id fica feio).</summary>
+    [Label("Nomes dos apps", "App names")]
+    [Help("Pedaço do id do app -> nome mostrado (quando o nome tirado do id fica feio)", "Part of the app id -> name shown (when the name taken from the id looks bad)")]
     [JsonPropertyName("nomes")] public Dictionary<string, string> Nomes { get; set; } = new();
     /// <summary>false = só o app e o título (o texto pode ser a mensagem de alguém, na frente de quem estiver olhando).</summary>
+    [Label("Mostrar o texto", "Show the text")]
+    [Help("Desligado = só o app e o título (o texto pode ser a mensagem de alguém)", "Off = only the app and the title (the text may be someone's message)")]
     [JsonPropertyName("mostrarTexto")] public bool MostrarTexto { get; set; } = true;
+    [Label("Espera antes de ler (ms)", "Wait before reading (ms)")]
     [JsonPropertyName("esperaMs")] public int EsperaMs { get; set; } = 1200;
 }

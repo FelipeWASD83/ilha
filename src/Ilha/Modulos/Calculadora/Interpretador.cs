@@ -44,11 +44,11 @@ internal static class Interpretador
         public string Norm { get; } = Normal(Apelido);
         /// <summary>Tem símbolo ("R$", "US$", "€"): vale também na frente do número.</summary>
         public bool Simbolo { get; } = Apelido.Any(ch => !char.IsLetter(ch));
-        public string Sigla => Unidade?.Sigla ?? Moeda!.Id;
+        public string Sigla => Unidade?.SiglaTela ?? Moeda!.Id;
     }
 
-    // "em", "para", "pra", "in", "to" entre espaços (sem consumir o espaço: "10 in in cm" tem dois), ou uma seta / "="
-    private static readonly Regex Separador = new(@"(?<=\s)(?:em|para|pra|in|to)(?=\s)|->|→|=>|=", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
+    // "em", "para", "pra", "in", "into", "to" entre espaços (sem consumir o espaço: "10 in in cm" tem dois), ou uma seta / "="
+    private static readonly Regex Separador = new(@"(?<=\s)(?:em|para|pra|into|in|to)(?=\s)|->|→|=>|=", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
 
     private static readonly List<Alvo> Todos = MontarAlvos();
 
@@ -58,7 +58,7 @@ internal static class Interpretador
         foreach (var c in Unidades.Categorias)
             foreach (var u in c.Unidades)
                 // o id não entra: "ms" é o id do m/s e também a sigla do milissegundo
-                foreach (var a in new[] { u.Sigla }.Concat(u.Apelidos).Distinct())
+                foreach (var a in new[] { u.Sigla }.Concat(u.SiglaEn != null ? new[] { u.SiglaEn } : Array.Empty<string>()).Concat(u.Apelidos).Distinct())
                     l.Add(new Alvo(u, null, a));
         foreach (var m in Cambio.Moedas)
             foreach (var a in new[] { m.Id }.Concat(m.Apelidos).Distinct())
@@ -161,7 +161,7 @@ internal static class Interpretador
             string esquerda = t[..m.Index];
             if (!LerQuantidade(esquerda, graus, ans, out var v, out var origem, out var erro))
             {
-                motivo ??= Resultado.Falha(erro ?? $"Faltou dizer de que unidade converter para {destino.Sigla}.");
+                motivo ??= Resultado.Falha(erro ?? Lang.T($"Faltou dizer de que unidade converter para {destino.Sigla}.", $"Missing the unit to convert to {destino.Sigla} from."));
                 continue;
             }
             return Converter(v, origem!, destino, cot);
@@ -181,7 +181,7 @@ internal static class Interpretador
             if (motivo != null) return motivo;
             // "10 km" sem destino: diz como pedir em vez de "Não conheço km"
             if (LerQuantidade(t, graus, ans, out _, out var a, out _) && a!.Unidade != null)
-                return Resultado.Falha($"Para converter, diga o destino: \"{t} em ...\"");
+                return Resultado.Falha(Lang.T($"Para converter, diga o destino: \"{t} em ...\"", $"To convert, say the target: \"{t} in ...\""));
             return Resultado.Falha(e.Message);
         }
     }
@@ -191,26 +191,33 @@ internal static class Interpretador
         if (de.Unidade != null && para.Unidade != null)
         {
             if (de.Unidade.Categoria != para.Unidade.Categoria)
-                return Resultado.Falha($"Não dá para converter {de.Unidade.Sigla} ({de.Unidade.Categoria.Nome.ToLowerInvariant()}) em {para.Unidade.Sigla} ({para.Unidade.Categoria.Nome.ToLowerInvariant()}).");
+            {
+                string a = de.Unidade.SiglaTela, ca = de.Unidade.Categoria.NomeTela.ToLowerInvariant();
+                string b = para.Unidade.SiglaTela, cb = para.Unidade.Categoria.NomeTela.ToLowerInvariant();
+                return Resultado.Falha(Lang.T($"Não dá para converter {a} ({ca}) em {b} ({cb}).", $"Can't convert {a} ({ca}) to {b} ({cb})."));
+            }
             double r = Unidades.Converter(v, de.Unidade, para.Unidade);
-            if (!double.IsFinite(r)) return Resultado.Falha("Grande demais para a calculadora.");
+            if (!double.IsFinite(r)) return Resultado.Falha(Lang.T("Grande demais para a calculadora.", "Too big for the calculator."));
             string txt = Unidades.Formatar(r);
+            string de1 = $"{Unidades.Formatar(v)} {de.Unidade.SiglaTela}";
             return new Resultado
             {
-                Tipo = TipoResultado.Unidade, Valor = r, Principal = $"= {txt} {para.Unidade.Sigla}",
-                Detalhe = $"{Unidades.Formatar(v)} {de.Unidade.Sigla} em {para.Unidade.Nome}",
-                Copia = txt.Contains('e') ? txt : txt.Replace(".", ""),
+                Tipo = TipoResultado.Unidade, Valor = r, Principal = $"= {txt} {para.Unidade.SiglaTela}",
+                Detalhe = Lang.T($"{de1} em {para.Unidade.NomeTela}", $"{de1} in {para.Unidade.NomeTela}"),
+                // sem o separador de milhar da língua da tela (ponto em português, vírgula em inglês)
+                Copia = txt.Contains('e') ? txt : txt.Replace(Calculo.Tela.NumberGroupSeparator, ""),
             };
         }
         if (de.Moeda != null && para.Moeda != null)
         {
             if (cot == null)
-                return new Resultado { Tipo = TipoResultado.Erro, Detalhe = "Buscando a cotação...", PrecisaCotacao = true, MoedaDe = de.Moeda.Id };
+                return new Resultado { Tipo = TipoResultado.Erro, Detalhe = Lang.T("Buscando a cotação...", "Fetching the exchange rate..."), PrecisaCotacao = true, MoedaDe = de.Moeda.Id };
             double r = Cambio.Converter(v, de.Moeda.Id, para.Moeda.Id, cot);
             if (!double.IsFinite(r))
             {
                 var falta = cot.Real.ContainsKey(de.Moeda.Id) ? para.Moeda : de.Moeda;
-                return Resultado.Falha($"Sem cotação de {falta.Nome.ToLowerInvariant()} agora ({cot.Fonte}).");
+                string nome = falta.NomeTela.ToLowerInvariant(), fonte = Cambio.NomeDaFonte(cot.Fonte);
+                return Resultado.Falha(Lang.T($"Sem cotação de {nome} agora ({fonte}).", $"No {nome} rate right now ({fonte})."));
             }
             // a cotação de 1 unidade da moeda que não é o real, para conferir de olho
             var refm = de.Moeda.Id != "BRL" ? de.Moeda : para.Moeda;
@@ -222,6 +229,6 @@ internal static class Interpretador
                 Detalhe = uma, Copia = Cambio.FormatarMoeda(r, para.Moeda.Id, milhar: false),
             };
         }
-        return Resultado.Falha($"Não dá para converter {de.Sigla} em {para.Sigla}.");
+        return Resultado.Falha(Lang.T($"Não dá para converter {de.Sigla} em {para.Sigla}.", $"Can't convert {de.Sigla} to {para.Sigla}."));
     }
 }

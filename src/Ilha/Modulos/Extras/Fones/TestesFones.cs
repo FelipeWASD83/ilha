@@ -31,6 +31,22 @@ internal static class TestesFones
 
     public static string Rodar()
     {
+        // the text assertions are about Portuguese; English has its own cases
+        string idioma = Lang.Choice;
+        Lang.Set("pt");
+        try
+        {
+            var r = RodarPt();
+            Lang.Set("en");
+            r.Conferir("english: subtitles and battery labels", ModuloFones.Subtitulo(true, false, null, false) == "Connected · reading the battery"
+                && ModuloFones.Partes(null, 63, true, true).Single() == ("estimate", 63, true));
+            return r.ToString();
+        }
+        finally { Lang.Set(idioma); }
+    }
+
+    private static Relatorio RodarPt()
+    {
         var r = new Relatorio();
 
         // ---- anúncio dos AirPods
@@ -189,6 +205,6 @@ internal static class TestesFones
                 r.Sonda($"{arq}: {ret.Largura}x{ret.Altura} px em {(DateTime.UtcNow - t0).TotalMilliseconds:0} ms, alfa do canto {ret.Dados[3]}");
             }
         });
-        return r.ToString();
+        return r;
     }
 }

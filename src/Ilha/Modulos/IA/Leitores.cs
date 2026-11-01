@@ -26,7 +26,7 @@ internal static class Segredo
     // chaves da OpenAI (sk-..., sk-proj-...) e da Anthropic (sk-ant-...): a OpenAI devolve parte da chave no 401
     private static readonly Regex Chave = new(@"(?<![A-Za-z0-9])sk-[A-Za-z0-9_\-]{3,}[A-Za-z0-9_\-\*\.]*", RegexOptions.Compiled);
 
-    public static string Limpar(string? texto) => Chave.Replace(texto ?? "", "(chave)");
+    public static string Limpar(string? texto) => Chave.Replace(texto ?? "", Lang.T("(chave)", "(key)"));
 }
 
 /// <summary>O que um stream terminado devolve, igual para os dois lados.</summary>
@@ -85,13 +85,13 @@ internal sealed class LeitorOpenAI : ILeitorStream
             case "response.failed":
             {
                 var erro = (ev["response"] as JsonObject)?["error"] as JsonObject;
-                Falhar(erro, Json.Str(erro?["message"]) is { Length: > 0 } m ? m : "a OpenAI marcou a resposta como falha");
+                Falhar(erro, Json.Str(erro?["message"]) is { Length: > 0 } m ? m : Lang.T("a OpenAI marcou a resposta como falha", "OpenAI marked the reply as failed"));
                 return null;
             }
             case "error":
             {
                 var erro = ev["error"] as JsonObject ?? new JsonObject { ["code"] = Json.Str(ev["code"]), ["message"] = Json.Str(ev["message"]) };
-                string m = Json.Str(ev["message"]) is { Length: > 0 } a ? a : Json.Str(erro["message"]) is { Length: > 0 } b ? b : "erro no stream";
+                string m = Json.Str(ev["message"]) is { Length: > 0 } a ? a : Json.Str(erro["message"]) is { Length: > 0 } b ? b : Lang.T("erro no stream", "stream error");
                 Falhar(erro, m);
                 return null;
             }
@@ -104,13 +104,13 @@ internal sealed class LeitorOpenAI : ILeitorStream
     {
         var dados = new JsonObject { ["error"] = erro?.DeepClone() };
         if (!TemTexto && Provedor.FaltaDeCredito(429, dados))
-            throw new SemCreditoErro("A OpenAI ficou sem crédito (" + Json.Curto(mensagem, 140) + ").", "openai");
+            throw new SemCreditoErro(Lang.T("A OpenAI ficou sem crédito (", "OpenAI ran out of credit (") + Json.Curto(mensagem, 140) + ").", "openai");
         throw new ErroIA("OpenAI: " + Json.Curto(mensagem));
     }
 
     public ResultadoStream Fim()
     {
-        if (_final == null) throw new ErroIA("A conexão com a OpenAI caiu no meio da resposta.");
+        if (_final == null) throw new ErroIA(Lang.T("A conexão com a OpenAI caiu no meio da resposta.", "The connection to OpenAI dropped mid-reply."));
         // o texto oficial é o do response.completed; os deltas são para a tela
         var saida = _final["output"] as JsonArray;
         string oficial = saida == null ? "" : string.Concat(saida.OfType<JsonObject>()
@@ -183,10 +183,10 @@ internal sealed class LeitorClaude : ILeitorStream
                 var dadosErro = new JsonObject { ["error"] = erro.DeepClone() };
                 string m = Json.Str(erro["message"]);
                 if (!TemTexto && Provedor.FaltaDeCredito(400, dadosErro))
-                    throw new SemCreditoErro("O Claude ficou sem crédito (" + Json.Curto(m, 140) + ").", "claude");
+                    throw new SemCreditoErro(Lang.T("O Claude ficou sem crédito (", "Claude ran out of credit (") + Json.Curto(m, 140) + ").", "claude");
                 // overloaded_error e companhia: erro de servidor, nunca troca de lado no meio
                 int status = Json.Str(erro["type"]) switch { "overloaded_error" => 529, "rate_limit_error" => 429, "api_error" => 500, "authentication_error" => 401, _ => 0 };
-                throw new ErroIA(status > 0 ? Mensagens.DeErro("claude", status, dadosErro) : "Claude: " + Json.Curto(m.Length > 0 ? m : "erro no stream"));
+                throw new ErroIA(status > 0 ? Mensagens.DeErro("claude", status, dadosErro) : "Claude: " + Json.Curto(m.Length > 0 ? m : Lang.T("erro no stream", "stream error")));
             }
             default:
                 return null;
@@ -195,7 +195,7 @@ internal sealed class LeitorClaude : ILeitorStream
 
     public ResultadoStream Fim()
     {
-        if (!_terminou && _parada == null) throw new ErroIA("A conexão com o Claude caiu no meio da resposta.");
+        if (!_terminou && _parada == null) throw new ErroIA(Lang.T("A conexão com o Claude caiu no meio da resposta.", "The connection to Claude dropped mid-reply."));
         string texto = string.Concat(_blocos.OrderBy(b => b.Key).Where(b => b.Value.Tipo == "text").Select(b => b.Value.Texto.ToString())).Trim();
         string? incompleta = _parada switch
         {
@@ -213,10 +213,13 @@ internal static class Mensagens
 {
     public static string Nome(string lado) => lado == "claude" ? "a Anthropic" : "a OpenAI";
     private static string NomeMaiusculo(string lado) => lado == "claude" ? "A Anthropic" : "A OpenAI";
+    /// <summary>The provider name for English texts (no article).</summary>
+    public static string Name(string lado) => lado == "claude" ? "Anthropic" : "OpenAI";
 
     public static string DeErro(string lado, int status, JsonNode? dados)
     {
         string msg = Json.Str(((dados as JsonObject)?["error"] as JsonObject)?["message"]);
+        if (Lang.English) return InEnglish(lado, status, msg);
         string q = NomeMaiusculo(lado);
         return status switch
         {
@@ -228,6 +231,22 @@ internal static class Mensagens
             529 => q + " está sobrecarregada (529). Tente de novo daqui a pouco.",
             >= 500 => q + " está com problema (" + status + "). Tente de novo daqui a pouco.",
             _ => q + " (" + status + "): " + Json.Curto(Segredo.Limpar(msg.Length > 0 ? msg : "erro sem descrição")),
+        };
+    }
+
+    private static string InEnglish(string lado, int status, string msg)
+    {
+        string q = Name(lado);
+        return status switch
+        {
+            401 => q + " rejected the key (401). On the keys screen, check that it was pasted whole.",
+            403 => q + " denied access (403): the key isn't allowed to use this model or to chat.",
+            404 => q + " didn't find the model (404). Does it exist on this account?",
+            429 => q + " is rate limiting requests (429). Wait a bit.",
+            402 => q + " has no balance left (402).",
+            529 => q + " is overloaded (529). Try again in a moment.",
+            >= 500 => q + " is having trouble (" + status + "). Try again in a moment.",
+            _ => q + " (" + status + "): " + Json.Curto(Segredo.Limpar(msg.Length > 0 ? msg : "error without a description")),
         };
     }
 }

@@ -22,7 +22,7 @@ namespace Ilha.IA;
 internal sealed class AtividadeChat : Atividade
 {
     public override string Tipo => "ia";
-    public override string Nome => "Chat com IA";
+    public override string Nome => Lang.T("Chat com IA", "AI chat");
     public override bool EhFerramenta => true;
     public override bool AnunciaChegada => false;
 
@@ -286,23 +286,23 @@ internal sealed class AtividadeChat : Atividade
             troca.Pronta = true;
             var notas = new List<string>();
             if (r.Trocou != null)
-                notas.Add(r.Trocou.Motivo == "sem chave"
-                    ? $"Sem chave para {Modelos.Rotulo(r.Trocou.De)}: respondeu {Modelos.Rotulo(r.Modelo)}."
-                    : $"{Modelos.Rotulo(r.Trocou.De)} {r.Trocou.Motivo}: respondeu {Modelos.Rotulo(r.Modelo)}.");
-            if (r.Incompleta != null) notas.Add(r.Incompleta == "max_output_tokens" ? "A resposta bateu no teto de tamanho e foi cortada." : $"Resposta incompleta ({r.Incompleta}).");
-            if (r.Texto.Length == 0 && r.Incompleta == null) notas.Add("Veio vazia.");
+                notas.Add(r.Trocou.Motivo == Troca.MotivoSemChave
+                    ? Lang.T($"Sem chave para {Modelos.Rotulo(r.Trocou.De)}: respondeu {Modelos.Rotulo(r.Modelo)}.", $"No key for {Modelos.Rotulo(r.Trocou.De)}: {Modelos.Rotulo(r.Modelo)} answered.")
+                    : Lang.T($"{Modelos.Rotulo(r.Trocou.De)} {r.Trocou.Motivo}: respondeu {Modelos.Rotulo(r.Modelo)}.", $"{Modelos.Rotulo(r.Trocou.De)} {r.Trocou.Motivo}: {Modelos.Rotulo(r.Modelo)} answered."));
+            if (r.Incompleta != null) notas.Add(r.Incompleta == "max_output_tokens" ? Lang.T("A resposta bateu no teto de tamanho e foi cortada.", "The reply hit the length cap and was cut off.") : Lang.T($"Resposta incompleta ({r.Incompleta}).", $"Incomplete reply ({r.Incompleta})."));
+            if (r.Texto.Length == 0 && r.Incompleta == null) notas.Add(Lang.T("Veio vazia.", "It came back empty."));
             troca.Nota = string.Join(" ", notas);
         }
         catch (OperationCanceledException)
         {
             troca.Pronta = troca.Resposta.Length > 0;
-            troca.Nota = "Interrompida.";
-            if (troca.Resposta.Length == 0) troca.Erro = "Interrompida antes de responder.";
+            troca.Nota = Lang.T("Interrompida.", "Stopped.");
+            if (troca.Resposta.Length == 0) troca.Erro = Lang.T("Interrompida antes de responder.", "Stopped before answering.");
         }
         catch (ErroIA e) { troca.Erro = e.Message; }
         catch (Exception e)
         {
-            troca.Erro = "Deu um erro inesperado (" + e.GetType().Name + ").";
+            troca.Erro = Lang.T("Deu um erro inesperado (", "Unexpected error (") + e.GetType().Name + ").";
             Log.Escrever("ia: " + Segredo.Limpar(e.ToString()));
         }
         finally
@@ -375,15 +375,15 @@ internal sealed class AtividadeChat : Atividade
         S.Entrada.Definir("");
         if (texto.Length < 20 || texto.Any(char.IsWhiteSpace))
         {
-            Avisar("Isso não parece uma chave de API. Cole a chave inteira.", ruim: true);
+            Avisar(Lang.T("Isso não parece uma chave de API. Cole a chave inteira.", "That doesn't look like an API key. Paste the whole key."), ruim: true);
             return;
         }
         bool ok = Credenciais.Gravar(ClienteIA.NomeDaCredencial(lado), texto);
         texto = "";
         _digitando = null;
         FecharCampo();
-        if (!ok) { Avisar($"Não consegui gravar a chave da {NomeDoLado(lado)} no Gerenciador de Credenciais.", ruim: true); return; }
-        Avisar($"Chave da {NomeDoLado(lado)} salva no Gerenciador de Credenciais.", ruim: false);
+        if (!ok) { Avisar(Lang.T($"Não consegui gravar a chave da {NomeDoLado(lado)} no Gerenciador de Credenciais.", $"Couldn't save the {NomeDoLado(lado)} key to Credential Manager."), ruim: true); return; }
+        Avisar(Lang.T($"Chave da {NomeDoLado(lado)} salva no Gerenciador de Credenciais.", $"{NomeDoLado(lado)} key saved to Credential Manager."), ruim: false);
         _ = Testar(lado);
     }
 
@@ -391,13 +391,13 @@ internal sealed class AtividadeChat : Atividade
     {
         if (_testando) return;
         _testando = true;
-        Avisar($"Testando a chave da {NomeDoLado(lado)}…", ruim: false);
+        Avisar(Lang.T($"Testando a chave da {NomeDoLado(lado)}…", $"Testing the {NomeDoLado(lado)} key…"), ruim: false);
         try
         {
             var (ok, msg) = await _ia.TestarChave(lado, CancellationToken.None);
             Avisar($"{NomeDoLado(lado)}: {msg}", ruim: !ok);
         }
-        catch (Exception e) { Avisar($"{NomeDoLado(lado)}: o teste falhou ({e.GetType().Name}).", ruim: true); }
+        catch (Exception e) { Avisar(Lang.T($"{NomeDoLado(lado)}: o teste falhou ({e.GetType().Name}).", $"{NomeDoLado(lado)}: the test failed ({e.GetType().Name})."), ruim: true); }
         finally { _testando = false; }
     }
 
@@ -408,11 +408,11 @@ internal sealed class AtividadeChat : Atividade
         {
             _confirmarApagar = null;
             Credenciais.Apagar(ClienteIA.NomeDaCredencial(lado));
-            Avisar($"Chave da {NomeDoLado(lado)} apagada.", ruim: false);
+            Avisar(Lang.T($"Chave da {NomeDoLado(lado)} apagada.", $"{NomeDoLado(lado)} key deleted."), ruim: false);
             return;
         }
         _confirmarApagar = (lado, agora + 4000);
-        Avisar($"Clique de novo em apagar para tirar a chave da {NomeDoLado(lado)}.", ruim: true);
+        Avisar(Lang.T($"Clique de novo em apagar para tirar a chave da {NomeDoLado(lado)}.", $"Click delete again to remove the {NomeDoLado(lado)} key."), ruim: true);
     }
 
     private void Avisar(string texto, bool ruim)
@@ -433,7 +433,7 @@ internal sealed class AtividadeChat : Atividade
 
     private void VoltarAoChat()
     {
-        if (!TemAlgumaChave) { Avisar("Salve pelo menos uma chave antes.", ruim: true); return; }
+        if (!TemAlgumaChave) { Avisar(Lang.T("Salve pelo menos uma chave antes.", "Save at least one key first."), ruim: true); return; }
         _telaChaves = false;
         _digitando = null;
         _familia = Familia(Modelo);
@@ -506,7 +506,7 @@ internal sealed class AtividadeChat : Atividade
             if (f == Forma.Compacta)
                 p.Desenho(c, Vector2.Zero, c.Tamanho, (dc, t) =>
                 {
-                    string s = _respondendo ? "Respondendo" : "Chat";
+                    string s = _respondendo ? Lang.T("Respondendo", "Answering") : "Chat";
                     var tam = p.Texto.Medir(s, 13);
                     p.Texto.Desenhar(dc, s, new Vector2(t.X - tam.X, (t.Y - tam.Y) / 2), 13, Cor.Branco);
                 });
@@ -532,8 +532,8 @@ internal sealed class AtividadeChat : Atividade
                 float x = 32 + MathF.Min(170, p.Texto.Medir(m, 13).X) + 4;
                 Icone.Triangulo(dc, p.G.Fabrica, new Vector2(x, 9), new Vector2(x + 7, 9), new Vector2(x + 3.5f, 13), Cor.Secundario);
             }
-            Chip(dc, p, _respondendo ? "Parar" : "Nova", L - 118, 0, 56, cor: _respondendo ? Cor.Laranja : null);
-            Chip(dc, p, "Chaves", L - 58, 0, 58, ativo: !_respondendo);
+            Chip(dc, p, _respondendo ? Lang.T("Parar", "Stop") : Lang.T("Nova", "New"), L - 118, 0, 56, cor: _respondendo ? Cor.Laranja : null);
+            Chip(dc, p, Lang.T("Chaves", "Keys"), L - 58, 0, 58, ativo: !_respondendo);
         });
         c.Botoes.Add(new Botao { Area = new(28, 0, 200, 24), Acao = TrocarModelo });
         c.Botoes.Add(new Botao { Area = new(L - 118, 0, 56, 22), Acao = NovaConversa });
@@ -572,8 +572,8 @@ internal sealed class AtividadeChat : Atividade
         if (_trocas.Count == 0)
         {
             using var l = par.Layout(_ia.TemChave(Provedor.ProvedorDe(Modelo)) || _ia.TemChave(Provedor.ProvedorDe(Provedor.ReservaDe(Modelo, _cfg().Reserva) ?? Modelo))
-                ? "Pergunte qualquer coisa. Ctrl+V cola um print. Clique no nome do modelo para trocar."
-                : "Sem chave para este modelo nem para a reserva. Abra Chaves.", 13, t.X);
+                ? Lang.T("Pergunte qualquer coisa. Ctrl+V cola um print. Clique no nome do modelo para trocar.", "Ask anything. Ctrl+V pastes a screenshot. Click the model name to switch.")
+                : Lang.T("Sem chave para este modelo nem para a reserva. Abra Chaves.", "No key for this model or its fallback. Open Keys."), 13, t.X);
             Paragrafo.Desenhar(dc, l, new Vector2(0, 6), Cor.Secundario);
             _alturaConteudo = 0;
             return;
@@ -595,7 +595,7 @@ internal sealed class AtividadeChat : Atividade
             // resposta
             string resp = Limpeza.ParaTela(tr.Resposta.ToString());
             bool vazia = resp.Length == 0;
-            string mostra = vazia ? (tr.Erro ?? (_respondendo && tr == _trocas[^1] ? (_escrevendo ? "" : "Pensando…") : "")) : resp;
+            string mostra = vazia ? (tr.Erro ?? (_respondendo && tr == _trocas[^1] ? (_escrevendo ? "" : Lang.T("Pensando…", "Thinking…")) : "")) : resp;
             if (mostra.Length > 0)
             {
                 var lr = par.Layout(mostra, 13.5f, t.X);
@@ -670,10 +670,10 @@ internal sealed class AtividadeChat : Atividade
         }
         bool nosso = _entradaNossa && S.Entrada.Aberta && _digitando == null;
         string texto = nosso ? S.Entrada.Texto : _rascunho;
-        string vazio = _preparandoImagem ? "Preparando a imagem…"
-            : _respondendo ? "Respondendo… (Parar no alto)"
-            : _imagem != null ? $"Imagem {_imagem.Largura}×{_imagem.Altura}. Escreva algo ou só Enter."
-            : "Pergunte algo. Shift+Enter quebra a linha.";
+        string vazio = _preparandoImagem ? Lang.T("Preparando a imagem…", "Preparing the image…")
+            : _respondendo ? Lang.T("Respondendo… (Parar no alto)", "Answering… (Stop at the top)")
+            : _imagem != null ? Lang.T($"Imagem {_imagem.Largura}×{_imagem.Altura}. Escreva algo ou só Enter.", $"Image {_imagem.Largura}×{_imagem.Altura}. Type something or just press Enter.")
+            : Lang.T("Pergunte algo. Shift+Enter quebra a linha.", "Ask something. Shift+Enter adds a new line.");
         _par!.Campo(dc, texto, nosso ? S.Entrada.Cursor : texto.Length, new Vector2(x, 10), t.X - x - 12, t.Y - 16, 13, Cor.Branco, vazio, nosso);
     }
 
@@ -682,17 +682,17 @@ internal sealed class AtividadeChat : Atividade
         var c = p.NovaCena(new Vector2(L, A_CHAVES));
         var topo = p.Desenho(c, Vector2.Zero, new Vector2(L, A_CHAVES), (dc, t) =>
         {
-            p.Texto.Desenhar(dc, "Chaves de API", new Vector2(0, 1), 15, Cor.Branco);
-            if (TemAlgumaChave) Chip(dc, p, "Voltar ao chat", L - 108, 0, 108);
+            p.Texto.Desenhar(dc, Lang.T("Chaves de API", "API keys"), new Vector2(0, 1), 15, Cor.Branco);
+            if (TemAlgumaChave) Chip(dc, p, Lang.T("Voltar ao chat", "Back to chat"), L - 108, 0, 108);
             float y = 34;
             foreach (var lado in new[] { "openai", "claude" })
             {
                 bool tem = _ia.TemChave(lado);
                 p.Texto.Desenhar(dc, NomeDoLado(lado), new Vector2(0, y), 14, Cor.Branco);
-                p.Texto.Desenhar(dc, tem ? "salva" : "não salva", new Vector2(0, y + 20), 12, tem ? Cor.Verde : Cor.Secundario, FontWeight.Normal);
-                Chip(dc, p, _digitando == lado ? "Digitando" : "Colar", L - 196, y + 6, 68, ativo: _digitando != lado);
-                Chip(dc, p, "Testar", L - 122, y + 6, 58, ativo: tem && !_testando);
-                Chip(dc, p, "Apagar", L - 58, y + 6, 58, ativo: tem, cor: _confirmarApagar is { } ca && ca.Lado == lado && Environment.TickCount64 < ca.Ate ? Cor.Vermelho : null);
+                p.Texto.Desenhar(dc, tem ? Lang.T("salva", "saved") : Lang.T("não salva", "not saved"), new Vector2(0, y + 20), 12, tem ? Cor.Verde : Cor.Secundario, FontWeight.Normal);
+                Chip(dc, p, _digitando == lado ? Lang.T("Digitando", "Typing") : Lang.T("Colar", "Paste"), L - 196, y + 6, 68, ativo: _digitando != lado);
+                Chip(dc, p, Lang.T("Testar", "Test"), L - 122, y + 6, 58, ativo: tem && !_testando);
+                Chip(dc, p, Lang.T("Apagar", "Delete"), L - 58, y + 6, 58, ativo: tem, cor: _confirmarApagar is { } ca && ca.Lado == lado && Environment.TickCount64 < ca.Ate ? Cor.Vermelho : null);
                 y += 50;
             }
         });
@@ -703,11 +703,14 @@ internal sealed class AtividadeChat : Atividade
                 Icone.Retangulo(dc, 0, 0, t.X, 32, 12, new Color4(1, 1, 1, 0.10f));
                 bool aberto = _entradaNossa && S.Entrada.Aberta;
                 p.Texto.DesenharCampo(dc, aberto ? S.Entrada.Texto : "", aberto ? S.Entrada.Cursor : 0, true, new Vector2(12, 8), t.X - 24, 13, Cor.Branco,
-                    $"Cole a chave da {NomeDoLado(_digitando)} e aperte Enter (Esc cancela)", aberto);
+                    Lang.T($"Cole a chave da {NomeDoLado(_digitando)} e aperte Enter (Esc cancela)", $"Paste the {NomeDoLado(_digitando)} key and press Enter (Esc cancels)"), aberto);
             }
             else
             {
-                using var l = _par!.Layout(TemAlgumaChave ? "Clique em Colar para trocar uma chave." : "Cole uma chave da OpenAI ou da Anthropic para começar. Basta uma: a outra serve de reserva quando o crédito acabar.", 12, t.X);
+                using var l = _par!.Layout(TemAlgumaChave
+                    ? Lang.T("Clique em Colar para trocar uma chave.", "Click Paste to replace a key.")
+                    : Lang.T("Cole uma chave da OpenAI ou da Anthropic para começar. Basta uma: a outra serve de reserva quando o crédito acabar.",
+                        "Paste an OpenAI or Anthropic key to start. One is enough: the other one is the fallback when credit runs out."), 12, t.X);
                 Paragrafo.Desenhar(dc, l, new Vector2(0, 2), Cor.Secundario);
             }
             if (_aviso.Length > 0)
@@ -715,7 +718,8 @@ internal sealed class AtividadeChat : Atividade
                 using var la = _par!.Layout(_aviso, 12, t.X);
                 Paragrafo.Desenhar(dc, la, new Vector2(0, 40), _avisoRuim ? Cor.Laranja : Cor.Verde);
             }
-            using var ln = _par!.Layout("Ficam no Gerenciador de Credenciais do Windows (Ilha/openai e Ilha/anthropic). A ilha nunca mostra a chave nem grava em arquivo.", 11, t.X);
+            using var ln = _par!.Layout(Lang.T("Ficam no Gerenciador de Credenciais do Windows (Ilha/openai e Ilha/anthropic). A ilha nunca mostra a chave nem grava em arquivo.",
+                "They live in Windows Credential Manager (Ilha/openai and Ilha/anthropic). Ilha never shows the key or writes it to a file."), 11, t.X);
             Paragrafo.Desenhar(dc, ln, new Vector2(0, t.Y - MathF.Ceiling(ln.Metrics.Height)), Cor.Secundario);
         });
         if (TemAlgumaChave) c.Botoes.Add(new Botao { Area = new(L - 108, 0, 108, 22), Acao = VoltarAoChat });

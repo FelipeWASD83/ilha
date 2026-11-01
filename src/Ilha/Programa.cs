@@ -70,6 +70,13 @@ public static class Programa
         if (Array.IndexOf(args, "--medir") >= 0) Medidor.Comecar(nucleo);
         else if (Array.IndexOf(args, "--roteiro") >= 0) nucleo.Demonstracao.Roteiro();
         else if (Array.IndexOf(args, "--teste-mouse") >= 0) TesteDoMouse.Comecar(nucleo);
+        if (Array.IndexOf(args, "--menu") >= 0)
+        {
+            // opens the main menu after startup (for screenshots and tests)
+            var tm = new System.Windows.Forms.Timer { Interval = 3500 };
+            tm.Tick += (_, _) => { tm.Stop(); nucleo.Ilha.AbrirMenu(); };
+            tm.Start();
+        }
         int d = Array.IndexOf(args, "--demo");
         if (d >= 0 && d + 1 < args.Length)
         {

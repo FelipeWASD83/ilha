@@ -24,7 +24,7 @@ namespace Ilha.Extras;
 ///   Effects fechado; a janela da frente virar um deles confere na hora. Render pela fila de dentro do After Effects não tem nada que dê
 ///   para observar de fora sem injetar código, então fica de fora.
 /// </summary>
-[Modulo("render", "Render da Adobe")]
+[Modulo("render", "Render da Adobe", English = "Adobe render")]
 internal sealed class ModuloRender : Modulo
 {
     private static readonly string[] Adobe = { "AfterFX.exe", "Adobe Media Encoder.exe", "aerender.exe" };
@@ -144,15 +144,15 @@ internal sealed class ModuloRender : Modulo
     private void AlertaAerender(uint? codigo, TimeSpan duracao)
     {
         bool falhou = codigo is uint c && c != 0;
-        string titulo = falhou ? "Render do After Effects falhou" : "Render do After Effects terminou";
-        string sub = falhou ? $"aerender saiu com o código {codigo}" : "aerender";
-        Alertar(titulo, sub, "levou " + AtividadeRender.Cronometro(duracao), falhou);
+        string titulo = falhou ? Lang.T("Render do After Effects falhou", "After Effects render failed") : Lang.T("Render do After Effects terminou", "After Effects render finished");
+        string sub = falhou ? Lang.T($"aerender saiu com o código {codigo}", $"aerender exited with code {codigo}") : "aerender";
+        Alertar(titulo, sub, Lang.T("levou ", "took ") + AtividadeRender.Cronometro(duracao), falhou);
     }
 
     private void AlertaAme(EncodeAme e)
     {
         string arquivo = LogAme.NomeDoArquivo(e.Saida ?? e.Origem);
-        string titulo = e.Falhou ? "Render falhou" : "Render terminou";
+        string titulo = e.Falhou ? Lang.T("Render falhou", "Render failed") : Lang.T("Render terminou", "Render finished");
         string terceira = e.Falhou ? (e.Mensagem ?? e.Estado) : "Media Encoder" + (string.IsNullOrWhiteSpace(e.Tempo) ? "" : " · " + e.Tempo);
         Alertar(titulo, arquivo.Length > 0 ? arquivo : e.Estado, terceira, e.Falhou);
     }
@@ -218,7 +218,7 @@ internal sealed class AcompanhamentoAerender
 internal sealed class AtividadeRender : Atividade
 {
     public override string Tipo => "render";
-    public override string Nome => "Render do After Effects";
+    public override string Nome => Lang.T("Render do After Effects", "After Effects render");
 
     private static readonly Color4 Violeta = new(0.6f, 0.58f, 1f, 1f);
     private readonly System.Windows.Forms.Timer _segundo = new() { Interval = 1000 };
@@ -314,9 +314,9 @@ internal sealed class AtividadeRender : Atividade
                 Girador(p, c, new Vector2(0, 0), 20);
                 p.Desenho(c, Vector2.Zero, c.Tamanho, (dc, t) =>
                 {
-                    p.Texto.Desenhar(dc, _quantos > 1 ? $"After Effects · {_quantos} renders (aerender)" : "After Effects · renderizando (aerender)", new Vector2(28, 1), 13, Cor.Secundario, largura: t.X - 28);
+                    p.Texto.Desenhar(dc, _quantos > 1 ? $"After Effects · {_quantos} renders (aerender)" : Lang.T("After Effects · renderizando (aerender)", "After Effects · rendering (aerender)"), new Vector2(28, 1), 13, Cor.Secundario, largura: t.X - 28);
                     p.Texto.Desenhar(dc, Agora(), new Vector2(-2, 22), 40, Violeta, FontWeight.Medium, tabular: true);
-                    p.Texto.Desenhar(dc, "Sem porcentagem: o After Effects não informa o progresso", new Vector2(0, 70), 11.5f, Cor.Secundario, FontWeight.Normal, largura: t.X);
+                    p.Texto.Desenhar(dc, Lang.T("Sem porcentagem: o After Effects não informa o progresso", "No percentage: After Effects doesn't report progress"), new Vector2(0, 70), 11.5f, Cor.Secundario, FontWeight.Normal, largura: t.X);
                 });
                 return c;
             }
@@ -328,7 +328,11 @@ internal sealed class AtividadeRender : Atividade
 
 public sealed class ConfigRender
 {
+    [Label("Media Encoder", "Media Encoder")]
+    [Help("Avisa quando um encode termina ou falha", "Alerts when an encode finishes or fails")]
     [JsonPropertyName("mediaEncoder")] public bool MediaEncoder { get; set; } = true;
+    [Label("After Effects (aerender)", "After Effects (aerender)")]
+    [Help("Mostra o render do aerender com cronômetro", "Shows the aerender render with a timer")]
     [JsonPropertyName("afterEffects")] public bool AfterEffects { get; set; } = true;
 }
 

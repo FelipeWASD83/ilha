@@ -43,16 +43,83 @@ internal static class TestesCalculadora
     public static string Rodar()
     {
         var r = new Relatorio();
-        Motor(r);
-        Erros(r);
-        Numeros(r);
-        TesteUnidades(r);
-        TesteCambio(r, out var cot);
-        Campo(r, cot);
-        Historico(r);
-        // só com ILHA_TESTE_REDE=1: as duas APIs de verdade (só leitura, sem chave); o autoteste normal não usa rede
-        if (Environment.GetEnvironmentVariable("ILHA_TESTE_REDE") == "1") Rede(r);
+        // the texts and number formats checked below are the Portuguese ones; the English block pins its own language
+        string previous = Lang.Choice;
+        try
+        {
+            Lang.Set("pt");
+            Motor(r);
+            Erros(r);
+            Numeros(r);
+            TesteUnidades(r);
+            TesteCambio(r, out var cot);
+            Campo(r, cot);
+            Historico(r);
+            // só com ILHA_TESTE_REDE=1: as duas APIs de verdade (só leitura, sem chave); o autoteste normal não usa rede
+            if (Environment.GetEnvironmentVariable("ILHA_TESTE_REDE") == "1") Rede(r);
+            Lang.Set("en");
+            English(r, cot);
+        }
+        finally { Lang.Set(previous); }
         return r + $"\nok      {r.Ok} conferidos, {r.Falhas} falhas";
+    }
+
+    // ------------------------------------------------------------------ English interface (and English input in both)
+
+    private static void English(Relatorio r, Cotacoes cot)
+    {
+        var fmt = new (string got, string expected)[]
+        {
+            (Calculo.Formatar(1234567.891), "1,234,567.891"), (Calculo.Formatar(-2.5), "-2.5"), (Calculo.Formatar(1.5e-12), "1.5e-12"),
+            (Calculo.Formatar(1000), "1,000"), (Calculo.ParaDigitar(1234.5), "1234.5"), (Calculo.ParaDigitar(-0.5), "-0.5"),
+            (Unidades.Formatar(12345.678), "12,345.7"), (Unidades.Formatar(6.2137119223733), "6.21371"), (Unidades.Formatar(1e21), "1.0000e+21"),
+            (Cambio.FormatarMoeda(1234.5, "USD"), "1,234.50"), (Cambio.FormatarMoeda(1234.5, "USD", milhar: false), "1234.50"),
+        };
+        var badFmt = fmt.Where(x => x.got != x.expected).Select(x => $"{x.got} (expected {x.expected})").ToList();
+        r.Anotar("english: decimal point and comma for thousands on screen", badFmt.Count == 0, string.Join("; ", badFmt));
+        r.Anotar("english: the copied number reads back as the same number", Calculo.Avaliar(Calculo.ParaDigitar(1234.5)) == 1234.5 && Calculo.Avaliar(Calculo.ParaDigitar(-0.5)) == -0.5);
+
+        var cases = new (string text, string main)[]
+        {
+            ("10 km in mi", "= 6.21371 mi"), ("10 km to mi", "= 6.21371 mi"), ("10 kilometers into miles", "= 6.21371 mi"),
+            ("5 feet in meters", "= 1.524 m"), ("1 week in days", "= 7 d"), ("2 weeks in hours", "= 336 h"), ("7 days in wk", "= 1 wk"),
+            ("3 hours in minutes", "= 180 min"), ("90 seconds in min", "= 1.5 min"), ("1 liter in milliliters", "= 1000 mL"),
+            ("2 kilograms in pounds", "= 4.40925 lb"), ("1 square meter in cm2", "= 10,000 cm²"), ("212 degrees fahrenheit to c", "= 100 °C"),
+            ("100 usd to brl", "= R$ 520.00"), ("100 us dollars in reais", "= R$ 520.00"), ("1,000 usd in brl", "= R$ 5,200.00"),
+            ("2,500 + 1", "= 2,501"), ("1,234.5 + 0.5", "= 1,235"), ("1,234,567", "= 1,234,567"), ("0,125 * 8", "= 1"), ("1,5 + 1.5", "= 3"),
+            ("10 km em mi", "= 6.21371 mi"), ("100 dólares em reais", "= R$ 520.00"), ("1.234,5 + 0,5", "= 1,235"),
+        };
+        var bad = new List<string>();
+        foreach (var (text, main) in cases)
+        {
+            var res = Interpretador.Interpretar(text, true, 0, cot);
+            if (!res.Ok || res.Principal != main) bad.Add($"\"{text}\" → {(res.Ok ? res.Principal : "error: " + res.Detalhe)}");
+        }
+        r.Anotar($"english: {cases.Length} calculations and conversions", bad.Count == 0, string.Join("; ", bad));
+        var km = Interpretador.Interpretar("10 km in mi", true, 0, cot);
+        r.Anotar("english: conversion detail in English", km.Detalhe == "10 km in miles", km.Detalhe);
+        r.Anotar("english: Enter copies without the thousands comma", Interpretador.Interpretar("1 ha in m2", true, 0, cot).Copia == "10000"
+            && Interpretador.Interpretar("100 usd in brl", true, 0, cot).Copia == "520.00" && Interpretador.Interpretar("1234.5*1", true, 0, cot).Copia == "1234.5");
+        var errors = new (string text, string part)[]
+        {
+            ("10 km in kg", "Can't convert"), ("10 km", "target"), ("100 usd in jpy", "japanese yen"), ("100 in usd", "Missing"),
+            ("2+", "stopped halfway"), ("1/0", "Division by zero"), ("abc", "I don't know"), ("2#3", "didn't get"),
+        };
+        var badErr = new List<string>();
+        foreach (var (text, part) in errors)
+        {
+            var res = Interpretador.Interpretar(text, true, 0, cot);
+            if (res.Ok || !res.Detalhe.Contains(part, StringComparison.OrdinalIgnoreCase)) badErr.Add($"\"{text}\" → {(res.Ok ? res.Principal : res.Detalhe)}");
+        }
+        r.Anotar($"english: {errors.Length} error messages in English", badErr.Count == 0, string.Join("; ", badErr));
+        var now = new DateTime(2026, 11, 1, 15, 0, 0);
+        string h1 = AtividadeCalculadora.Hora(new DateTime(2026, 11, 1, 14, 5, 0), "AwesomeAPI", now);
+        string h2 = AtividadeCalculadora.Hora(new DateTime(2026, 10, 31, 19, 1, 0), "AwesomeAPI", now);
+        string h3 = AtividadeCalculadora.Hora(new DateTime(2026, 10, 30), "BCE", now);
+        r.Anotar("english: rate time as 2:05 PM, 10/31 7:01 PM and 10/30", h1 == "2:05 PM" && h2 == "10/31 7:01 PM" && h3 == "10/30", $"{h1} | {h2} | {h3}");
+        r.Anotar("english: the ECB is named in English", Cambio.NomeDaFonte("BCE") == "ECB" && Cambio.NomeDaFonte("AwesomeAPI") == "AwesomeAPI");
+        r.Anotar("english: \"wk\" is a week and \"pound sterling\" is money", Interpretador.AcharAlvo("wk")!.Unidade!.Id == "sem"
+            && Interpretador.AcharAlvo("pound sterling")!.Moeda?.Id == "GBP" && Interpretador.AcharAlvo("pounds")!.Unidade?.Id == "lb");
     }
 
     private static void Rede(Relatorio r)
@@ -265,6 +332,10 @@ internal static class TestesCalculadora
             ("1 btc em usd", 0, "= US$ 84.615,38"), ("1000 brl em btc", 0, "= ₿ 0,002273"), ("2*50 usd em brl", 0, "= R$ 520,00"),
             ("2+2=", 0, "= 4"), ("200 + 10%", 0, "= 220"), ("1234,5 * 1", 0, "= 1.234,5"), ("ans + 1", 41, "= 42"), ("0,1 + 0,2", 0, "= 0,3"),
             ("sin(30)", 0, "= 0,5"), ("2^10", 0, "= 1.024"),
+            // palavras em inglês e milhar inglês sem outra leitura valem também com a interface em português
+            ("10 kilometers to miles", 0, "= 6,21371 mi"), ("10 km into mi", 0, "= 6,21371 mi"), ("2 weeks in hours", 0, "= 336 h"),
+            ("100 us dollars in reais", 0, "= R$ 520,00"), ("1,234.5 + 0.5", 0, "= 1.235"), ("1,234,567", 0, "= 1.234.567"),
+            ("1,000 + 1", 0, "= 2"), ("7 dias em wk", 0, "= 1 sem"),
         };
         var errados = new List<string>();
         foreach (var (texto, ans, principal) in casos)

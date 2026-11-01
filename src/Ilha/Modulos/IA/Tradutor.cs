@@ -33,7 +33,7 @@ internal static class Google
     public static (string Texto, string Origem) LerResposta(string json)
     {
         var o = Json.Objeto(json);
-        if (o?["sentences"] is not JsonArray frases) throw new ErroIA("O Google devolveu uma resposta que não dá para entender.");
+        if (o?["sentences"] is not JsonArray frases) throw new ErroIA(Lang.T("O Google devolveu uma resposta que não dá para entender.", "Google returned a response that can't be understood."));
         string texto = string.Concat(frases.OfType<JsonObject>().Select(s => Json.Str(s["trans"])));
         return (texto, Json.Str(o["src"]));
     }
@@ -124,23 +124,23 @@ internal sealed class Tradutor
     {
         var (texto, cortado) = Cortar(original, LimiteIA);
         string motor = Decidir(texto, LimiteGoogle, TemChaveIA);
-        string aviso = cortado ? $"Texto cortado em {LimiteIA:N0} caracteres." : "";
+        string aviso = cortado ? Lang.T($"Texto cortado em {LimiteIA.ToString("N0", Lang.Culture)} caracteres.", $"Text cut at {LimiteIA.ToString("N0", Lang.Culture)} characters.") : "";
         if (motor == "ia")
         {
             try
             {
                 var r = await TraduzirComIA(texto, aoTexto, ct).ConfigureAwait(false);
-                if (r.Trocou != null) aviso = Junta(aviso, $"Respondeu {Modelos.Rotulo(r.Modelo)} ({r.Trocou.Motivo}).");
+                if (r.Trocou != null) aviso = Junta(aviso, Lang.T($"Respondeu {Modelos.Rotulo(r.Modelo)} ({r.Trocou.Motivo}).", $"{Modelos.Rotulo(r.Modelo)} answered ({r.Trocou.Motivo})."));
                 return new Resultado(r.Texto, "ia", "", "", aviso, r.Custo, r.Modelo, cortado);
             }
             catch (ErroIA e)
             {
                 // a IA falhou: o Google assume, em pedaços
                 var g = await ViaGoogle(texto, ct).ConfigureAwait(false);
-                return new Resultado(g.Texto, "google", g.Origem, g.Destino, Junta(aviso, "A IA falhou (" + e.Message.TrimEnd('.') + "). Usei o Google."), null, null, cortado);
+                return new Resultado(g.Texto, "google", g.Origem, g.Destino, Junta(aviso, Lang.T("A IA falhou (", "The AI failed (") + e.Message.TrimEnd('.') + Lang.T("). Usei o Google.", "). Used Google instead.")), null, null, cortado);
             }
         }
-        if (texto.Length > LimiteGoogle) aviso = Junta(aviso, "Texto grande e sem chave de IA: traduzi com o Google, em pedaços.");
+        if (texto.Length > LimiteGoogle) aviso = Junta(aviso, Lang.T("Texto grande e sem chave de IA: traduzi com o Google, em pedaços.", "Long text and no AI key: translated with Google, in chunks."));
         try
         {
             var g = await ViaGoogle(texto, ct).ConfigureAwait(false);
@@ -149,7 +149,7 @@ internal sealed class Tradutor
         catch (ErroIA e) when (TemChaveIA)
         {
             var r = await TraduzirComIA(texto, aoTexto, ct).ConfigureAwait(false);
-            return new Resultado(r.Texto, "ia", "", "", Junta(aviso, "O Google falhou (" + e.Message.TrimEnd('.') + "). Usei a IA."), r.Custo, r.Modelo, cortado);
+            return new Resultado(r.Texto, "ia", "", "", Junta(aviso, Lang.T("O Google falhou (", "Google failed (") + e.Message.TrimEnd('.') + Lang.T("). Usei a IA.", "). Used the AI instead.")), r.Custo, r.Modelo, cortado);
         }
     }
 
@@ -164,8 +164,8 @@ internal sealed class Tradutor
         };
         var r = await _ia.Responder(pedido, aoTexto, null, ct).ConfigureAwait(false);
         string saida = r.Texto.Trim();
-        if (saida.Length == 0) throw new ErroIA(r.Incompleta != null ? "a resposta veio cortada" : "a IA não devolveu tradução");
-        if (r.Incompleta != null) throw new ErroIA("a tradução veio cortada (" + r.Incompleta + ")");
+        if (saida.Length == 0) throw new ErroIA(r.Incompleta != null ? Lang.T("a resposta veio cortada", "the reply was cut off") : Lang.T("a IA não devolveu tradução", "the AI returned no translation"));
+        if (r.Incompleta != null) throw new ErroIA(Lang.T("a tradução veio cortada (", "the translation was cut off (") + r.Incompleta + ")");
         return r with { Texto = saida };
     }
 
@@ -198,12 +198,14 @@ internal sealed class Tradutor
         using var req = Google.Pedido(texto, de, para);
         HttpResponseMessage resp;
         try { resp = await _http.SendAsync(req, ct).ConfigureAwait(false); }
-        catch (OperationCanceledException) when (!ct.IsCancellationRequested) { throw new ErroIA("O Google Tradutor não respondeu a tempo."); }
-        catch (HttpRequestException) { throw new ErroIA("Não consegui falar com o Google Tradutor. Confira a internet."); }
+        catch (OperationCanceledException) when (!ct.IsCancellationRequested) { throw new ErroIA(Lang.T("O Google Tradutor não respondeu a tempo.", "Google Translate didn't respond in time.")); }
+        catch (HttpRequestException) { throw new ErroIA(Lang.T("Não consegui falar com o Google Tradutor. Confira a internet.", "Couldn't reach Google Translate. Check the internet connection.")); }
         using (resp)
         {
             if (!resp.IsSuccessStatusCode)
-                throw new ErroIA((int)resp.StatusCode == 429 ? "O Google Tradutor limitou os pedidos por agora (429)." : $"O Google Tradutor respondeu {(int)resp.StatusCode}.");
+                throw new ErroIA((int)resp.StatusCode == 429
+                    ? Lang.T("O Google Tradutor limitou os pedidos por agora (429).", "Google Translate is rate limiting requests for now (429).")
+                    : Lang.T($"O Google Tradutor respondeu {(int)resp.StatusCode}.", $"Google Translate answered {(int)resp.StatusCode}."));
             return Google.LerResposta(await resp.Content.ReadAsStringAsync(ct).ConfigureAwait(false));
         }
     }
@@ -216,11 +218,20 @@ internal sealed class Tradutor
         ["la"] = "latim", ["hi"] = "híndi", ["id"] = "indonésio", ["el"] = "grego", ["he"] = "hebraico", ["iw"] = "hebraico",
     };
 
+    private static readonly Dictionary<string, string> LanguageNames = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ["pt"] = "Portuguese", ["en"] = "English", ["es"] = "Spanish", ["fr"] = "French", ["de"] = "German", ["it"] = "Italian",
+        ["ja"] = "Japanese", ["ko"] = "Korean", ["zh-CN"] = "Chinese", ["zh-TW"] = "Chinese", ["zh"] = "Chinese", ["ru"] = "Russian",
+        ["nl"] = "Dutch", ["pl"] = "Polish", ["tr"] = "Turkish", ["ar"] = "Arabic", ["uk"] = "Ukrainian", ["sv"] = "Swedish",
+        ["la"] = "Latin", ["hi"] = "Hindi", ["id"] = "Indonesian", ["el"] = "Greek", ["he"] = "Hebrew", ["iw"] = "Hebrew",
+    };
+
     public static string NomeDoIdioma(string codigo)
     {
         if (string.IsNullOrEmpty(codigo)) return "";
-        if (NomesDeIdioma.TryGetValue(codigo, out var n)) return n;
+        var nomes = Lang.English ? LanguageNames : NomesDeIdioma;
+        if (nomes.TryGetValue(codigo, out var n)) return n;
         string base_ = codigo.Split('-')[0];
-        return NomesDeIdioma.TryGetValue(base_, out n) ? n : codigo;
+        return nomes.TryGetValue(base_, out n) ? n : codigo;
     }
 }

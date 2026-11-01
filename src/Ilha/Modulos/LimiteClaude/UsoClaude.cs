@@ -72,8 +72,6 @@ internal sealed record LeituraDoUso(double ColetadoEm, Janela? Sessao, Janela? S
 /// <summary>Os textos da ilha: porcentagem, "volta às 14:30", "atualizado há 12 min", o detalhe do menu.</summary>
 internal static class TextoDoUso
 {
-    private static readonly CultureInfo PtBr = new("pt-BR");
-
     public static string Porcento(double p) => $"{Math.Round(Math.Clamp(p, 0, 100)):0}%";
 
     public static DateTime Local(double epoch) => DateTimeOffset.FromUnixTimeMilliseconds((long)(epoch * 1000)).ToLocalTime().DateTime;
@@ -81,33 +79,34 @@ internal static class TextoDoUso
     /// <summary>"volta às 14:30"; a semanal com o dia: "volta sexta às 09:00" ("hoje" e "amanhã" quando é o caso).</summary>
     public static string Volta(Janela j, DateTime agora)
     {
-        if (j.VoltaEm is not double v) return "sem horário de reset";
-        return "volta " + Quando(Local(v), agora, j.Semanal);
+        if (j.VoltaEm is not double v) return Lang.T("sem horário de reset", "no reset time");
+        return Lang.T("volta ", "resets ") + Quando(Local(v), agora, j.Semanal);
     }
 
     public static string Quando(DateTime quando, DateTime agora, bool semanal)
     {
-        string hora = quando.ToString("HH:mm", PtBr);
+        string hora = quando.ToString(Lang.T("HH:mm", "h:mm tt"), Lang.Culture);
+        string as_ = Lang.T(" às ", " at ");
         int dias = (quando.Date - agora.Date).Days;
-        if (dias == 0) return semanal ? "hoje às " + hora : "às " + hora;
-        if (dias == 1) return "amanhã às " + hora;
-        if (dias > 1 && dias < 7) return Dia(quando) + " às " + hora;
-        return quando.ToString("d/M", PtBr) + " às " + hora;
+        if (dias == 0) return semanal ? Lang.T("hoje", "today") + as_ + hora : as_.TrimStart() + hora;
+        if (dias == 1) return Lang.T("amanhã", "tomorrow") + as_ + hora;
+        if (dias > 1 && dias < 7) return Dia(quando) + as_ + hora;
+        return quando.ToString(Lang.T("d/M", "M/d"), Lang.Culture) + as_ + hora;
     }
 
-    /// <summary>"sexta", "sábado" (sem o "-feira").</summary>
-    public static string Dia(DateTime d) => PtBr.DateTimeFormat.GetDayName(d.DayOfWeek).Split('-')[0];
+    /// <summary>"sexta", "sábado" (sem o "-feira"); "Friday" em inglês.</summary>
+    public static string Dia(DateTime d) => Lang.Culture.DateTimeFormat.GetDayName(d.DayOfWeek).Split('-')[0];
 
     /// <summary>"atualizado agora", "atualizado há 12 min", "atualizado há 3 h", "atualizado há 2 dias".</summary>
     public static string Idade(double segundos)
     {
-        if (!(segundos >= 60)) return "atualizado agora";
+        if (!(segundos >= 60)) return Lang.T("atualizado agora", "updated just now");
         int min = (int)(segundos / 60);
-        if (min < 60) return $"atualizado há {min} min";
+        if (min < 60) return Lang.T($"atualizado há {min} min", $"updated {min} min ago");
         int h = min / 60;
-        if (h < 24) return $"atualizado há {h} h";
+        if (h < 24) return Lang.T($"atualizado há {h} h", $"updated {h} h ago");
         int d = h / 24;
-        return d == 1 ? "atualizado há 1 dia" : $"atualizado há {d} dias";
+        return d == 1 ? Lang.T("atualizado há 1 dia", "updated 1 day ago") : Lang.T($"atualizado há {d} dias", $"updated {d} days ago");
     }
 
     /// <summary>A linha pequena da entrada do menu: "34% · sem. 12%" (null = nada para mostrar).</summary>
@@ -116,9 +115,10 @@ internal static class TextoDoUso
         if (l == null) return null;
         var s = l.SessaoValida(agora);
         var w = l.SemanaValida(agora);
-        if (s != null && w != null) return $"{Porcento(s.Porcentagem)} · sem. {Porcento(w.Porcentagem)}";
+        string sem = Lang.T("sem. ", "wk ");
+        if (s != null && w != null) return $"{Porcento(s.Porcentagem)} · {sem}{Porcento(w.Porcentagem)}";
         if (s != null) return Porcento(s.Porcentagem);
-        if (w != null) return "sem. " + Porcento(w.Porcentagem);
+        if (w != null) return sem + Porcento(w.Porcentagem);
         return null;
     }
 }

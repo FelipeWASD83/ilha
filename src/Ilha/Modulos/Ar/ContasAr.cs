@@ -50,7 +50,7 @@ internal sealed class ResumoAr
     public string Situacao = "ok";
     public string Mensagem = "";
     public long? PausadoAte;
-    public string NomeAparelho = "Ar do quarto";
+    public string NomeAparelho = Lang.T("Ar do quarto", "Bedroom AC");
     public Capacidades? Capacidades;
     public EstadoAr? Estado;
     public HashSet<string> Pendente = new();
@@ -76,23 +76,25 @@ internal static class ContasAr
     // 32 bytes em base64 url-safe dão 43 caracteres; a folga é a mesma do site e da nova aba
     private static readonly Regex ChaveValida = new("^[A-Za-z0-9_-]{16,256}$", RegexOptions.CultureInvariant);
 
-    private static readonly Dictionary<string, (string Nome, string Acao)> Modos = new()
+    // (name pt, action pt, name en, action en)
+    private static readonly Dictionary<string, (string Nome, string Acao, string NameEn, string ActionEn)> Modos = new()
     {
-        ["COOL"] = ("Gelar", "Gelando"),
-        ["HEAT"] = ("Aquecer", "Aquecendo"),
-        ["FAN"] = ("Ventilar", "Ventilando"),
-        ["AIR_DRY"] = ("Desumidificar", "Desumidificando"),
-        ["AUTO"] = ("Automático", "No automático"),
-        ["AIR_CLEAN"] = ("Purificar", "Purificando"),
-        ["AROMA"] = ("Aroma", "No aroma"),
-        ["ENERGY_SAVING"] = ("Econômico", "No econômico"),
+        ["COOL"] = ("Gelar", "Gelando", "Cool", "Cooling"),
+        ["HEAT"] = ("Aquecer", "Aquecendo", "Heat", "Heating"),
+        ["FAN"] = ("Ventilar", "Ventilando", "Fan", "Fan only"),
+        ["AIR_DRY"] = ("Desumidificar", "Desumidificando", "Dry", "Drying"),
+        ["AUTO"] = ("Automático", "No automático", "Auto", "On auto"),
+        ["AIR_CLEAN"] = ("Purificar", "Purificando", "Purify", "Purifying"),
+        ["AROMA"] = ("Aroma", "No aroma", "Aroma", "Aroma on"),
+        ["ENERGY_SAVING"] = ("Econômico", "No econômico", "Eco", "On eco"),
     };
 
-    private static readonly Dictionary<string, string> Ventos = new()
+    private static readonly Dictionary<string, (string Pt, string En)> Ventos = new()
     {
-        ["SLOW"] = "Mínimo", ["SLOW_LOW"] = "Mínimo-baixo", ["LOW"] = "Baixo", ["LOW_MID"] = "Médio-baixo",
-        ["MID"] = "Médio", ["MID_HIGH"] = "Médio-alto", ["HIGH"] = "Alto", ["POWER"] = "Turbo",
-        ["AUTO"] = "Automático", ["BREEZE"] = "Brisa", ["NATURE"] = "Natural",
+        ["SLOW"] = ("Mínimo", "Lowest"), ["SLOW_LOW"] = ("Mínimo-baixo", "Very low"), ["LOW"] = ("Baixo", "Low"),
+        ["LOW_MID"] = ("Médio-baixo", "Medium-low"), ["MID"] = ("Médio", "Medium"), ["MID_HIGH"] = ("Médio-alto", "Medium-high"),
+        ["HIGH"] = ("Alto", "High"), ["POWER"] = ("Turbo", "Turbo"),
+        ["AUTO"] = ("Automático", "Auto"), ["BREEZE"] = ("Brisa", "Breeze"), ["NATURE"] = ("Natural", "Natural"),
     };
 
     public static readonly string[] OrdemModos = { "COOL", "HEAT", "AIR_DRY", "FAN", "AUTO", "AIR_CLEAN", "ENERGY_SAVING", "AROMA" };
@@ -102,9 +104,15 @@ internal static class ContasAr
     /// <summary>Os únicos campos que a ilha manda. O turbo fica de fora de propósito (nenhuma tela liga o turbo).</summary>
     public static readonly string[] CamposDeComando = { "ligado", "modo", "alvo", "vento" };
 
-    public const string ProblemaChave = "O mini PC recusou a chave. Rode o implantar\\mostrar-link.ps1 do ar-do-quarto e cole o link novo aqui.";
-    public const string ProblemaRede = "O mini PC não respondeu. Confira se este PC está na rede de casa e se o mini PC está ligado.";
-    public const string ProblemaResposta = "O servidor do ar mandou uma resposta que não deu pra entender.";
+    public static string ProblemaChave => Lang.T(
+        "O mini PC recusou a chave. Rode o implantar\\mostrar-link.ps1 do ar-do-quarto e cole o link novo aqui.",
+        "The mini PC rejected the key. Run implantar\\mostrar-link.ps1 from ar-do-quarto and paste the new link here.");
+    public static string ProblemaRede => Lang.T(
+        "O mini PC não respondeu. Confira se este PC está na rede de casa e se o mini PC está ligado.",
+        "The mini PC didn't respond. Check that this PC is on the home network and the mini PC is on.");
+    public static string ProblemaResposta => Lang.T(
+        "O servidor do ar mandou uma resposta que não deu pra entender.",
+        "The AC server sent a response that couldn't be understood.");
 
     // ------------------------------------------------------------------ miúdos de JSON
 
@@ -230,9 +238,9 @@ internal static class ContasAr
         return t.Length == 0 ? "" : char.ToUpperInvariant(t[0]) + t[1..];
     }
 
-    public static string NomeModo(string? m) => m != null && Modos.TryGetValue(m, out var x) ? x.Nome : Legivel(m);
-    public static string AcaoModo(string? m) => m != null && Modos.TryGetValue(m, out var x) ? x.Acao : Legivel(m);
-    public static string NomeVento(string? v) => v != null && Ventos.TryGetValue(v, out var x) ? x : Legivel(v);
+    public static string NomeModo(string? m) => m != null && Modos.TryGetValue(m, out var x) ? Lang.T(x.Nome, x.NameEn) : Legivel(m);
+    public static string AcaoModo(string? m) => m != null && Modos.TryGetValue(m, out var x) ? Lang.T(x.Acao, x.ActionEn) : Legivel(m);
+    public static string NomeVento(string? v) => v != null && Ventos.TryGetValue(v, out var x) ? Lang.T(x.Pt, x.En) : Legivel(v);
 
     /// <summary>Os modos na ordem dos botões (a do site); código desconhecido vai no fim.</summary>
     public static List<string> EmOrdem(IEnumerable<string> modos)
@@ -265,15 +273,13 @@ internal static class ContasAr
 
     // ------------------------------------------------------------------ números e temperatura
 
-    private static readonly CultureInfo Br = new("pt-BR");
-
     /// <summary>25.5 vira "25,5"; 25 vira "25"; vazio para o que não é número.</summary>
     public static string FormatarNumero(double? n)
     {
         if (n is not double v || !double.IsFinite(v)) return "";
         double r = Math.Round(v * 10, MidpointRounding.AwayFromZero) / 10;
         if (r == 0) r = 0;
-        return r.ToString("0.#", Br);
+        return r.ToString("0.#", Lang.Culture);
     }
 
     public static string FormatarGraus(double? n) => FormatarNumero(n) is { Length: > 0 } t ? t + "°" : "";
@@ -316,38 +322,39 @@ internal static class ContasAr
     /// <summary>"Gelando" + "Sala com 25,5°, indo pra 18°" (a primeira parte vai em destaque).</summary>
     public static (string Forte, string Fraco) FraseStatus(EstadoAr? e, Capacidades? caps)
     {
-        if (e == null) return ("Sem leitura", "");
-        string sala = e.Sala is double s ? "Sala com " + FormatarGraus(s) : "";
+        if (e == null) return (Lang.T("Sem leitura", "No reading"), "");
+        string sala = e.Sala is double s ? Lang.T("Sala com ", "Room at ") + FormatarGraus(s) : "";
+        string erro = Lang.T("O ar avisou um erro, confira o visor dele.", "The AC reported an error, check its display.");
         var partes = new List<string>();
         if (e.Ligado != true)
         {
             if (sala.Length > 0) partes.Add(sala + ".");
-            if (e.Erro) partes.Add("O ar avisou um erro, confira o visor dele.");
-            return ("Desligado", string.Join(" ", partes));
+            if (e.Erro) partes.Add(erro);
+            return (Lang.T("Desligado", "Off"), string.Join(" ", partes));
         }
         string alvo = FaixaDoModo(caps, e.Modo) != null && e.Alvo is double a ? FormatarGraus(a) : "";
-        if (sala.Length > 0 && alvo.Length > 0) partes.Add(sala + ", indo pra " + alvo + ".");
+        if (sala.Length > 0 && alvo.Length > 0) partes.Add(sala + Lang.T(", indo pra ", ", going to ") + alvo + ".");
         else if (sala.Length > 0) partes.Add(sala + ".");
-        else if (alvo.Length > 0) partes.Add("Indo pra " + alvo + ".");
-        if (e.Erro) partes.Add("O ar avisou um erro, confira o visor dele.");
-        return (e.Modo != null ? AcaoModo(e.Modo) : "Ligado", string.Join(" ", partes));
+        else if (alvo.Length > 0) partes.Add(Lang.T("Indo pra ", "Going to ") + alvo + ".");
+        if (e.Erro) partes.Add(erro);
+        return (e.Modo != null ? AcaoModo(e.Modo) : Lang.T("Ligado", "On"), string.Join(" ", partes));
     }
 
     /// <summary>Hora local "HH:mm" de um epoch em segundos.</summary>
-    public static string HoraDe(long epoch) => DateTimeOffset.FromUnixTimeSeconds(epoch).ToLocalTime().ToString("HH:mm", Br);
+    public static string HoraDe(long epoch) => DateTimeOffset.FromUnixTimeSeconds(epoch).ToLocalTime().ToString(Lang.T("HH:mm", "h:mm tt"), Lang.Culture);
 
     /// <summary>"lido agora", "lido há 2 min", "lido há 3 h".</summary>
     public static string TempoDesde(long? lidoEm, long agora)
     {
-        if (lidoEm is not long l) return "sem leitura ainda";
+        if (lidoEm is not long l) return Lang.T("sem leitura ainda", "no reading yet");
         long seg = Math.Max(0, agora - l);
-        if (seg < 60) return "lido agora";
+        if (seg < 60) return Lang.T("lido agora", "read just now");
         long min = seg / 60;
-        if (min < 60) return $"lido há {min} min";
+        if (min < 60) return Lang.T($"lido há {min} min", $"read {min} min ago");
         long h = min / 60;
-        if (h < 24) return $"lido há {h} h";
+        if (h < 24) return Lang.T($"lido há {h} h", $"read {h} h ago");
         long d = h / 24;
-        return $"lido há {d} " + (d == 1 ? "dia" : "dias");
+        return Lang.T($"lido há {d} " + (d == 1 ? "dia" : "dias"), $"read {d} " + (d == 1 ? "day" : "days") + " ago");
     }
 
     /// <summary>A situação da conexão do servidor com a LG em frase curta; "" quando está tudo certo.</summary>
@@ -358,22 +365,25 @@ internal static class ContasAr
         return c switch
         {
             "ok" => "",
-            "lendo" => "Lendo o ar…",
-            "sem_token" => "Falta o token da LG no mini PC. Rode o implantar\\configurar-token.ps1 do ar-do-quarto.",
-            "token_recusado" => "A LG recusou o token. Gere outro em connect-pat.lgthinq.com e rode o configurar-token.ps1.",
-            "termos" => "Aceite os termos de uso no app LG ThinQ.",
+            "lendo" => Lang.T("Lendo o ar…", "Reading the AC…"),
+            "sem_token" => Lang.T("Falta o token da LG no mini PC. Rode o implantar\\configurar-token.ps1 do ar-do-quarto.",
+                "The LG token is missing on the mini PC. Run implantar\\configurar-token.ps1 from ar-do-quarto."),
+            "token_recusado" => Lang.T("A LG recusou o token. Gere outro em connect-pat.lgthinq.com e rode o configurar-token.ps1.",
+                "LG rejected the token. Create a new one at connect-pat.lgthinq.com and run configurar-token.ps1."),
+            "termos" => Lang.T("Aceite os termos de uso no app LG ThinQ.", "Accept the terms of use in the LG ThinQ app."),
             "limite" => pausadoAte is long p
-                ? $"A LG pausou as chamadas por excesso. Volta sozinho às {HoraDe(p)}."
-                : "A LG pausou as chamadas por excesso. Volta sozinho em meia hora.",
-            "desconectado" => "O ar está sem Wi-Fi ou sem energia.",
-            "sem_internet" => "O mini PC está sem resposta da LG. Confira a internet de casa.",
-            "sem_aparelho" => "Nenhum ar-condicionado nesta conta LG.",
-            "erro" => m.Length > 0 ? "Erro da LG: " + m : "A LG respondeu com erro.",
-            _ => (Legivel(c) is { Length: > 0 } n ? n : "Situação desconhecida") + (m.Length > 0 ? ". " + m : "."),
+                ? Lang.T($"A LG pausou as chamadas por excesso. Volta sozinho às {HoraDe(p)}.", $"LG paused calls for too many requests. Back on its own at {HoraDe(p)}.")
+                : Lang.T("A LG pausou as chamadas por excesso. Volta sozinho em meia hora.", "LG paused calls for too many requests. Back on its own in half an hour."),
+            "desconectado" => Lang.T("O ar está sem Wi-Fi ou sem energia.", "The AC has no Wi-Fi or no power."),
+            "sem_internet" => Lang.T("O mini PC está sem resposta da LG. Confira a internet de casa.", "The mini PC gets no answer from LG. Check the home internet."),
+            "sem_aparelho" => Lang.T("Nenhum ar-condicionado nesta conta LG.", "No air conditioner on this LG account."),
+            // the server's own message is Portuguese: in English only the generic text is shown
+            "erro" => m.Length > 0 && !Lang.English ? "Erro da LG: " + m : Lang.T("A LG respondeu com erro.", "LG responded with an error."),
+            _ => (Legivel(c) is { Length: > 0 } n ? n : Lang.T("Situação desconhecida", "Unknown status")) + (m.Length > 0 && !Lang.English ? ". " + m : "."),
         };
     }
 
-    public static string TextoErroHttp(int status) => $"O servidor do ar respondeu com erro ({status}).";
+    public static string TextoErroHttp(int status) => Lang.T($"O servidor do ar respondeu com erro ({status}).", $"The AC server responded with an error ({status}).");
 
     /// <summary>O estado a mostrar: o do servidor (que já traz as pendências dele) mais o que foi pedido aqui e ainda não voltou.</summary>
     public static EstadoAr? Mesclar(EstadoAr? base_, IReadOnlyDictionary<string, object> locais)
@@ -442,7 +452,7 @@ internal static class ContasAr
     public static EntradaAr InterpretarEntrada(string? texto)
     {
         string t = (texto ?? "").Trim();
-        if (t.Length == 0) return new EntradaAr(null, null, "Cole o link que o mostrar-link.ps1 mostra (ou só a chave).");
+        if (t.Length == 0) return new EntradaAr(null, null, Lang.T("Cole o link que o mostrar-link.ps1 mostra (ou só a chave).", "Paste the link that mostrar-link.ps1 shows (or just the key)."));
         if (ChaveValida.IsMatch(t)) return new EntradaAr(null, t, null);
 
         int h = t.IndexOf('#');
@@ -450,7 +460,8 @@ internal static class ContasAr
         string fragmento = h >= 0 ? t[(h + 1)..] : "";
         var endereco = NormalizarEndereco(semFragmento);
         if (endereco == null)
-            return new EntradaAr(null, null, "Isso não parece o link nem a chave. Copie de novo o que o mostrar-link.ps1 mostra (http://…:8088/#chave=…).");
+            return new EntradaAr(null, null, Lang.T("Isso não parece o link nem a chave. Copie de novo o que o mostrar-link.ps1 mostra (http://…:8088/#chave=…).",
+                "That doesn't look like the link or the key. Copy again what mostrar-link.ps1 shows (http://…:8088/#chave=…)."));
 
         string? chave = null;
         foreach (var par in fragmento.Split('&', StringSplitOptions.RemoveEmptyEntries))
@@ -459,9 +470,10 @@ internal static class ContasAr
             if (ig > 0 && par[..ig] == "chave") { chave = Uri.UnescapeDataString(par[(ig + 1)..].Replace('+', ' ')); break; }
         }
         if (fragmento.Length > 0 && chave == null)
-            return new EntradaAr(null, null, "Faltou a chave: o link tem que terminar em #chave=… (é o que o mostrar-link.ps1 mostra).");
+            return new EntradaAr(null, null, Lang.T("Faltou a chave: o link tem que terminar em #chave=… (é o que o mostrar-link.ps1 mostra).",
+                "The key is missing: the link must end in #chave=… (that's what mostrar-link.ps1 shows)."));
         if (chave != null && !ChaveValida.IsMatch(chave))
-            return new EntradaAr(null, null, "A chave do link não parece certa. Copie o link inteiro de novo.");
+            return new EntradaAr(null, null, Lang.T("A chave do link não parece certa. Copie o link inteiro de novo.", "The key in the link doesn't look right. Copy the whole link again."));
         return new EntradaAr(endereco, chave, null);
     }
 }

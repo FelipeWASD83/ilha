@@ -41,6 +41,7 @@ internal sealed class Nucleo : IDisposable
     public Nucleo()
     {
         Config = Config.Carregar();
+        Lang.Set(Config.Language);
         Log.Escrever($"ilha {Atualizacao.Versao} abrindo");
         using (var pr = System.Diagnostics.Process.GetCurrentProcess()) Log.Escrever($"memória antes do gráfico: {pr.WorkingSet64 / 1048576} MB, {pr.PrivateMemorySize64 / 1048576} MB privados");
         Grafico.UsarGpu = Config.DesenharNaGpu;
@@ -49,22 +50,7 @@ internal sealed class Nucleo : IDisposable
         _toque = new JanelaToque();
         Ilha = new Ilha(_g, Config, _vis, _toque);
         Ilha.DefinirPainel(new Menu(_menu));
-        _menu.Adicionar(new ItemDoMenu
-        {
-            Id = "configuracoes", Nome = "Configurações", Ordem = 1000, Abrir = AbrirConfiguracoes,
-            Icone = (dc, p, r) =>
-            {
-                // engrenagem: anel com dentes
-                var c = new System.Numerics.Vector2(r.X + r.Width / 2, r.Y + r.Height / 2);
-                for (int i = 0; i < 8; i++)
-                {
-                    float a = i * MathF.PI / 4;
-                    var d = new System.Numerics.Vector2(MathF.Cos(a), MathF.Sin(a));
-                    Icone.Linha(dc, c + d * 7, c + d * 11, 3.2f, Cor.Branco, p.G.Fabrica);
-                }
-                Icone.Anel(dc, p.G.Fabrica, c, 7, 3, 1, Cor.Branco);
-            },
-        });
+        AdicionarItensDoNucleo();
         Aquecer();
         Demonstracao = new Demonstracao(Ilha);
 
@@ -223,6 +209,27 @@ internal sealed class Nucleo : IDisposable
         if (novaSecao) Config.Salvar();
     }
 
+    /// <summary>The core's own menu entries (settings); re-added with the new texts when the language changes.</summary>
+    private void AdicionarItensDoNucleo()
+    {
+        _menu.Adicionar(new ItemDoMenu
+        {
+            Id = "configuracoes", Nome = Lang.T("Configurações", "Settings"), Ordem = 1000, Abrir = AbrirConfiguracoes,
+            Icone = (dc, p, r) =>
+            {
+                // engrenagem: anel com dentes
+                var c = new System.Numerics.Vector2(r.X + r.Width / 2, r.Y + r.Height / 2);
+                for (int i = 0; i < 8; i++)
+                {
+                    float a = i * MathF.PI / 4;
+                    var d = new System.Numerics.Vector2(MathF.Cos(a), MathF.Sin(a));
+                    Icone.Linha(dc, c + d * 7, c + d * 11, 3.2f, Cor.Branco, p.G.Fabrica);
+                }
+                Icone.Anel(dc, p.G.Fabrica, c, 7, 3, 1, Cor.Branco);
+            },
+        });
+    }
+
     /// <summary>A tela de configurações (menu do ícone e menu principal da ilha).</summary>
     public void AbrirConfiguracoes() =>
         JanelaDeConfiguracoes.Mostrar(() => Config, c => c.Salvar(), JanelaDeConfiguracoes.ModulosDaConfig(Config), _atalhos.Padroes);
@@ -253,12 +260,14 @@ internal sealed class Nucleo : IDisposable
         if (ficou == null)
         {
             Log.Escrever("nenhum atalho global livre");
-            _bandeja.Avisar($"O atalho {Teclas.Nome(Config.Atalho)} já é de outro programa. Troque em \"atalho\" na configuração.");
+            _bandeja.Avisar(Lang.T($"O atalho {Teclas.Nome(Config.Atalho)} já é de outro programa. Troque em \"atalho\" na configuração.",
+                $"The shortcut {Teclas.Nome(Config.Atalho)} is already used by another program. Change \"atalho\" in the settings."));
         }
         else if (ficou.Mods != Config.Atalho.Mods || ficou.Tecla != Config.Atalho.Tecla)
         {
             Log.Escrever($"atalho {Teclas.Nome(Config.Atalho)} ocupado; usando {Teclas.Nome(ficou)}");
-            _bandeja.Avisar($"{Teclas.Nome(Config.Atalho)} já é de outro programa. A ilha ficou com {Teclas.Nome(ficou)}.");
+            _bandeja.Avisar(Lang.T($"{Teclas.Nome(Config.Atalho)} já é de outro programa. A ilha ficou com {Teclas.Nome(ficou)}.",
+                $"{Teclas.Nome(Config.Atalho)} is used by another program. Ilha took {Teclas.Nome(ficou)} instead."));
         }
         else Log.Escrever("atalho: " + Teclas.Nome(ficou));
     }
@@ -274,16 +283,19 @@ internal sealed class Nucleo : IDisposable
             if (!_releuDeNovo) { _releuDeNovo = true; _releitura.Start(); return; }
             _releuDeNovo = false;
             Log.Escrever("config com erro, mantida a anterior: " + erro);
-            _bandeja.Avisar("A configuração tem um erro e não foi aplicada. A ilha continua com a anterior.");
+            _bandeja.Avisar(Lang.T("A configuração tem um erro e não foi aplicada. A ilha continua com a anterior.",
+                "The settings file has an error and was not applied. Ilha keeps the previous settings."));
             return;
         }
         _releuDeNovo = false;
         if (nova.DesenharNaGpu != Config.DesenharNaGpu)
         {
             Log.Escrever("desenharNaGpu mudou: vale na próxima vez que a ilha abrir");
-            _bandeja.Avisar("\"desenharNaGpu\" vale depois de fechar e abrir a ilha de novo.");
+            _bandeja.Avisar(Lang.T("\"desenharNaGpu\" vale depois de fechar e abrir a ilha de novo.",
+                "\"desenharNaGpu\" takes effect after closing and reopening Ilha."));
         }
         bool atalho = nova.Atalho.Mods != Config.Atalho.Mods || nova.Atalho.Tecla != Config.Atalho.Tecla;
+        bool idioma = Lang.Set(nova.Language);
         Config = nova;
         _visib.TrocarConfig(nova);
         _visib.Avaliar();
@@ -291,9 +303,32 @@ internal sealed class Nucleo : IDisposable
         _bandeja.Atualizar(nova.Pausada);
         if (atalho) RegistrarAtalho();
         _atalhos.Reaplicar();
-        LigarModulos();
+        if (idioma) TrocarIdioma(); else LigarModulos();
         if (nova.IniciarComWindows != Inicio.Ligado()) Inicio.Definir(nova.IniciarComWindows);
         Log.Escrever("config relida");
+    }
+
+    /// <summary>
+    /// The interface language changed: every module restarts (menu entries, hotkey names and scenes are built with the
+    /// language of the moment), the island is rebuilt and the tray menu gets the new texts.
+    /// </summary>
+    private void TrocarIdioma()
+    {
+        Log.Escrever("idioma: " + (Lang.English ? "en" : "pt") + " (" + Lang.Choice + ")");
+        foreach (var m in new List<Modulo>(_modulos.Values))
+        {
+            try { m.Parar(); } catch (Exception e) { Log.Escrever($"módulo {m.Id} (parar): {e}"); }
+            _atalhos.RemoverDoDono(m.Id);
+            Ilha.RemoverDoDono(m.Id);
+            _menu.RemoverDoDono(m.Id);
+        }
+        _modulos.Clear();
+        _cfgModulos.Clear();
+        _falhou.Clear();
+        AdicionarItensDoNucleo();
+        LigarModulos();
+        Ilha.Reposicionar(forcar: true);
+        _bandeja.Recriar();
     }
 
     public void Pausar(bool sim)
@@ -310,7 +345,8 @@ internal sealed class Nucleo : IDisposable
         Config.Salvar();
         Inicio.Definir(Config.IniciarComWindows);
         if (!Inicio.Instalada)
-            _bandeja.Avisar("Iniciar com o Windows só vale na ilha instalada (ferramentas\\instalar.ps1). A escolha ficou salva.");
+            _bandeja.Avisar(Lang.T("Iniciar com o Windows só vale na ilha instalada (ferramentas\\instalar.ps1). A escolha ficou salva.",
+                "Start with Windows only works for the installed Ilha (ferramentas\\instalar.ps1). Your choice was saved."));
     }
 
     public void AlternarColada()

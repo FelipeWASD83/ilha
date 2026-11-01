@@ -11,17 +11,41 @@ namespace Ilha;
 internal sealed class Bandeja : IDisposable
 {
     private readonly NotifyIcon _icone;
-    private readonly ToolStripMenuItem _pausar;
-    private readonly ToolStripMenuItem _demo;
+    private readonly Nucleo _n;
+    private ToolStripMenuItem _pausar = null!;
+    private ToolStripMenuItem _demo = null!;
 
     public Bandeja(Nucleo n)
     {
+        _n = n;
+        _icone = new NotifyIcon
+        {
+            Icon = Carregar(),
+            ContextMenuStrip = MontarMenu(n),
+            Visible = true,
+            Text = "Ilha",
+        };
+        _icone.MouseClick += (_, e) => { if (e.Button == MouseButtons.Left) n.Ilha.Atalho(); };
+        Atualizar(n.Config.Pausada);
+    }
+
+    /// <summary>The interface language changed: the menu is built again with the new texts.</summary>
+    public void Recriar()
+    {
+        var velho = _icone.ContextMenuStrip;
+        _icone.ContextMenuStrip = MontarMenu(_n);
+        velho?.Dispose();
+        Atualizar(_n.Config.Pausada);
+    }
+
+    private ContextMenuStrip MontarMenu(Nucleo n)
+    {
         var menu = new ContextMenuStrip();
         var titulo = new ToolStripMenuItem($"Ilha {Atualizacao.Versao}") { Enabled = false };
-        _pausar = new ToolStripMenuItem("Pausar a ilha");
+        _pausar = new ToolStripMenuItem(Lang.T("Pausar a ilha", "Pause Ilha"));
         _pausar.Click += (_, _) => n.Pausar(!n.Config.Pausada);
 
-        _demo = new ToolStripMenuItem("Demonstração (atividades de mentira)");
+        _demo = new ToolStripMenuItem(Lang.T("Demonstração (atividades de mentira)", "Demo (fake activities)"));
         foreach (var a in n.Demonstracao.Atividades)
         {
             var item = new ToolStripMenuItem(a.Nome) { CheckOnClick = false };
@@ -29,11 +53,11 @@ internal sealed class Bandeja : IDisposable
             _demo.DropDownItems.Add(item);
         }
         _demo.DropDownItems.Add(new ToolStripSeparator());
-        var alerta = new ToolStripMenuItem("Mostrar um alerta");
+        var alerta = new ToolStripMenuItem(Lang.T("Mostrar um alerta", "Show an alert"));
         alerta.Click += (_, _) => n.Demonstracao.AlertaDeTeste();
-        var roteiro = new ToolStripMenuItem("Passear por todos os estados");
+        var roteiro = new ToolStripMenuItem(Lang.T("Passear por todos os estados", "Tour all the states"));
         roteiro.Click += (_, _) => n.Demonstracao.Roteiro();
-        var limpar = new ToolStripMenuItem("Desligar todas");
+        var limpar = new ToolStripMenuItem(Lang.T("Desligar todas", "Turn all off"));
         limpar.Click += (_, _) => n.Demonstracao.DesligarTodas();
         _demo.DropDownItems.AddRange(new ToolStripItem[] { alerta, roteiro, limpar });
         _demo.DropDownOpening += (_, _) =>
@@ -42,37 +66,28 @@ internal sealed class Bandeja : IDisposable
             foreach (var a in n.Demonstracao.Atividades) ((ToolStripMenuItem)_demo.DropDownItems[i++]).Checked = a.Ativa;
         };
 
-        var inicio = new ToolStripMenuItem("Iniciar com o Windows");
+        var inicio = new ToolStripMenuItem(Lang.T("Iniciar com o Windows", "Start with Windows"));
         inicio.Click += (_, _) => n.AlternarInicio();
         menu.Opening += (_, _) => inicio.Checked = n.Config.IniciarComWindows;
-        var colada = new ToolStripMenuItem("Colada na borda (estilo notch)");
+        var colada = new ToolStripMenuItem(Lang.T("Colada na borda (estilo notch)", "Attached to the edge (notch style)"));
         colada.Click += (_, _) => n.AlternarColada();
         menu.Opening += (_, _) => colada.Checked = n.Config.Colada;
-        var config = new ToolStripMenuItem("Configurações...") { Font = new Font(SystemFonts.MenuFont ?? Control.DefaultFont, FontStyle.Bold) };
+        var config = new ToolStripMenuItem(Lang.T("Configurações...", "Settings...")) { Font = new Font(SystemFonts.MenuFont ?? Control.DefaultFont, FontStyle.Bold) };
         config.Click += (_, _) => n.AbrirConfiguracoes();
-        var json = new ToolStripMenuItem("Abrir o config.json");
+        var json = new ToolStripMenuItem(Lang.T("Abrir o config.json", "Open config.json"));
         json.Click += (_, _) => Abrir("notepad.exe", Config.Arquivo);
-        var atualizar = new ToolStripMenuItem("Procurar atualização");
+        var atualizar = new ToolStripMenuItem(Lang.T("Procurar atualização", "Check for updates"));
         atualizar.Click += (_, _) =>
         {
             if (!global::Ilha.Atualizacoes.ModuloAtualizador.ProcurarAgora())
-                Avisar("O atualizador está desligado nas configurações (módulos).");
+                Avisar(Lang.T("O atualizador está desligado nas configurações (módulos).", "The updater is turned off in the settings (modules)."));
         };
-        var logs = new ToolStripMenuItem("Abrir a pasta da ilha (logs e medições)");
+        var logs = new ToolStripMenuItem(Lang.T("Abrir a pasta da ilha (logs e medições)", "Open the Ilha folder (logs and measurements)"));
         logs.Click += (_, _) => Abrir("explorer.exe", Config.Pasta);
-        var sair = new ToolStripMenuItem("Sair");
+        var sair = new ToolStripMenuItem(Lang.T("Sair", "Quit"));
         sair.Click += (_, _) => n.Sair();
         menu.Items.AddRange(new ToolStripItem[] { titulo, new ToolStripSeparator(), _pausar, colada, inicio, _demo, new ToolStripSeparator(), config, json, logs, atualizar, new ToolStripSeparator(), sair });
-
-        _icone = new NotifyIcon
-        {
-            Icon = Carregar(),
-            ContextMenuStrip = menu,
-            Visible = true,
-            Text = "Ilha",
-        };
-        _icone.MouseClick += (_, e) => { if (e.Button == MouseButtons.Left) n.Ilha.Atalho(); };
-        Atualizar(n.Config.Pausada);
+        return menu;
     }
 
     private static void Abrir(string programa, string alvo)
@@ -84,7 +99,7 @@ internal sealed class Bandeja : IDisposable
     public void Atualizar(bool pausada)
     {
         _pausar.Checked = pausada;
-        _icone.Text = pausada ? "Ilha (pausada)" : "Ilha";
+        _icone.Text = pausada ? Lang.T("Ilha (pausada)", "Ilha (paused)") : "Ilha";
     }
 
     public void Avisar(string texto) => _icone.ShowBalloonTip(6000, "Ilha", texto, ToolTipIcon.Info);
@@ -170,13 +185,13 @@ internal sealed class Teclas : IDisposable
 
     public static string Nome(Atalho a)
     {
-        if (a.Tecla == 0) return "nenhum";
+        if (a.Tecla == 0) return Lang.T("nenhum", "none");
         var partes = new List<string>();
         if ((a.Mods & Nativo.MOD_CONTROL) != 0) partes.Add("Ctrl");
         if ((a.Mods & Nativo.MOD_ALT) != 0) partes.Add("Alt");
         if ((a.Mods & Nativo.MOD_SHIFT) != 0) partes.Add("Shift");
         if ((a.Mods & Nativo.MOD_WIN) != 0) partes.Add("Win");
-        partes.Add(a.Tecla == 0x20 ? "Espaço" : ((Keys)a.Tecla).ToString());
+        partes.Add(a.Tecla == 0x20 ? Lang.T("Espaço", "Space") : ((Keys)a.Tecla).ToString());
         return string.Join(" + ", partes);
     }
 

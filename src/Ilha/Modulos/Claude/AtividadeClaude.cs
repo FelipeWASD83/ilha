@@ -120,8 +120,8 @@ internal sealed class AtividadeClaude : Atividade
     private string Status(Sessao s)
     {
         var p = PedidoDe(s);
-        if (p != null) return "Permissão: " + p.Ferramenta;
-        return s.Texto.Length > 0 ? s.Texto : "Pensando";
+        if (p != null) return Lang.T("Permissão: ", "Permission: ") + p.Ferramenta;
+        return s.Texto.Length > 0 ? s.Texto : Lang.T("Pensando", "Thinking");
     }
 
     private static string Projeto(Sessao s) => s.Projeto.Length > 0 ? s.Projeto : "Claude Code";
@@ -278,7 +278,7 @@ internal sealed class AtividadeClaude : Atividade
             int n = _m.Ordenadas().Count;
             if (n > 1)
             {
-                string q = $"{n} sessões";
+                string q = Lang.T($"{n} sessões", $"{n} sessions");
                 var tq = p.Texto.Medir(q, 12, FontWeight.Normal);
                 p.Texto.Desenhar(dc, q, new Vector2(L - tq.X, 2), 12, Cor.Secundario, FontWeight.Normal);
             }
@@ -290,14 +290,14 @@ internal sealed class AtividadeClaude : Atividade
                 case Modo.Esforcos:
                 {
                     bool modelos = _modo == Modo.Modelos;
-                    p.Texto.Desenhar(dc, modelos ? "Escolha o modelo" : "Escolha o esforço", new Vector2(0, y), 13, Cor.Secundario, FontWeight.Normal);
+                    p.Texto.Desenhar(dc, modelos ? Lang.T("Escolha o modelo", "Choose the model") : Lang.T("Escolha o esforço", "Choose the effort"), new Vector2(0, y), 13, Cor.Secundario, FontWeight.Normal);
                     var ops = modelos ? Modelos() : BotaoDoModelo.Rotulos.ToList();
                     string? atual = modelos ? lido?.Modelo : lido?.Nivel is int nv ? BotaoDoModelo.Rotulos[nv] : null;
                     for (int i = 0; i <= ops.Count; i++)
                     {
                         var r = Grade(i, y + 22);
                         bool voltar = i == ops.Count;
-                        string tx = voltar ? "Voltar" : ops[i];
+                        string tx = voltar ? Lang.T("Voltar", "Back") : ops[i];
                         bool marcado = !voltar && atual != null && string.Equals(tx, atual, StringComparison.OrdinalIgnoreCase);
                         Chip(p, dc, r, tx, marcado ? new Color4(0.85f, 0.47f, 0.34f, 0.35f) : Cor.Fraco, voltar ? Cor.Secundario : Cor.Branco, false);
                     }
@@ -307,9 +307,9 @@ internal sealed class AtividadeClaude : Atividade
                 {
                     Icone.Retangulo(dc, 0, y, L, 34, 10, Cor.Fraco);
                     // o nome da sessão no app pode resumir a conversa: na tela, só o projeto
-                    string vazio = "Mensagem para a sessão de " + Projeto(sm);
+                    string vazio = Lang.T("Mensagem para a sessão de ", "Message to the session of ") + Projeto(sm);
                     p.Texto.DesenharCampo(dc, S.Entrada.Aberta ? S.Entrada.Texto : _rascunho, S.Entrada.Cursor, false, new Vector2(10, y + 7), L - 20, 15, Cor.Branco, vazio, S.Entrada.Aberta);
-                    p.Texto.Desenhar(dc, "Enter envia · Esc cancela", new Vector2(0, y + 42), 12, Cor.Secundario, FontWeight.Normal);
+                    p.Texto.Desenhar(dc, Lang.T("Enter envia · Esc cancela", "Enter sends · Esc cancels"), new Vector2(0, y + 42), 12, Cor.Secundario, FontWeight.Normal);
                     break;
                 }
                 default:
@@ -318,10 +318,10 @@ internal sealed class AtividadeClaude : Atividade
                     var pd = PedidoDe(sm);
                     if (pd != null)
                     {
-                        p.Texto.Desenhar(dc, "Pede permissão: " + pd.Ferramenta, new Vector2(0, yy - 2), 18, Cor.Branco, largura: L);
+                        p.Texto.Desenhar(dc, Lang.T("Pede permissão: ", "Asks for permission: ") + pd.Ferramenta, new Vector2(0, yy - 2), 18, Cor.Branco, largura: L);
                         if (pd.Resumo.Length > 0) p.Texto.Desenhar(dc, pd.Resumo, new Vector2(0, yy + 24), 13, Cor.Secundario, FontWeight.Normal, largura: L);
-                        BotaoDeDecisao(p, dc, new RectangleF(0, yy + 46, 164, 30), "Permitir", Cor.Verde);
-                        BotaoDeDecisao(p, dc, new RectangleF(176, yy + 46, 164, 30), "Negar", Cor.Vermelho);
+                        BotaoDeDecisao(p, dc, new RectangleF(0, yy + 46, 164, 30), Lang.T("Permitir", "Allow"), Cor.Verde);
+                        BotaoDeDecisao(p, dc, new RectangleF(176, yy + 46, 164, 30), Lang.T("Negar", "Deny"), Cor.Vermelho);
                         yy += 82;
                     }
                     else
@@ -332,11 +332,11 @@ internal sealed class AtividadeClaude : Atividade
                     }
                     // modelo, esforço e mensagem
                     var lm = sm.Nome.Length > 0 && _lidos.TryGetValue(sm.Nome, out var lx) ? lx.Painel : null;
-                    string tm = lm?.Modelo is { Length: > 0 } mo ? mo : _lendo ? "Lendo…" : "Modelo";
-                    string te = lm?.Esforco is { Length: > 0 } es ? es : _lendo ? "…" : "Esforço";
+                    string tm = lm?.Modelo is { Length: > 0 } mo ? mo : _lendo ? Lang.T("Lendo…", "Reading…") : Lang.T("Modelo", "Model");
+                    string te = lm?.Esforco is { Length: > 0 } es ? es : _lendo ? "…" : Lang.T("Esforço", "Effort");
                     Chip(p, dc, new RectangleF(0, yy, 140, 26), tm, Cor.Fraco, Cor.Branco, true);
                     Chip(p, dc, new RectangleF(148, yy, 100, 26), te, Cor.Fraco, Cor.Branco, true);
-                    Chip(p, dc, new RectangleF(256, yy, 84, 26), "Mensagem", Cor.Fraco, Cor.Branco, false);
+                    Chip(p, dc, new RectangleF(256, yy, 84, 26), Lang.T("Mensagem", "Message"), Cor.Fraco, Cor.Branco, false);
                     yy += 34;
                     if (_aviso != null)
                     {
@@ -453,13 +453,13 @@ internal sealed class AtividadeClaude : Atividade
 
     private string Subtitulo(Sessao s)
     {
-        string quando(double t) => DateTimeOffset.FromUnixTimeMilliseconds((long)(t * 1000)).ToLocalTime().ToString("HH:mm");
+        string quando(double t) => DateTimeOffset.FromUnixTimeMilliseconds((long)(t * 1000)).ToLocalTime().ToString("HH:mm", Lang.Culture);
         return s.Fase switch
         {
-            Fase.Terminou => s.Duracao > 0 ? $"Levou {Neutro.Duracao(s.Duracao)}" : "Pronto",
-            Fase.Parada => s.Duracao > 0 ? $"Parou depois de {Neutro.Duracao(s.Duracao)} (Esc ou erro)" : "Parou (Esc ou erro)",
-            Fase.Esperando => "Esperando desde " + quando(s.FaseDesde),
-            _ => s.Inicio > 0 ? "Trabalhando desde " + quando(s.Inicio) : "Trabalhando",
+            Fase.Terminou => s.Duracao > 0 ? Lang.T($"Levou {Neutro.Duracao(s.Duracao)}", $"Took {Neutro.Duracao(s.Duracao)}") : Lang.T("Pronto", "Done"),
+            Fase.Parada => s.Duracao > 0 ? Lang.T($"Parou depois de {Neutro.Duracao(s.Duracao)} (Esc ou erro)", $"Stopped after {Neutro.Duracao(s.Duracao)} (Esc or error)") : Lang.T("Parou (Esc ou erro)", "Stopped (Esc or error)"),
+            Fase.Esperando => Lang.T("Esperando desde ", "Waiting since ") + quando(s.FaseDesde),
+            _ => s.Inicio > 0 ? Lang.T("Trabalhando desde ", "Working since ") + quando(s.Inicio) : Lang.T("Trabalhando", "Working"),
         };
     }
 
@@ -484,7 +484,7 @@ internal sealed class AtividadeClaude : Atividade
     private string? Alvo(Sessao s)
     {
         if (s.Nome.Length > 0) return s.Nome;
-        Avisar("Não sei o nome dessa sessão no app (o arquivo dela em .claude\\sessions não apareceu).", true);
+        Avisar(Lang.T("Não sei o nome dessa sessão no app (o arquivo dela em .claude\\sessions não apareceu).", "I don't know this session's name in the app (its file in .claude\\sessions didn't show up)."), true);
         return null;
     }
 
@@ -515,12 +515,12 @@ internal sealed class AtividadeClaude : Atividade
         var s = Mostrada;
         _modo = Modo.Normal;
         if (s == null || Alvo(s) is not { } alvo) { Atualizar(); return; }
-        Avisar($"Trocando para {modelo}…", false);
+        Avisar(Lang.T($"Trocando para {modelo}…", $"Switching to {modelo}…"), false);
         _ponte.TrocarModelo(alvo, modelo, r => S.NaInterface(() =>
         {
             foreach (var o in r.Opcoes) if (!_opcoesDoApp.Contains(o, StringComparer.OrdinalIgnoreCase)) _opcoesDoApp.Add(o);
             if (r.Painel?.Nome != null) _lidos[r.Painel.Nome] = (r.Painel, _agora());
-            Avisar(r.Ok ? $"Modelo: {r.Painel?.Modelo ?? modelo}" : r.Erro ?? "Não deu para trocar o modelo.", !r.Ok);
+            Avisar(r.Ok ? Lang.T("Modelo: ", "Model: ") + (r.Painel?.Modelo ?? modelo) : r.Erro ?? Lang.T("Não deu para trocar o modelo.", "Couldn't switch the model."), !r.Ok);
         }));
     }
 
@@ -529,11 +529,11 @@ internal sealed class AtividadeClaude : Atividade
         var s = Mostrada;
         _modo = Modo.Normal;
         if (s == null || Alvo(s) is not { } alvo) { Atualizar(); return; }
-        Avisar($"Trocando o esforço para {BotaoDoModelo.Rotulos[nivel]}…", false);
+        Avisar(Lang.T($"Trocando o esforço para {BotaoDoModelo.Rotulos[nivel]}…", $"Switching the effort to {BotaoDoModelo.Rotulos[nivel]}…"), false);
         _ponte.TrocarEsforco(alvo, nivel, r => S.NaInterface(() =>
         {
             if (r.Painel?.Nome != null) _lidos[r.Painel.Nome] = (r.Painel, _agora());
-            Avisar(r.Ok ? $"Esforço: {r.Painel?.Esforco ?? BotaoDoModelo.Rotulos[nivel]}" : r.Erro ?? "Não deu para trocar o esforço.", !r.Ok);
+            Avisar(r.Ok ? Lang.T("Esforço: ", "Effort: ") + (r.Painel?.Esforco ?? BotaoDoModelo.Rotulos[nivel]) : r.Erro ?? Lang.T("Não deu para trocar o esforço.", "Couldn't switch the effort."), !r.Ok);
         }));
     }
 
@@ -553,11 +553,11 @@ internal sealed class AtividadeClaude : Atividade
             _rascunho = texto;
             _modo = Modo.Normal;
             S.Entrada.Fechar();
-            Avisar("Enviando…", false);
+            Avisar(Lang.T("Enviando…", "Sending…"), false);
             _ponte.Enviar(alvo, texto, r => S.NaInterface(() =>
             {
                 if (r.Ok) _rascunho = "";
-                Avisar(r.Ok ? "Mensagem enviada" : (r.Erro ?? "Não deu para enviar.") + " O texto ficou guardado.", !r.Ok);
+                Avisar(r.Ok ? Lang.T("Mensagem enviada", "Message sent") : (r.Erro ?? Lang.T("Não deu para enviar.", "Couldn't send.")) + Lang.T(" O texto ficou guardado.", " The text was kept."), !r.Ok);
             }));
         }, fechou: () =>
         {

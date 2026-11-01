@@ -14,3 +14,5 @@ src/Ilha/imagens/logos/
 
 # worktrees dos agentes
 /.claude/
+# private modules compiled only on the author's PC
+src/Ilha/local.props

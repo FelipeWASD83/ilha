@@ -110,7 +110,7 @@ internal sealed class Seletor
             _dono = dono;
             CreateHandle(new CreateParams
             {
-                Caption = "Conta-gotas",
+                Caption = Lang.T("Conta-gotas", "Color picker"),
                 Style = Nativo.WS_POPUP,
                 ExStyle = Nativo.WS_EX_LAYERED | Nativo.WS_EX_TOPMOST | Nativo.WS_EX_TOOLWINDOW,
                 X = r.Left, Y = r.Top, Width = r.Right - r.Left, Height = r.Bottom - r.Top,
@@ -186,7 +186,7 @@ internal sealed class Seletor
         {
             CreateHandle(new CreateParams
             {
-                Caption = "Conta-gotas (lupa)",
+                Caption = Lang.T("Conta-gotas (lupa)", "Color picker (magnifier)"),
                 Style = Nativo.WS_POPUP,
                 ExStyle = Nativo.WS_EX_LAYERED | Nativo.WS_EX_TRANSPARENT | Nativo.WS_EX_TOPMOST | Nativo.WS_EX_TOOLWINDOW | Nativo.WS_EX_NOACTIVATE,
                 Width = 1, Height = 1,

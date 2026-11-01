@@ -1,119 +1,134 @@
 # Changelog
 
+## 1.0.0 (01/11/2026)
+
+**New**
+- English interface: the island follows the Windows language (Portuguese when Windows is in Portuguese, English
+  otherwise), with an option in Settings (Language: Automatic / Português / English).
+- Documentation in English.
+
+**Changed**
+- Version 1.0.
+- The main menu now also has the calculator, the AI chat, the timer and PC usage.
+- The calculator and the timer understand English too ("10 km in miles", "stopwatch", "2 hours") without losing the
+  Portuguese words; numbers and times follow the interface language.
+
+**Removed**
+- The mascot module from the public version.
+
 ## 0.4.2 (01/11/2026)
 
-**Corrigido**
-- As animações do Claude, do GPT e das bolinhas saíam cortadas de vez em quando: na pílula e na bolha, o que passava
-  um pouco da caixa da logo era cortado na borda da cena, e as bolinhas do GPT passavam da borda da própria faixa de
-  quadros. Agora toda cena tem uma folga em volta (só o formato da pílula recorta) e as bolinhas do GPT foram refeitas
-  do tamanho das do Claude.
+**Fixed**
+- The Claude, GPT and dot animations were cut off now and then: on the pill and in the bubble, whatever went a little
+  past the logo box was clipped at the edge of the scene, and the GPT dots went past the edge of their own frame strip.
+  Now every scene has some room around it (only the pill shape clips it) and the GPT dots were redrawn at the same
+  size as the Claude ones.
 
 ## 0.4.1 (01/11/2026)
 
-**Mudou**
-- A pílula vazia fica em qualquer janela normal (Brave, Explorer, editor), não só na área de trabalho. A ilha só
-  some em jogo competitivo e em vídeo ou outro conteúdo em tela cheia; jogo comum em tela cheia continua com ela.
-- Com a ilha escondida por um vídeo em tela cheia, encostar o mouse na borda de cima, perto do meio, traz ela de
-  volta, e ela fica enquanto o mouse estiver por perto.
-- Vídeo que entra em tela cheia é percebido em até 3 segundos (antes, até 10).
+**Changed**
+- The empty pill stays over any regular window (Brave, Explorer, an editor), not only on the desktop. The island only
+  hides in competitive games and in video or other full screen content; a regular full screen game keeps it.
+- With the island hidden by a full screen video, touching the top edge with the mouse, near the middle, brings it
+  back, and it stays while the mouse is nearby.
+- A video going full screen is noticed within 3 seconds (before, up to 10).
 
 ## 0.4.0 (01/11/2026)
 
-**Novo**
-- Menu principal: o atalho da ilha (ou o clique sem nada em andamento) abre a hora, a data e uma grade com as
-  ferramentas (calculadora, IA, tradutor, timer, uso do PC, ar com a temperatura da sala, som, conta-gotas,
-  prateleira, nota, mascote, limite do Claude e configurações).
-- Botão "< Menu" em todo cartão aberto, e o Esc volta para o menu. A ilha só pega o teclado quando você clica nela, e
-  devolve o foco para a janela de antes quando recolhe.
-- Borda fina e clara em volta da ilha, que aparece só com fundo escuro atrás (não existe no modo colado).
-- A hora no meio da pílula compacta, quando a atividade deixa o meio livre (nunca na área de trabalho).
-- Conta-gotas (Ctrl + Alt + P): lupa embaixo do cursor, a cor exata do pixel em hex (já copiado), RGB e HSL, e as
-  últimas cores para copiar de novo.
-- Prateleira: arraste arquivos e pastas para a ilha e arraste de volta para qualquer programa depois. Guarda só o
-  caminho; o que sumir fica marcado como indisponível.
-- Nota rápida (Ctrl + Alt + N): uma linha com data e hora na caixa de entrada do cofre do Obsidian.
-- Mixer: volume e mudo de cada app que está tocando, no cartão do som.
-- Gravando: bolinha vermelha e o tempo quando o OBS grava (com pausar e parar pela ilha) ou quando um app captura
-  a tela (Ferramenta de Captura e outros, mostrado como "capturando a tela").
-- Limite do Claude: quanto do limite da sessão e da semana já foi usado e quando volta, com aviso aos 80% e 95%
-  (lido da status line do Claude Code).
-- O mascote mora na ilha só quando você quer: arraste a janela dele para dentro da ilha e de volta para fora, ou use
-  "Mascote" no menu. O app do mascote continua sendo o dono dos personagens e dos fundos.
+**New**
+- Main menu: the island hotkey (or a click with nothing going on) opens the time, the date and a grid with the tools
+  (calculator, AI, translator, timer, PC usage, air with the room temperature, sound, color picker, shelf, note,
+  Claude limit and settings).
+- "< Menu" button on every open card, and Esc goes back to the menu. The island only takes the keyboard when you
+  click it, and gives the focus back to the previous window when it collapses.
+- Thin light border around the island, shown only with a dark background behind it (not in docked mode).
+- The time in the middle of the compact pill, when the activity leaves the middle free (never on the desktop).
+- Color picker (Ctrl + Alt + P): magnifier under the cursor, the exact pixel color in hex (already copied), RGB and
+  HSL, and the last colors to copy again.
+- Shelf: drag files and folders onto the island and drag them back into any program later. It only keeps the path;
+  whatever disappears is marked as unavailable.
+- Quick note (Ctrl + Alt + N): one line with date and time in the inbox of the Obsidian vault.
+- Mixer: volume and mute for each app that is playing, in the sound card.
+- Recording: red dot and elapsed time when OBS is recording (with pause and stop from the island) or when an app
+  captures the screen (Snipping Tool and others, shown as "capturing the screen").
+- Claude limit: how much of the session and weekly limit has been used and when it resets, with a warning at 80% and
+  95% (read from the Claude Code status line).
 
-**Mudou**
-- O ar-condicionado saiu da pílula: fica no menu e só aparece sozinho, por alguns segundos, quando o ar liga,
-  desliga, muda de modo ou de temperatura (inclusive pelo controle remoto). Temperatura da sala sozinha não avisa.
-- O indicador do Claude Code aparece só enquanto ele trabalha ou pede atenção, sem abrir o cartão sozinho.
-- O mascote não aparece mais por padrão e não depende do Claude Code.
-- Depois que o mouse sai, a ilha espera 600 ms para recolher (ajustável nas configurações).
-- Esc fecha a tela de configurações.
+**Changed**
+- The air conditioner left the pill: it lives in the menu and only shows up by itself, for a few seconds, when the air
+  turns on, turns off, changes mode or temperature (including from the remote control). The room temperature alone
+  does not trigger a notice.
+- The Claude Code indicator only shows up while it works or asks for attention, without opening the card by itself.
+- After the mouse leaves, the island waits 600 ms before collapsing (adjustable in the settings).
+- Esc closes the settings window.
 
-**Corrigido**
-- Um alerta que nascia embaixo do cursor parado ficava preso na tela até o mouse sair dele.
-- A área clicável crescia antes do desenho e segurava o clique em cima de outros programas por um instante.
-- O aviso de que o mouse saiu podia se perder e deixar a ilha aberta.
-- Mídia e volume brigavam pelo mesmo objeto de áudio do Windows e o visualizador podia travar.
+**Fixed**
+- An alert that appeared under a still cursor stayed stuck on screen until the mouse left it.
+- The clickable area grew before the drawing and held clicks on top of other programs for a moment.
+- The notice that the mouse had left could get lost and leave the island open.
+- Media and volume fought over the same Windows audio object and the visualizer could freeze.
 
 ## 0.3.0 (01/11/2026)
 
-**Novo**
-- Mídia: o que toca no Windows (Spotify, navegador, players) com capa, visualizador na cor da capa, tocar e pausar,
-  pular, arrastar a barra para avançar e a rodinha do mouse mudando o volume.
-- Volume: o nível aparece na ilha quando muda, e o cartão troca a saída de áudio (fone, caixa, monitor).
-- Câmera e microfone: bolinha verde (câmera) e laranja (microfone) na pílula, com o nome de quem está usando.
-- Timer, cronômetro e pomodoro, com criação rápida digitando "25m", "1h30" ou "10s" (Ctrl + Alt + R).
-- Uso do PC: aparece sozinho quando processador, placa de vídeo ou memória ficam no talo (Ctrl + Alt + U).
-- Claude Code de verdade: o que cada sessão está fazendo, aviso ao terminar ou perguntar, e aprovar ou negar pedido
-  de permissão direto da ilha.
-- Mascote morando na ilha, que reage ao Claude Code.
-- Calculadora com unidades e câmbio ao vivo (Ctrl + Alt + K).
-- Chat com GPT e Claude (Ctrl + Alt + J) e tradutor do texto selecionado (Ctrl + Alt + T); as chaves ficam no
-  Gerenciador de Credenciais do Windows.
-- Ar-condicionado do quarto pela ilha (Ctrl + Alt + A).
-- Fones: foto do fone e bateria ao conectar (AirPods, G733 e outros), print com miniatura que dá para arrastar
-  para outro programa, aviso de render terminado do After Effects e do Media Encoder, e notificações do Windows
-  (experimental, desligado por padrão).
-- Sons para alertas, timer e Claude Code (mudos no modo competitivo e no Não Incomodar).
-- Tela de configurações (menu do ícone, "Configurações..."), com cada módulo, os atalhos e as opções da ilha.
-- Atualização pela própria ilha: procura versão nova nas releases do GitHub, confere o arquivo e volta para a
-  anterior sozinha se a nova não abrir.
+**New**
+- Media: what is playing on Windows (Spotify, browser, players) with cover art, a visualizer in the cover color, play
+  and pause, skip, drag the bar to seek and the mouse wheel changing the volume.
+- Volume: the level shows up on the island when it changes, and the card switches the audio output (headphones,
+  speakers, monitor).
+- Camera and microphone: green dot (camera) and orange dot (microphone) on the pill, with the name of who is using
+  them.
+- Timer, stopwatch and pomodoro, with quick creation by typing "25m", "1h30" or "10s" (Ctrl + Alt + R).
+- PC usage: shows up by itself when the processor, graphics card or memory is maxed out (Ctrl + Alt + U).
+- Real Claude Code: what each session is doing, a notice when it finishes or asks something, and approving or denying
+  permission requests right from the island.
+- Calculator with units and live exchange rates (Ctrl + Alt + K).
+- Chat with GPT and Claude (Ctrl + Alt + J) and a translator for the selected text (Ctrl + Alt + T); the keys stay in
+  the Windows Credential Manager.
+- Bedroom air conditioner from the island (Ctrl + Alt + A).
+- Headphones: photo of the headphones and battery when they connect (AirPods, G733 and others), screenshots with a
+  thumbnail you can drag into another program, a render finished notice for After Effects and Media Encoder, and
+  Windows notifications (experimental, off by default).
+- Sounds for alerts, timer and Claude Code (muted in competitive mode and in Do Not Disturb).
+- Settings window (icon menu, "Settings..."), with each module, the hotkeys and the island options.
+- Updates from the island itself: it looks for a new version in the GitHub releases, checks the file and goes back to
+  the previous one by itself if the new one does not open.
 
-**Mudou**
-- O menu do ícone ganhou "Configurações...", "Abrir o config.json" e "Procurar atualização".
+**Changed**
+- The icon menu got "Settings...", "Open config.json" and "Check for updates".
 
 ## 0.2.0 (01/11/2026)
 
-**Novo**
-- Animações das logos do Claude e do GPT (as que o Felipe fez): loop girando, volta suavizada, volta de saída,
-  volta de entrada, diminuindo e aumentando, sumindo e surgindo, e o Claude virando bola.
-- Bolinhas girando em 3D a partir da bola do Claude, com borrão de movimento e as de trás mais escuras: órbita,
-  cometa, onda, divisão e anel. As mesmas em branco para o GPT, que também ganhou o "virando bola".
-- O Claude de mentira usa as animações de verdade: entra girando, trabalha em loop, vira bola e solta as bolinhas
-  quando pensa, volta a ser logo para trabalhar, sai girando ao terminar e pulsa esperando você.
-- GPT de mentira e galeria com todas as animações (menu Demonstração).
-- Instalador (`ferramentas\instalar.ps1`) com atalho no Menu Iniciar e ícone próprio.
-- Iniciar com o Windows (ligado por padrão, opção no menu do ícone).
+**New**
+- Animations of the Claude and GPT logos (the ones Felipe made): spinning loop, smoothed turn, exit turn, entry turn,
+  shrinking and growing, vanishing and appearing, and Claude turning into a ball.
+- Dots spinning in 3D out of the Claude ball, with motion blur and the ones in the back darker: orbit, comet, wave,
+  split and ring. The same ones in white for GPT, which also got the "turning into a ball".
+- The fake Claude uses the real animations: it spins in, works in a loop, turns into a ball and releases the dots
+  when it thinks, turns back into the logo to work, spins out when it finishes and pulses while waiting for you.
+- Fake GPT and a gallery with every animation (Demo menu).
+- Installer (`ferramentas\instalar.ps1`) with a Start menu shortcut and its own icon.
+- Start with Windows (on by default, option in the icon menu).
 
-**Mudou**
-- As duas logos aparecem do mesmo tamanho (a do Claude ganha zoom, porque ocupa metade do quadro dela).
-- O ícone da bandeja é o mesmo do Menu Iniciar.
+**Changed**
+- Both logos show up at the same size (the Claude one gets a zoom, because it fills half of its frame).
+- The tray icon is the same as the Start menu one.
 
-**Corrigido**
-- Janela maximizada não conta mais como tela cheia.
+**Fixed**
+- A maximized window no longer counts as full screen.
 
 ## 0.1.0 (01/11/2026)
 
-**Novo**
-- A ilha: pílula preta flutuando no topo do monitor principal, com sombra suave, que muda de forma com mola e um
-  leve passar do ponto, a 250 quadros por segundo no ultrawide.
-- Estados: escondida, vazia na área de trabalho, compacta, compacta dividida com bolha ao lado, expandida e alerta.
-- O conteúdo entra e sai com fade, escala e desfoque, sempre recortado no formato da ilha.
-- Prévia ao passar o mouse, expandir com clique, voltar ao tirar o mouse ou clicar fora.
-- Modo competitivo pela lista de jogos: só o timer aparece.
-- Respeita o Não Incomodar e a sessão de Foco do Windows.
-- Atalho global (Ctrl + Alt + Espaço, com reserva se estiver ocupado).
-- Ícone na bandeja: pausar, flutuante ou colada (estilo notch), demonstração, configuração, logs e sair.
-- Configuração em JSON que vale assim que é salva.
-- Demonstração com timer, música, Claude Code (com a logo original) e uso do PC de mentira, mais um passeio
-  automático por todos os estados.
-- Medição de quadros por segundo, processador e memória (`--medir`) e autoteste das janelas (`--autoteste`).
+**New**
+- The island: a black pill floating at the top of the main monitor, with a soft shadow, that changes shape with a
+  spring and a slight overshoot, at 250 frames per second on the ultrawide.
+- States: hidden, empty on the desktop, compact, compact split with a bubble next to it, expanded and alert.
+- Content comes in and out with fade, scale and blur, always clipped to the island shape.
+- Preview on hover, expand on click, back when the mouse leaves or on a click outside.
+- Competitive mode from the game list: only the timer shows up.
+- Respects Windows Do Not Disturb and Focus sessions.
+- Global hotkey (Ctrl + Alt + Space, with a fallback if it is taken).
+- Tray icon: pause, floating or docked (notch style), demo, settings, logs and quit.
+- JSON settings that apply as soon as they are saved.
+- Demo with a fake timer, music, Claude Code (with the original logo) and PC usage, plus an automatic tour through
+  every state.
+- Measurement of frames per second, processor and memory (`--medir`) and a window self test (`--autoteste`).

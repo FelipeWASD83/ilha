@@ -97,6 +97,8 @@ internal sealed record Pedido(TipoPedido Tipo, long DuracaoMs, string Nome);
 /// <summary>
 /// Lê o que foi digitado: "25m", "1h30", "90s", "1:30" (minuto e segundo), "1:30:00", "10" (minutos), "1,5h",
 /// "25 min", "pomodoro", "cronômetro"/"cron". Um nome pode vir depois ("25m chá") ou antes ("chá 25m").
+/// English words are understood whatever the interface language: "stopwatch", "2 hours", "45 seconds", "timer 5m",
+/// "focus" (pomodoro, only when no duration is found).
 /// </summary>
 internal static class Interpretador
 {
@@ -108,19 +110,25 @@ internal static class Interpretador
     public static Pedido? Ler(string? texto, out string erro)
     {
         string s = Regex.Replace((texto ?? "").Trim(), @"\s+", " ");
-        if (s.Length == 0) { erro = "digite um tempo"; return null; }
+        if (s.Length == 0) { erro = Lang.T("digite um tempo", "type a time"); return null; }
         var palavras = s.Split(' ');
+        // a leading "timer" is just the word for what is being created ("timer 25m tea"); the name shown is the same
+        if (palavras.Length > 1 && SemAcento(palavras[0]) == "timer")
+        {
+            s = string.Join(' ', palavras.Skip(1));
+            palavras = s.Split(' ');
+        }
         string primeira = SemAcento(palavras[0]);
         string resto = string.Join(' ', palavras.Skip(1));
         if (primeira is "pomodoro" or "pomo") { erro = ""; return new Pedido(TipoPedido.Pomodoro, 0, Nome(resto)); }
-        if (primeira is "cronometro" or "cron" or "crono") { erro = ""; return new Pedido(TipoPedido.Cronometro, 0, ""); }
+        if (primeira is "cronometro" or "cron" or "crono" or "stopwatch") { erro = ""; return new Pedido(TipoPedido.Cronometro, 0, ""); }
 
         if (Duracao(s, out long ms, out int fim, out erro))
         {
             string depois = s[fim..];
             // o nome precisa estar separado por espaço ("25mchá" não vale)
             if (depois.Length == 0 || depois[0] == ' ') return new Pedido(TipoPedido.Timer, ms, Nome(depois));
-            erro = "não entendi";
+            erro = Lang.T("não entendi", "didn't get that");
             return null;
         }
         string primeiroErro = erro;
@@ -134,6 +142,8 @@ internal static class Interpretador
                 return new Pedido(TipoPedido.Timer, ms, Nome(string.Join(' ', palavras.Take(k))));
             }
         }
+        // "focus"/"foco" start a pomodoro only when nothing above found a duration ("focus 25m" stays a named timer)
+        if (primeira is "focus" or "foco") { erro = ""; return new Pedido(TipoPedido.Pomodoro, 0, Nome(resto)); }
         erro = primeiroErro;
         return null;
     }
@@ -155,9 +165,9 @@ internal static class Interpretador
     // 0 hora, 1 minuto, 2 segundo, -1 não é unidade
     private static int Unidade(string palavra) => SemAcento(palavra) switch
     {
-        "h" or "hr" or "hrs" or "hora" or "horas" => 0,
-        "m" or "min" or "mins" or "minuto" or "minutos" => 1,
-        "s" or "seg" or "segs" or "sec" or "segundo" or "segundos" => 2,
+        "h" or "hr" or "hrs" or "hora" or "horas" or "hour" or "hours" => 0,
+        "m" or "min" or "mins" or "minuto" or "minutos" or "minute" or "minutes" => 1,
+        "s" or "seg" or "segs" or "sec" or "secs" or "segundo" or "segundos" or "second" or "seconds" => 2,
         _ => -1,
     };
 
@@ -168,19 +178,19 @@ internal static class Interpretador
     {
         ms = 0;
         fim = 0;
-        erro = "não entendi";
+        erro = Lang.T("não entendi", "didn't get that");
         var dp = DoisPontos.Match(s);
         if (dp.Success)
         {
             var g = dp.Groups;
             long a = long.Parse(g[1].Value, CultureInfo.InvariantCulture);
-            if (g[2].Value.Length != 2 || (g[3].Success && g[3].Value.Length != 2)) { erro = "use dois dígitos depois dos dois-pontos (1:05)"; return false; }
+            if (g[2].Value.Length != 2 || (g[3].Success && g[3].Value.Length != 2)) { erro = Lang.T("use dois dígitos depois dos dois-pontos (1:05)", "use two digits after the colon (1:05)"); return false; }
             long b = long.Parse(g[2].Value, CultureInfo.InvariantCulture);
-            if (b >= 60) { erro = "depois dos dois-pontos vai até 59"; return false; }
+            if (b >= 60) { erro = Lang.T("depois dos dois-pontos vai até 59", "after the colon it goes up to 59"); return false; }
             if (g[3].Success)
             {
                 long c = long.Parse(g[3].Value, CultureInfo.InvariantCulture);
-                if (c >= 60) { erro = "depois dos dois-pontos vai até 59"; return false; }
+                if (c >= 60) { erro = Lang.T("depois dos dois-pontos vai até 59", "after the colon it goes up to 59"); return false; }
                 ms = (a * 3600 + b * 60 + c) * 1000;
             }
             else ms = (a * 60 + b) * 1000;
@@ -201,13 +211,13 @@ internal static class Interpretador
             int ini = j;
             while (j < s.Length && char.IsAsciiDigit(s[j])) j++;
             if (j == ini) break;
-            if (j - ini > 6) { erro = "número grande demais"; return false; }
+            if (j - ini > 6) { erro = Lang.T("número grande demais", "number too big"); return false; }
             if (j + 1 < s.Length && (s[j] == ',' || s[j] == '.') && char.IsAsciiDigit(s[j + 1]))
             {
                 j++;
                 int dec = j;
                 while (j < s.Length && char.IsAsciiDigit(s[j])) j++;
-                if (j - dec > 3) { erro = "casas decimais demais"; return false; }
+                if (j - dec > 3) { erro = Lang.T("casas decimais demais", "too many decimal places"); return false; }
             }
             double valor = double.Parse(s[ini..j].Replace(',', '.'), NumberStyles.Float, CultureInfo.InvariantCulture);
             int depoisNumero = j;
@@ -218,17 +228,17 @@ internal static class Interpretador
             int u = palavra.Length > 0 ? Unidade(palavra) : -1;
             if (u >= 0)
             {
-                if (u <= ordem) { erro = "as partes vão de hora para minuto para segundo, uma vez cada"; return false; }
+                if (u <= ordem) { erro = Lang.T("as partes vão de hora para minuto para segundo, uma vez cada", "parts go hours, then minutes, then seconds, once each"); return false; }
                 total += valor * Fator[u];
                 ordem = u;
                 i = j;
                 algum = true;
                 continue;
             }
-            if (palavra.Length > 0 && iniLetras == depoisNumero) { erro = $"não conheço a unidade \"{palavra}\""; return false; }
+            if (palavra.Length > 0 && iniLetras == depoisNumero) { erro = Lang.T($"não conheço a unidade \"{palavra}\"", $"unknown unit \"{palavra}\""); return false; }
             // número solto: minutos no começo ("10"), minutos depois de hora ("1h30"), segundos depois de minuto ("2m30")
             int implicita = ordem switch { -1 => 1, 0 => 1, 1 => 2, _ => -1 };
-            if (implicita < 0) { erro = "sobrou um número depois dos segundos"; return false; }
+            if (implicita < 0) { erro = Lang.T("sobrou um número depois dos segundos", "extra number after the seconds"); return false; }
             total += valor * Fator[implicita];
             i = depoisNumero;
             algum = true;
@@ -242,8 +252,8 @@ internal static class Interpretador
 
     private static bool Validar(long ms, out string erro)
     {
-        if (ms < 1000) { erro = "o tempo precisa ter pelo menos 1 segundo"; return false; }
-        if (ms > MaximoMs) { erro = "no máximo 99 horas"; return false; }
+        if (ms < 1000) { erro = Lang.T("o tempo precisa ter pelo menos 1 segundo", "the time needs at least 1 second"); return false; }
+        if (ms > MaximoMs) { erro = Lang.T("no máximo 99 horas", "99 hours at most"); return false; }
         erro = "";
         return true;
     }
@@ -266,7 +276,7 @@ internal static class Formato
     public static string Volta(long ms)
     {
         long cs = Math.Max(0, ms) / 10;
-        return Relogio(cs / 100) + "," + (cs % 100).ToString("00", CultureInfo.InvariantCulture);
+        return Relogio(cs / 100) + Lang.Culture.NumberFormat.NumberDecimalSeparator + (cs % 100).ToString("00", CultureInfo.InvariantCulture);
     }
 
     /// <summary>Duração por extenso curto: "25 min", "1 h 30 min", "1 min 30 s".</summary>
@@ -280,9 +290,9 @@ internal static class Formato
         return partes.Count == 0 ? "0 s" : string.Join(' ', partes);
     }
 
-    public static string Hora(long unixMs) => DateTimeOffset.FromUnixTimeMilliseconds(unixMs).ToLocalTime().ToString("HH:mm", CultureInfo.InvariantCulture);
+    public static string Hora(long unixMs) => DateTimeOffset.FromUnixTimeMilliseconds(unixMs).ToLocalTime().ToString(Lang.T("HH:mm", "h:mm tt"), Lang.Culture);
 
-    public static string Maiuscula(string s) => s.Length == 0 ? s : char.ToUpper(s[0], new CultureInfo("pt-BR")) + s[1..];
+    public static string Maiuscula(string s) => s.Length == 0 ? s : char.ToUpper(s[0], Lang.Culture) + s[1..];
 }
 
 // ---------------------------------------------------------------- pomodoro
@@ -311,7 +321,7 @@ internal static class CicloPomodoro
         return f == Fase.Foco ? focosFeitos % n + 1 : (Math.Max(1, focosFeitos) - 1) % n + 1;
     }
 
-    public static string NomeDaFase(Fase f) => f switch { Fase.Foco => "foco", Fase.Pausa => "pausa", _ => "pausa longa" };
+    public static string NomeDaFase(Fase f) => f switch { Fase.Foco => Lang.T("foco", "focus"), Fase.Pausa => Lang.T("pausa", "break"), _ => Lang.T("pausa longa", "long break") };
 }
 
 // ---------------------------------------------------------------- os relógios (sem interface, tudo testável)
@@ -359,17 +369,17 @@ internal sealed class Relogios
         switch (p.Tipo)
         {
             case TipoPedido.Pomodoro:
-                if (E.Pomodoro != null) return "já tem um pomodoro";
+                if (E.Pomodoro != null) return Lang.T("já tem um pomodoro", "a pomodoro is already running");
                 long d = CicloPomodoro.DuracaoMs(Fase.Foco, cfg);
                 E.Pomodoro = new PomodoroSalvo { Nome = p.Nome, Fase = Fase.Foco, DuracaoMs = d, FimMs = agora + d };
                 return null;
             case TipoPedido.Cronometro:
                 if (E.Cronometro == null) { E.Cronometro = new CronometroSalvo { InicioMs = agora, Rodando = true }; return null; }
-                if (E.Cronometro.Rodando) return "o cronômetro já está rodando";
+                if (E.Cronometro.Rodando) return Lang.T("o cronômetro já está rodando", "the stopwatch is already running");
                 AlternarCronometro(agora);
                 return null;
             default:
-                if (E.Timers.Count >= MaximoTimers) return $"no máximo {MaximoTimers} timers";
+                if (E.Timers.Count >= MaximoTimers) return Lang.T($"no máximo {MaximoTimers} timers", $"{MaximoTimers} timers at most");
                 NovoTimer(p.DuracaoMs, p.Nome, agora);
                 return null;
         }

@@ -53,6 +53,16 @@ internal static class TestesIA
     public static string Rodar()
     {
         _rel.Clear();
+        // the messages below are asserted in Portuguese: pin the language and give back the choice at the end
+        string idioma = Lang.Choice;
+        Lang.Set("pt");
+        try { RodarTudo(); }
+        finally { Lang.Set(idioma); }
+        return _rel.ToString().TrimEnd();
+    }
+
+    private static void RodarTudo()
+    {
         Bloco("lado", Lado);
         Bloco("reserva", Reserva);
         Bloco("sem crédito", SemCredito);
@@ -68,7 +78,21 @@ internal static class TestesIA
         Bloco("imagem", ImagemTeste);
         Bloco("reserva do Ctrl+C", ReservaDoCtrlC);
         Bloco("sondas do Windows", Sondas);
-        return _rel.ToString().TrimEnd();
+        Bloco("textos em inglês", EmIngles);
+    }
+
+    private static void EmIngles()
+    {
+        Lang.Set("en");
+        try
+        {
+            Ok("en: dinheiro", Modelos.Dinheiro(0.00042) == "$0.0004" && Modelos.Dinheiro(0.00001) == "< $0.0001" && Modelos.Dinheiro(0.123) == "$0.123", Modelos.Dinheiro(0.00042));
+            Ok("en: erro HTTP", Mensagens.DeErro("openai", 401, null).StartsWith("OpenAI rejected the key (401)"), Mensagens.DeErro("openai", 401, null));
+            Ok("en: chave limpa", Segredo.Limpar("key sk-proj-QWE987 end") == "key (key) end");
+            Ok("en: nome do idioma", Tradutor.NomeDoIdioma("pt") == "Portuguese" && Tradutor.NomeDoIdioma("zh-HK") == "Chinese");
+            Ok("en: motivo sem chave", Troca.MotivoSemChave == "no key");
+        }
+        finally { Lang.Set("pt"); }
     }
 
     private static readonly JsonObject CreditoOpenAI = (JsonObject)JsonNode.Parse(

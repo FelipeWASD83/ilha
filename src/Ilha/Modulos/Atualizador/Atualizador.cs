@@ -35,7 +35,7 @@ internal sealed class InfoDaRelease
         {
             var l = bruta.Trim().TrimStart('-', '*', ' ').Replace("**", "").Replace("`", "").Trim();
             if (l.Length == 0 || bruta.TrimStart().StartsWith('#')) continue;
-            if (l is "Novo" or "Mudou" or "Corrigido" or "Saiu") continue;
+            if (l is "Novo" or "Mudou" or "Corrigido" or "Saiu" or "New" or "Changed" or "Fixed" or "Removed") continue;
             return l;
         }
         return "";
@@ -97,9 +97,9 @@ internal sealed class Atualizador
     /// <summary>Lê a resposta do releases/latest (lógica pura, o autoteste usa).</summary>
     public static InfoDaRelease Interpretar(string json, string atual, string repositorio)
     {
-        var rel = JsonNode.Parse(json) ?? throw new ErroDeAtualizacao("Resposta do GitHub vazia.");
+        var rel = JsonNode.Parse(json) ?? throw new ErroDeAtualizacao(Lang.T("Resposta do GitHub vazia.", "Empty response from GitHub."));
         var ultima = Versoes.Normalizar(rel["tag_name"]?.GetValue<string>());
-        if (ultima.Length == 0) throw new ErroDeAtualizacao("A release mais nova não tem versão (tag).");
+        if (ultima.Length == 0) throw new ErroDeAtualizacao(Lang.T("A release mais nova não tem versão (tag).", "The latest release has no version (tag)."));
         var nome = Pacote.NomeDoAsset(ultima);
         var asset = rel["assets"]?.AsArray().FirstOrDefault(a => string.Equals(a?["name"]?.GetValue<string>(), nome, StringComparison.OrdinalIgnoreCase));
         var info = new InfoDaRelease
@@ -110,7 +110,7 @@ internal sealed class Atualizador
         };
         if (asset == null)
         {
-            if (info.Nova) throw new ErroDeAtualizacao($"A release {ultima} não tem o pacote {nome}.");
+            if (info.Nova) throw new ErroDeAtualizacao(Lang.T($"A release {ultima} não tem o pacote {nome}.", $"Release {ultima} doesn't have the {nome} package."));
             return info;
         }
         info.Url = asset["browser_download_url"]?.GetValue<string>() ?? "";
@@ -124,7 +124,7 @@ internal sealed class Atualizador
         repo = (repo ?? "").Trim().Trim('/');
         var partes = repo.Split('/');
         bool ok = partes.Length == 2 && partes.All(p => p.Length > 0 && p.All(c => char.IsAsciiLetterOrDigit(c) || c is '-' or '_' or '.'));
-        if (!ok) throw new ErroDeAtualizacao($"Repositório inválido na configuração (\"{repo}\"); o formato é dono/nome.");
+        if (!ok) throw new ErroDeAtualizacao(Lang.T($"Repositório inválido na configuração (\"{repo}\"); o formato é dono/nome.", $"Invalid repository in settings (\"{repo}\"); the format is owner/name."));
         return repo;
     }
 
@@ -159,14 +159,14 @@ internal sealed class Atualizador
             http.DefaultRequestHeaders.Accept.ParseAdd("application/vnd.github+json");
             using var resp = await http.GetAsync($"https://api.github.com/repos/{repo}/releases/latest");
             if (resp.StatusCode == HttpStatusCode.NotFound)
-                throw new ErroDeAtualizacao($"O repositório {repo} ainda não tem nenhuma versão publicada (ou não existe).");
+                throw new ErroDeAtualizacao(Lang.T($"O repositório {repo} ainda não tem nenhuma versão publicada (ou não existe).", $"The {repo} repository has no published version yet (or doesn't exist)."));
             if ((int)resp.StatusCode == 403 || (int)resp.StatusCode == 429)
-                throw new ErroDeAtualizacao("O GitHub limitou as consultas por agora. Tente de novo mais tarde.");
-            if (!resp.IsSuccessStatusCode) throw new ErroDeAtualizacao($"O GitHub respondeu {(int)resp.StatusCode}.");
+                throw new ErroDeAtualizacao(Lang.T("O GitHub limitou as consultas por agora. Tente de novo mais tarde.", "GitHub is rate limiting requests right now. Try again later."));
+            if (!resp.IsSuccessStatusCode) throw new ErroDeAtualizacao(Lang.T($"O GitHub respondeu {(int)resp.StatusCode}.", $"GitHub responded {(int)resp.StatusCode}."));
             return await resp.Content.ReadAsStringAsync();
         }
         catch (ErroDeAtualizacao) { throw; }
-        catch (Exception e) { throw new ErroDeAtualizacao($"Sem conexão com o GitHub ({e.Message})."); }
+        catch (Exception e) { throw new ErroDeAtualizacao(Lang.T($"Sem conexão com o GitHub ({e.Message}).", $"No connection to GitHub ({e.Message}).")); }
     }
 
     private static InfoDaRelease? LerCache()
@@ -197,17 +197,18 @@ internal sealed class Atualizador
     /// </summary>
     public async Task Instalar()
     {
-        if (Instalando) throw new ErroDeAtualizacao("Já tem uma atualização em andamento.");
+        if (Instalando) throw new ErroDeAtualizacao(Lang.T("Já tem uma atualização em andamento.", "An update is already in progress."));
         if (!Inicio.Instalada)
-            throw new ErroDeAtualizacao($"Só a ilha instalada ({Inicio.PastaInstalada}) se atualiza sozinha. Esta é uma cópia de desenvolvimento: atualize pelo git e rode o ferramentas\\instalar.ps1.");
+            throw new ErroDeAtualizacao(Lang.T($"Só a ilha instalada ({Inicio.PastaInstalada}) se atualiza sozinha. Esta é uma cópia de desenvolvimento: atualize pelo git e rode o ferramentas\\instalar.ps1.",
+                $"Only the installed island ({Inicio.PastaInstalada}) updates itself. This is a development copy: update through git and run ferramentas\\instalar.ps1."));
         Instalando = true;
         string? temp = null;
         try
         {
-            var versao = await Procurar(forcar: true) ?? throw new ErroDeAtualizacao($"A ilha já está na versão mais nova ({VersaoAtual}).");
+            var versao = await Procurar(forcar: true) ?? throw new ErroDeAtualizacao(Lang.T($"A ilha já está na versão mais nova ({VersaoAtual}).", $"The island is already on the latest version ({VersaoAtual})."));
             var info = Ultima!;
-            if (string.IsNullOrEmpty(info.Url)) throw new ErroDeAtualizacao($"A release {versao} não tem o pacote para baixar.");
-            if (!info.Url.StartsWith("https://", StringComparison.OrdinalIgnoreCase)) throw new ErroDeAtualizacao("O endereço do pacote não é https.");
+            if (string.IsNullOrEmpty(info.Url)) throw new ErroDeAtualizacao(Lang.T($"A release {versao} não tem o pacote para baixar.", $"Release {versao} has no package to download."));
+            if (!info.Url.StartsWith("https://", StringComparison.OrdinalIgnoreCase)) throw new ErroDeAtualizacao(Lang.T("O endereço do pacote não é https.", "The package address is not https."));
 
             temp = Path.Combine(Path.GetTempPath(), "ilha-atualizacao-" + Guid.NewGuid().ToString("N")[..8]);
             Directory.CreateDirectory(temp);
@@ -228,7 +229,7 @@ internal sealed class Atualizador
             await EntregarAoExecutor(raiz, versao);
         }
         catch (ErroDeAtualizacao) { throw; }
-        catch (Exception e) { throw new ErroDeAtualizacao($"A atualização falhou: {e.Message}"); }
+        catch (Exception e) { throw new ErroDeAtualizacao(Lang.T($"A atualização falhou: {e.Message}", $"The update failed: {e.Message}")); }
         finally
         {
             Instalando = false;
@@ -241,7 +242,7 @@ internal sealed class Atualizador
         using var http = Cliente(TimeSpan.FromMinutes(10));
         http.DefaultRequestHeaders.Accept.ParseAdd("application/octet-stream");
         using var resp = await http.GetAsync(url, HttpCompletionOption.ResponseHeadersRead);
-        if (!resp.IsSuccessStatusCode) throw new ErroDeAtualizacao($"O download do pacote falhou (o GitHub respondeu {(int)resp.StatusCode}).");
+        if (!resp.IsSuccessStatusCode) throw new ErroDeAtualizacao(Lang.T($"O download do pacote falhou (o GitHub respondeu {(int)resp.StatusCode}).", $"The package download failed (GitHub responded {(int)resp.StatusCode})."));
         long total = resp.Content.Headers.ContentLength ?? tamanho;
         await using var entrada = await resp.Content.ReadAsStreamAsync();
         await using var saida = File.Create(destino);
@@ -259,7 +260,7 @@ internal sealed class Atualizador
                 if (pct != ultimo) { ultimo = pct; Progresso?.Invoke(Math.Clamp(lido / (double)total, 0, 1)); }
             }
         }
-        if (tamanho > 0 && lido != tamanho) throw new ErroDeAtualizacao("O download veio incompleto. Tente de novo.");
+        if (tamanho > 0 && lido != tamanho) throw new ErroDeAtualizacao(Lang.T("O download veio incompleto. Tente de novo.", "The download came in incomplete. Try again."));
     }
 
     private async Task EntregarAoExecutor(string preparacao, string versao)
@@ -275,8 +276,9 @@ internal sealed class Atualizador
         };
         Process? p;
         try { p = Process.Start(psi); }
-        catch (Exception e) { throw new ErroDeAtualizacao($"A versão {versao} não abriu ({e.Message}). O Smart App Control pode ter barrado; a ilha continua na {VersaoAtual}."); }
-        if (p == null) throw new ErroDeAtualizacao($"A versão {versao} não abriu.");
+        catch (Exception e) { throw new ErroDeAtualizacao(Lang.T($"A versão {versao} não abriu ({e.Message}). O Smart App Control pode ter barrado; a ilha continua na {VersaoAtual}.",
+            $"Version {versao} didn't open ({e.Message}). Smart App Control may have blocked it; the island stays on {VersaoAtual}.")); }
+        if (p == null) throw new ErroDeAtualizacao(Lang.T($"A versão {versao} não abriu.", $"Version {versao} didn't open."));
         using (p)
         {
             var prazo = DateTime.UtcNow.AddSeconds(15);
@@ -284,13 +286,14 @@ internal sealed class Atualizador
             {
                 if (File.Exists(MarcaVivo)) break;
                 if (p.HasExited)
-                    throw new ErroDeAtualizacao($"A versão {versao} fechou na hora (código {p.ExitCode}). O Smart App Control pode ter barrado; a ilha continua na {VersaoAtual}.");
+                    throw new ErroDeAtualizacao(Lang.T($"A versão {versao} fechou na hora (código {p.ExitCode}). O Smart App Control pode ter barrado; a ilha continua na {VersaoAtual}.",
+                        $"Version {versao} closed right away (code {p.ExitCode}). Smart App Control may have blocked it; the island stays on {VersaoAtual}."));
                 await Task.Delay(200);
             }
             if (!File.Exists(MarcaVivo))
             {
                 try { if (!p.HasExited) p.Kill(); } catch { }
-                throw new ErroDeAtualizacao($"A versão {versao} não respondeu. A ilha continua na {VersaoAtual}.");
+                throw new ErroDeAtualizacao(Lang.T($"A versão {versao} não respondeu. A ilha continua na {VersaoAtual}.", $"Version {versao} didn't respond. The island stays on {VersaoAtual}."));
             }
         }
         Log.Escrever($"atualizador: o executor da {versao} está vivo; fechando a {VersaoAtual} para a troca");
@@ -338,6 +341,8 @@ internal sealed class Atualizador
     {
         int i = Array.IndexOf(args, ARGUMENTO);
         if (i < 0) return false;
+        // the executor runs before the core: the reasons it writes for the new island follow the configured language
+        try { Lang.Set(Config.TentarLer(out _)?.Language); } catch { }
         if (i + 3 >= args.Length || !int.TryParse(args[i + 2], out int pid))
         {
             Anotar("argumentos incompletos; nada feito");
@@ -377,7 +382,7 @@ internal sealed class Atualizador
             || !File.Exists(Path.Combine(destino, "Ilha.exe")))
         {
             Anotar("o destino não é a ilha instalada; nada feito");
-            GravarResultado(false, versao, "", "o destino não é a ilha instalada");
+            GravarResultado(false, versao, "", Lang.T("o destino não é a ilha instalada", "the destination is not the installed island"));
             return;
         }
 
@@ -395,7 +400,7 @@ internal sealed class Atualizador
         catch (Exception e)
         {
             Anotar("não deu para esperar a ilha velha: " + e.Message);
-            GravarResultado(false, versao, "", "a ilha velha não fechou");
+            GravarResultado(false, versao, "", Lang.T("a ilha velha não fechou", "the old island didn't close"));
             AbrirIlha(destino);
             return;
         }
@@ -420,7 +425,7 @@ internal sealed class Atualizador
         try { File.Delete(MarcaAbriu); } catch { }
         GravarAtomico(MarcaEsperando, versao);
         bool abriu = false;
-        string motivo = $"a versão {versao} não deu sinal em {PRAZO_ABRIR_S} s";
+        string motivo = Lang.T($"a versão {versao} não deu sinal em {PRAZO_ABRIR_S} s", $"version {versao} gave no signal in {PRAZO_ABRIR_S} s");
         Process? nova = null;
         try
         {
@@ -429,12 +434,12 @@ internal sealed class Atualizador
             while (DateTime.UtcNow < prazo)
             {
                 if (SinalDe(versao)) { abriu = true; break; }
-                if (nova == null || nova.HasExited) { motivo = $"a versão {versao} fechou ao abrir" + (nova != null ? $" (código {nova.ExitCode})" : ""); break; }
+                if (nova == null || nova.HasExited) { motivo = Lang.T($"a versão {versao} fechou ao abrir", $"version {versao} closed on opening") + (nova != null ? Lang.T($" (código {nova.ExitCode})", $" (code {nova.ExitCode})") : ""); break; }
                 Thread.Sleep(250);
             }
             if (!abriu && SinalDe(versao)) abriu = true;
         }
-        catch (Exception e) { motivo = $"a versão {versao} não abriu ({e.Message})"; }
+        catch (Exception e) { motivo = Lang.T($"a versão {versao} não abriu ({e.Message})", $"version {versao} didn't open ({e.Message})"); }
         try { File.Delete(MarcaEsperando); } catch { }
 
         if (abriu)
@@ -460,7 +465,7 @@ internal sealed class Atualizador
         catch (Exception e)
         {
             Anotar("a volta falhou: " + e.Message);
-            motivo += $"; a volta falhou ({e.Message}), a versão anterior está em {Anterior}";
+            motivo += Lang.T($"; a volta falhou ({e.Message}), a versão anterior está em {Anterior}", $"; rolling back failed ({e.Message}), the previous version is in {Anterior}");
         }
         GravarResultado(false, versao, de, motivo);
         AbrirIlha(destino);

@@ -16,11 +16,12 @@ internal enum TipoResposta { Ok, Chave, Recusado, Erro, Rede }
 internal sealed record RespostaAr(TipoResposta Tipo, int Status, string Corpo, string ErroServidor)
 {
     /// <summary>A frase para a cena quando não deu certo ("" quando deu).</summary>
+    // the server writes its "erro" in Portuguese: in English the generic text is shown instead
     public string Problema => Tipo switch
     {
         TipoResposta.Ok => "",
         TipoResposta.Chave => ContasAr.ProblemaChave,
-        TipoResposta.Recusado => ErroServidor.Length > 0 ? ErroServidor : "O servidor do ar recusou o pedido.",
+        TipoResposta.Recusado => ErroServidor.Length > 0 && !Lang.English ? ErroServidor : Lang.T("O servidor do ar recusou o pedido.", "The AC server refused the request."),
         TipoResposta.Erro => ErroServidor.Length > 0 ? ErroServidor : ContasAr.TextoErroHttp(Status),
         _ => ContasAr.ProblemaRede,
     };
@@ -38,7 +39,7 @@ internal sealed record RespostaAr(TipoResposta Tipo, int Status, string Corpo, s
         string erro = ContasAr.ErroDoCorpo(corpo);
         // 500 do servidor vem com "Erro interno do servidor."; o resto (404, 405, 413...) é defeito daqui: mostra o código
         if (status == 400) return new RespostaAr(TipoResposta.Recusado, 400, "", erro);
-        return new RespostaAr(TipoResposta.Erro, status, "", status >= 500 && erro.Length > 0 ? erro : "");
+        return new RespostaAr(TipoResposta.Erro, status, "", status >= 500 && erro.Length > 0 && !Lang.English ? erro : "");
     }
 }
 
@@ -74,7 +75,7 @@ internal static class ClienteAr
         CancellationToken ct = default)
     {
         if (ContasAr.NormalizarEndereco(endereco) is not string origem || !RotaPermitida(metodo, rota, origem))
-            return new RespostaAr(TipoResposta.Erro, 0, "", "Pedido não permitido pela ilha.");
+            return new RespostaAr(TipoResposta.Erro, 0, "", Lang.T("Pedido não permitido pela ilha.", "Request not allowed by the island."));
         try
         {
             using var req = new HttpRequestMessage(metodo, origem + rota);

@@ -98,12 +98,12 @@ internal sealed class Menu : Atividade
         {
             var agora = DateTime.Now;
             _desenhado = agora.Minute;
-            var cultura = new System.Globalization.CultureInfo("pt-BR");
+            var cultura = Lang.Culture;
             p.Texto.Desenhar(dc, agora.ToString("HH:mm", cultura), new Vector2(-1, -6), 38, Cor.Branco, FontWeight.Medium, tabular: true);
-            p.Texto.Desenhar(dc, agora.ToString("dddd, d 'de' MMMM", cultura), new Vector2(112, 6), 14, Cor.Secundario, FontWeight.Normal, largura: largura - 112);
+            p.Texto.Desenhar(dc, agora.ToString(Lang.T("dddd, d 'de' MMMM", "dddd, MMMM d"), cultura), new Vector2(112, 6), 14, Cor.Secundario, FontWeight.Normal, largura: largura - 112);
             if (itens.Count == 0)
             {
-                p.Texto.Desenhar(dc, "Nenhum módulo com entrada no menu.", new Vector2(0, CABECALHO), 12, Cor.Secundario, FontWeight.Normal);
+                p.Texto.Desenhar(dc, Lang.T("Nenhum módulo com entrada no menu.", "No module has a menu entry."), new Vector2(0, CABECALHO), 12, Cor.Secundario, FontWeight.Normal);
                 return;
             }
             for (int i = 0; i < itens.Count; i++)

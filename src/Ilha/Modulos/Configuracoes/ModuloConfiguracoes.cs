@@ -18,7 +18,7 @@ namespace Ilha.Configuracoes;
 /// combinação por padrão (a pessoa escolhe uma na própria tela), que abre a janela. O menu da bandeja abre pelo
 /// <see cref="JanelaDeConfiguracoes.Mostrar"/> direto.
 /// </summary>
-[Modulo("configuracoes", "Tela de configurações")]
+[Modulo("configuracoes", "Tela de configurações", English = "Settings window")]
 internal sealed class ModuloConfiguracoes : Modulo
 {
     protected override void Iniciar(JsonObject cfg)
@@ -56,12 +56,22 @@ internal sealed class ModuloConfiguracoes : Modulo
         [JsonIgnore] public int Escondido { get; set; }
     }
 
+    /// <summary>[Label]/[Help] next to [DisplayName]/[Description]: the bilingual ones must win.</summary>
+    public sealed class LanguageTestConfig
+    {
+        [Label("Rótulo em português", "English label")] [DisplayName("Perde")] [Help("Ajuda em português", "English help")] [Description("Perde")]
+        [JsonPropertyName("bilingual")] public bool Bilingual { get; set; }
+    }
+
     public override string Autoteste()
     {
         var r = new StringBuilder();
         void Conferir(string nome, bool ok, string detalhe = "") =>
             r.AppendLine((ok ? "ok      " : "FALHOU  ") + nome + (detalhe.Length > 0 ? $" ({detalhe})" : ""));
 
+        // the assertions below compare Portuguese UI text: pin the language and put the previous choice back at the end
+        var previousLanguage = Lang.Choice;
+        Lang.Set("pt");
         try
         {
             // formulário por reflexão
@@ -94,6 +104,17 @@ internal sealed class ModuloConfiguracoes : Modulo
             var volta = (ConfigDeTeste)Formulario.Instanciar(typeof(ConfigDeTeste), mesclada);
             Conferir("a seção mesclada lê de volta igual", volta.Vezes == 9 && volta.Lado == Lado.Esquerda && volta.Itens.Count == 3);
             foreach (var c in campos) c.Editor.Dispose();
+
+            // [Label]/[Help] win over [DisplayName]/[Description] and follow the language
+            var labelPt = Formulario.Gerar(typeof(LanguageTestConfig), new LanguageTestConfig());
+            Lang.Set("en");
+            var labelEn = Formulario.Gerar(typeof(LanguageTestConfig), new LanguageTestConfig());
+            Lang.Set("pt");
+            Conferir("[Label] e [Help] ganham do [DisplayName] e do [Description] e seguem o idioma",
+                labelPt[0].Rotulo == "Rótulo em português" && labelPt[0].Descricao == "Ajuda em português" && labelPt[0].Editor.Text == "Rótulo em português"
+                && labelEn[0].Rotulo == "English label" && labelEn[0].Descricao == "English help" && labelEn[0].Editor.Text == "English label",
+                $"{labelPt[0].Rotulo} | {labelPt[0].Descricao} | {labelEn[0].Rotulo} | {labelEn[0].Descricao}");
+            foreach (var c in labelPt.Concat(labelEn)) c.Editor.Dispose();
 
             // seção que não lê não vira o padrão (salvar o padrão apagaria o que estava escrito à mão)
             var ruim = new JsonObject { ["ligado"] = false, ["vezes"] = "7", ["itens"] = new JsonArray("manual") };
@@ -186,7 +207,10 @@ internal sealed class ModuloConfiguracoes : Modulo
                 j.CampoAtrasoRecolher.Value = 1200;
                 j.CampoBorda.Checked = !cfg.BordaAdaptativa;
                 j.CampoRelogio.Checked = !cfg.Relogio;
+                Conferir("idioma abre no da config", j.CampoIdioma.SelectedIndex == JanelaDeConfiguracoes.LanguageIndex(cfg.Language) && cfg.Language == "auto");
+                j.CampoIdioma.SelectedIndex = 2;
                 var com = j.Coletar();
+                Conferir("mexendo, coletar leva o idioma", com.Language == "en" && cfg.Language == "auto", com.Language);
                 Conferir("mexendo, coletar leva o atraso de recolher, a borda e a hora",
                     com.AtrasoRecolherMs == 1200 && com.BordaAdaptativa != cfg.BordaAdaptativa && com.Relogio != cfg.Relogio,
                     $"{com.AtrasoRecolherMs} {com.BordaAdaptativa} {com.Relogio}");
@@ -232,6 +256,19 @@ internal sealed class ModuloConfiguracoes : Modulo
                     cfgSalva.Modulos["lista"]?.ToJsonString() ?? "null");
             }
 
+            // in English: window title, module names (ModuloAttribute.English) and shortcut names follow the language
+            Lang.Set("en");
+            var modsEn = JanelaDeConfiguracoes.ModulosDaConfig(new Config());
+            using (var j = JanelaDeConfiguracoes.ParaTeste(() => new Config(), modsEn, null))
+                Conferir("em inglês, a janela e os nomes dos módulos e dos atalhos saem em inglês",
+                    j.Text == "Ilha settings" && modsEn.Any(m => m.id == "configuracoes" && m.nome == "Settings window")
+                    && JanelaDeConfiguracoes.NomeDoAtalho("calculadora") == "Calculator" && Teclas.Nome(new Atalho { Mods = 0, Tecla = 0 }) == "none",
+                    j.Text);
+            Lang.Set("pt");
+            Conferir("em português, os mesmos nomes voltam",
+                JanelaDeConfiguracoes.ModulosDaConfig(new Config()).Any(m => m.id == "configuracoes" && m.nome == "Tela de configurações")
+                && JanelaDeConfiguracoes.NomeDoAtalho("calculadora") == "Calculadora" && JanelaDeConfiguracoes.LanguageIndex("EN") == 2 && JanelaDeConfiguracoes.LanguageIndex("xx") == 0);
+
             // opcional, para o desenvolvimento: ILHA_FOTO_CONFIG=<pasta> guarda uma foto de cada aba (sem mostrar a janela)
             var pastaFotos = Environment.GetEnvironmentVariable("ILHA_FOTO_CONFIG");
             if (!string.IsNullOrEmpty(pastaFotos))
@@ -242,6 +279,7 @@ internal sealed class ModuloConfiguracoes : Modulo
             }
         }
         catch (Exception e) { Conferir("testes da tela", false, e.ToString()); }
+        finally { Lang.Set(previousLanguage); }
         return r.ToString().TrimEnd();
     }
 

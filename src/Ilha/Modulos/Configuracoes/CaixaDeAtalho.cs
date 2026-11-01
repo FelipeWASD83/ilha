@@ -39,7 +39,7 @@ internal sealed class CaixaDeAtalho : TextBox
         set { _valor = new Atalho { Mods = value.Mods, Tecla = value.Tecla }; Atualizar(); }
     }
 
-    private void Atualizar() => Text = Focused ? "Aperte a combinação..." : Teclas.Nome(_valor);
+    private void Atualizar() => Text = Focused ? Lang.T("Aperte a combinação...", "Press the combination...") : Teclas.Nome(_valor);
 
     protected override void OnGotFocus(EventArgs e)
     {
@@ -88,7 +88,7 @@ internal sealed class CaixaDeAtalho : TextBox
                 Parent?.SelectNextControl(this, true, true, true, true);
                 return;
             case Resultado.SemModificador:
-                Text = "Use Ctrl, Alt, Shift ou Win junto";
+                Text = Lang.T("Use Ctrl, Alt, Shift ou Win junto", "Use Ctrl, Alt, Shift or Win with it");
                 return;
         }
         _valor = atalho;

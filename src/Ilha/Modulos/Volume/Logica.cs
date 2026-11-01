@@ -35,13 +35,16 @@ internal static class Logica
 
     public static float Decibeis(float amplitude) => amplitude <= 0f ? float.NegativeInfinity : 20f * MathF.Log10(amplitude);
 
+    /// <summary>Device name used when Windows gives none.</summary>
+    public static string NomePadraoDoAparelho => Lang.T("Aparelho de áudio", "Audio device");
+
     /// <summary>"-12,5 dB" (como o Windows escreve no Brasil); silêncio vira "-∞ dB".</summary>
     public static string TextoDb(float db)
     {
         if (!float.IsFinite(db)) return "-∞ dB";
         var r = MathF.Round(db, 1);
         if (r == 0f) r = 0f; // sem "-0,0"
-        return r.ToString("0.0", new System.Globalization.CultureInfo("pt-BR")) + " dB";
+        return r.ToString("0.0", Lang.Culture) + " dB";
     }
 
     /// <summary>A rodinha: `passo`% por dente (120), andando na grade do passo para não ficar em 63% e 65%.</summary>

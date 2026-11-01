@@ -1,7 +1,7 @@
-"""Gera os sons padrão da ilha (sons/<tipo>.wav): curtos, discretos, sintetizados (seno com harmônicos e decaimento).
+"""Generates the island's default sounds (sons/<tipo>.wav): short, subtle, synthesized (sine with harmonics and decay).
 
-O Felipe troca por sons dele pondo um .wav com o mesmo nome em %USERPROFILE%\\.ilha\\sons\\ (vale mais que estes).
-Uso: python ferramentas/gerar_sons.py
+To use your own sounds, put a .wav with the same name in %USERPROFILE%\\.ilha\\sons\\ (it wins over these).
+Usage: python ferramentas/gerar_sons.py
 """
 import math
 import struct
@@ -40,7 +40,7 @@ def salvar(nome, amostras, pico=0.22):
         w.setsampwidth(2)
         w.setframerate(TAXA)
         w.writeframes(b"".join(struct.pack("<h", int(32767 * pico * v / m)) for v in amostras))
-    print("som:", nome)
+    print("sound:", nome)
 
 
 def main():

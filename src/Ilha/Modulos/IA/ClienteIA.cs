@@ -22,7 +22,11 @@ internal sealed class PedidoIA
     public int MaxSaida = 8192;
 }
 
-internal sealed record Troca(string De, string Para, string Motivo);
+internal sealed record Troca(string De, string Para, string Motivo)
+{
+    /// <summary>The reason when the main side has no key (compared by the chat to word its note differently).</summary>
+    public static string MotivoSemChave => Lang.T("sem chave", "no key");
+}
 
 internal sealed record RespostaIA(string Texto, string Modelo, string? Incompleta, double? Custo, Troca? Trocou);
 
@@ -89,15 +93,15 @@ internal sealed class ClienteIA
         {
             if (!reservaUsavel())
                 throw new ErroIA(reserva != null && ladoR != null && !TemChave(ladoR)
-                    ? "Sem chave da OpenAI nem da Anthropic. Abra a tela de chaves e cole uma."
-                    : $"Sem chave d{Mensagens.Nome(ladoP)}. Abra a tela de chaves.");
+                    ? Lang.T("Sem chave da OpenAI nem da Anthropic. Abra a tela de chaves e cole uma.", "No OpenAI or Anthropic key. Open the keys screen and paste one.")
+                    : Lang.T($"Sem chave d{Mensagens.Nome(ladoP)}. Abra a tela de chaves.", $"No {Mensagens.Name(ladoP)} key. Open the keys screen."));
             modelo = reserva!;
-            trocou = new Troca(principal, reserva!, "sem chave");
+            trocou = new Troca(principal, reserva!, Troca.MotivoSemChave);
         }
         else if (Disjuntor.Aberto(ladoP) && reservaUsavel())
         {
             modelo = reserva!;
-            trocou = new Troca(principal, reserva!, $"sem crédito, de molho por mais {Disjuntor.MinutosRestantes(ladoP)} min");
+            trocou = new Troca(principal, reserva!, Lang.T($"sem crédito, de molho por mais {Disjuntor.MinutosRestantes(ladoP)} min", $"out of credit, benched for {Disjuntor.MinutosRestantes(ladoP)} more min"));
         }
         if (trocou != null) aoTrocar?.Invoke(modelo);
 
@@ -111,21 +115,21 @@ internal sealed class ClienteIA
             Disjuntor.Abrir(e.Lado);
             if (trocou != null || !reservaUsavel())
             {
-                string extra = reserva == null ? " A reserva está desligada."
-                    : ladoR != null && !TemChave(ladoR) ? " Não tem chave do outro lado para trocar."
-                    : trocou != null ? " A reserva também ficou sem crédito." : "";
+                string extra = reserva == null ? Lang.T(" A reserva está desligada.", " The fallback is off.")
+                    : ladoR != null && !TemChave(ladoR) ? Lang.T(" Não tem chave do outro lado para trocar.", " There's no key on the other side to switch to.")
+                    : trocou != null ? Lang.T(" A reserva também ficou sem crédito.", " The fallback ran out of credit too.") : "";
                 throw new ErroIA(e.Message + extra);
             }
             aoTrocar?.Invoke(reserva!);
             try
             {
                 var r = await Chamar(reserva!, p, aoTexto, ct).ConfigureAwait(false);
-                return r with { Trocou = new Troca(modelo, reserva!, "sem crédito") };
+                return r with { Trocou = new Troca(modelo, reserva!, Lang.T("sem crédito", "out of credit")) };
             }
             catch (SemCreditoErro e2)
             {
                 Disjuntor.Abrir(e2.Lado);
-                throw new ErroIA(e.Message + " A reserva também ficou sem crédito.");
+                throw new ErroIA(e.Message + Lang.T(" A reserva também ficou sem crédito.", " The fallback ran out of credit too."));
             }
         }
     }
@@ -133,7 +137,7 @@ internal sealed class ClienteIA
     private async Task<RespostaIA> Chamar(string modelo, PedidoIA p, Action<string>? aoTexto, CancellationToken ct)
     {
         string lado = Provedor.ProvedorDe(modelo);
-        string chave = ChaveDe(lado) ?? throw new ErroIA($"Sem chave d{Mensagens.Nome(lado)}.");
+        string chave = ChaveDe(lado) ?? throw new ErroIA(Lang.T($"Sem chave d{Mensagens.Nome(lado)}.", $"No {Mensagens.Name(lado)} key."));
         HttpRequestMessage req;
         ILeitorStream leitor;
         if (lado == "claude")
@@ -157,9 +161,9 @@ internal sealed class ClienteIA
         vigia.CancelAfter(EsperaCabecalho);
         HttpResponseMessage resp;
         try { resp = await _http.SendAsync(req, HttpCompletionOption.ResponseHeadersRead, vigia.Token).ConfigureAwait(false); }
-        catch (OperationCanceledException) when (!ct.IsCancellationRequested) { throw new ErroIA($"{Mensagens.Nome(lado)} não respondeu a tempo."); }
-        catch (HttpRequestException) { throw new ErroIA($"Não consegui falar com {Mensagens.Nome(lado)}. Confira a internet."); }
-        catch (FormatException) { throw new ErroIA("A chave tem um caractere inválido. Cole de novo na tela de chaves."); }
+        catch (OperationCanceledException) when (!ct.IsCancellationRequested) { throw new ErroIA(Lang.T($"{Mensagens.Nome(lado)} não respondeu a tempo.", $"{Mensagens.Name(lado)} didn't respond in time.")); }
+        catch (HttpRequestException) { throw new ErroIA(Lang.T($"Não consegui falar com {Mensagens.Nome(lado)}. Confira a internet.", $"Couldn't reach {Mensagens.Name(lado)}. Check the internet connection.")); }
+        catch (FormatException) { throw new ErroIA(Lang.T("A chave tem um caractere inválido. Cole de novo na tela de chaves.", "The key has an invalid character. Paste it again on the keys screen.")); }
         finally { req.Dispose(); }
 
         using (resp)
@@ -171,7 +175,7 @@ internal sealed class ClienteIA
                 var dados = Json.Objeto(corpoErro);
                 int st = (int)resp.StatusCode;
                 if (Provedor.FaltaDeCredito(st, dados))
-                    throw new SemCreditoErro((lado == "claude" ? "O Claude" : "A OpenAI") + " ficou sem crédito (" +
+                    throw new SemCreditoErro(Lang.T((lado == "claude" ? "O Claude" : "A OpenAI") + " ficou sem crédito (", (lado == "claude" ? "Claude" : "OpenAI") + " ran out of credit (") +
                         Json.Curto(Json.Str((dados?["error"] as JsonObject)?["message"]) is { Length: > 0 } m ? m : "HTTP " + st, 140) + ").", lado);
                 throw new ErroIA(Mensagens.DeErro(lado, st, dados));
             }
@@ -188,9 +192,9 @@ internal sealed class ClienteIA
                     if (pedaco != null) aoTexto?.Invoke(pedaco);
                 }
             }
-            catch (OperationCanceledException) when (!ct.IsCancellationRequested) { throw new ErroIA($"{Mensagens.Nome(lado)} parou de mandar a resposta no meio."); }
-            catch (IOException) when (!ct.IsCancellationRequested) { throw new ErroIA($"A conexão com {Mensagens.Nome(lado)} caiu no meio da resposta."); }
-            catch (HttpRequestException) when (!ct.IsCancellationRequested) { throw new ErroIA($"A conexão com {Mensagens.Nome(lado)} caiu no meio da resposta."); }
+            catch (OperationCanceledException) when (!ct.IsCancellationRequested) { throw new ErroIA(Lang.T($"{Mensagens.Nome(lado)} parou de mandar a resposta no meio.", $"{Mensagens.Name(lado)} stopped sending the reply midway.")); }
+            catch (IOException) when (!ct.IsCancellationRequested) { throw new ErroIA(Lang.T($"A conexão com {Mensagens.Nome(lado)} caiu no meio da resposta.", $"The connection to {Mensagens.Name(lado)} dropped mid-reply.")); }
+            catch (HttpRequestException) when (!ct.IsCancellationRequested) { throw new ErroIA(Lang.T($"A conexão com {Mensagens.Nome(lado)} caiu no meio da resposta.", $"The connection to {Mensagens.Name(lado)} dropped mid-reply.")); }
             ct.ThrowIfCancellationRequested();
             var fim = leitor.Fim();
             return new RespostaIA(fim.Texto, modelo, fim.Incompleta, Provedor.Custo(modelo, fim.Uso), null);
@@ -212,14 +216,14 @@ internal sealed class ClienteIA
     public async Task<(bool Ok, string Mensagem)> TestarChave(string lado, CancellationToken ct)
     {
         string? chave = ChaveDe(lado);
-        if (chave == null) return (false, "Nenhuma chave salva.");
+        if (chave == null) return (false, Lang.T("Nenhuma chave salva.", "No key saved."));
         using var req = new HttpRequestMessage(HttpMethod.Get, lado == "claude" ? _baseAnthropic + "/models?limit=1000" : _baseOpenAI + "/models");
         try
         {
             if (lado == "claude") CabecalhosClaude(req, chave);
             else req.Headers.Authorization = new AuthenticationHeaderValue("Bearer", chave);
         }
-        catch (FormatException) { return (false, "A chave tem um caractere inválido. Cole de novo."); }
+        catch (FormatException) { return (false, Lang.T("A chave tem um caractere inválido. Cole de novo.", "The key has an invalid character. Paste it again.")); }
         using var vigia = CancellationTokenSource.CreateLinkedTokenSource(ct);
         vigia.CancelAfter(TimeSpan.FromSeconds(20));
         try
@@ -229,9 +233,9 @@ internal sealed class ClienteIA
             var dados = Json.Objeto(corpo);
             if (!resp.IsSuccessStatusCode) return (false, Segredo.Limpar(Mensagens.DeErro(lado, (int)resp.StatusCode, dados)));
             int n = (dados?["data"] as JsonArray)?.Count ?? 0;
-            return (true, $"Chave válida: {n} modelo(s) nesta conta.");
+            return (true, Lang.T($"Chave válida: {n} modelo(s) nesta conta.", $"Valid key: {n} model(s) on this account."));
         }
-        catch (OperationCanceledException) when (!ct.IsCancellationRequested) { return (false, $"{Mensagens.Nome(lado)} não respondeu a tempo."); }
-        catch (HttpRequestException) { return (false, $"Não consegui falar com {Mensagens.Nome(lado)}. Confira a internet."); }
+        catch (OperationCanceledException) when (!ct.IsCancellationRequested) { return (false, Lang.T($"{Mensagens.Nome(lado)} não respondeu a tempo.", $"{Mensagens.Name(lado)} didn't respond in time.")); }
+        catch (HttpRequestException) { return (false, Lang.T($"Não consegui falar com {Mensagens.Nome(lado)}. Confira a internet.", $"Couldn't reach {Mensagens.Name(lado)}. Check the internet connection.")); }
     }
 }

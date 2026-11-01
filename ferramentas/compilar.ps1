@@ -7,10 +7,12 @@
 #     que sem isso sai igual em toda compilacao e, se barrado uma vez, continua barrado).
 # Mesmo metodo do quadra (Ferramentas\compilar.ps1).
 #
-# Uso: powershell -ExecutionPolicy Bypass -File .\ferramentas\compilar.ps1 [-Publicar <pasta>] [-Tentativas 8]
+# Usage: powershell -ExecutionPolicy Bypass -File .\ferramentas\compilar.ps1 [-Publicar <folder>] [-Publico] [-Tentativas 8]
+# -Publico: builds without the private modules of src\Ilha\local.props (the public release uses this).
 
 param(
     [string]$Publicar = "",
+    [switch]$Publico,
     [int]$Tentativas = 8
 )
 
@@ -31,6 +33,7 @@ function Escrever-Carimbo {
 function Compilar {
     $rev = @()
     if ($script:selo) { $rev = @("-p:SourceRevisionId=$($script:selo)") }
+    if ($Publico) { $rev += "-p:PublicBuild=true" }
     if ($Publicar) {
         dotnet publish $proj -c Release -r win-x64 --self-contained false -p:PublishReadyToRun=true -o $Publicar -nologo -v q @rev | Out-Host
         return (Join-Path $Publicar "Ilha.exe")
@@ -47,7 +50,7 @@ function Testar([string]$exe) {
         return $p.ExitCode
     }
     catch {
-        Write-Host "  o Ilha.exe nem abriu: $($_.Exception.Message)"
+        Write-Host "  Ilha.exe did not even open: $($_.Exception.Message)"
         return -1
     }
 }
@@ -56,16 +59,16 @@ if (-not (Test-Path $carimbo)) { Escrever-Carimbo }
 
 for ($i = 1; $i -le $Tentativas; $i++) {
     $exe = Compilar
-    if ($LASTEXITCODE -ne 0) { Write-Host "a compilacao falhou"; exit 1 }
+    if ($LASTEXITCODE -ne 0) { Write-Host "the build failed"; exit 1 }
     $codigo = Testar $exe
     if ($codigo -eq 0) {
-        Write-Host "ok: o Smart App Control aceitou esta compilacao (tentativa $i)"
+        Write-Host "ok: Smart App Control accepted this build (attempt $i)"
         Write-Host $exe
         exit 0
     }
-    Write-Host "tentativa ${i}: o Smart App Control barrou (codigo $codigo); trocando o carimbo"
+    Write-Host "attempt ${i}: Smart App Control blocked it (code $codigo); changing the stamp"
     Escrever-Carimbo
 }
 
-Write-Host "o Smart App Control barrou todas as $Tentativas tentativas"
+Write-Host "Smart App Control blocked all $Tentativas attempts"
 exit 2

@@ -57,13 +57,13 @@ internal static class CaixaDeEntrada
         try
         {
             c = Environment.ExpandEnvironmentVariables(c);
-            if (!Path.IsPathFullyQualified(c)) { problema = "O caminho em \"arquivo\" precisa ser completo, com a letra do disco."; return null; }
-            if (c.EndsWith('\\') || c.EndsWith('/')) { problema = "\"arquivo\" aponta para uma pasta; ponha o caminho de um arquivo .md."; return null; }
+            if (!Path.IsPathFullyQualified(c)) { problema = Lang.T("O caminho em \"arquivo\" precisa ser completo, com a letra do disco.", "The path in \"arquivo\" must be complete, with the drive letter."); return null; }
+            if (c.EndsWith('\\') || c.EndsWith('/')) { problema = Lang.T("\"arquivo\" aponta para uma pasta; ponha o caminho de um arquivo .md.", "\"arquivo\" points to a folder; put the path of a .md file."); return null; }
             return Path.GetFullPath(c);
         }
         catch (Exception e)
         {
-            problema = "Caminho inválido em \"arquivo\": " + e.Message;
+            problema = Lang.T("Caminho inválido em \"arquivo\": ", "Invalid path in \"arquivo\": ") + e.Message;
             return null;
         }
     }
@@ -85,7 +85,7 @@ internal static class CaixaDeEntrada
                 if (i > 0) Thread.Sleep(esperaMs);
                 try
                 {
-                    if (Directory.Exists(caminho)) return "o caminho aponta para uma pasta, não para um arquivo.";
+                    if (Directory.Exists(caminho)) return Lang.T("o caminho aponta para uma pasta, não para um arquivo.", "the path points to a folder, not a file.");
                     var pasta = Path.GetDirectoryName(caminho);
                     if (!string.IsNullOrEmpty(pasta)) Directory.CreateDirectory(pasta);
                     using var fs = new FileStream(caminho, FileMode.Append, FileAccess.Write, FileShare.ReadWrite | FileShare.Delete);
@@ -103,7 +103,9 @@ internal static class CaixaDeEntrada
                     return Explicar(e);
                 }
             }
-            return ultimo == null ? "não deu para escrever no arquivo." : "o arquivo continuou preso por outro programa (" + ultimo.Message.TrimEnd('.', ' ') + ").";
+            return ultimo == null
+                ? Lang.T("não deu para escrever no arquivo.", "couldn't write to the file.")
+                : Lang.T("o arquivo continuou preso por outro programa (", "the file stayed locked by another program (") + ultimo.Message.TrimEnd('.', ' ') + ").";
         }
     }
 
@@ -116,9 +118,9 @@ internal static class CaixaDeEntrada
 
     private static string Explicar(Exception e) => e switch
     {
-        UnauthorizedAccessException => "sem permissão para escrever no arquivo.",
-        DirectoryNotFoundException or DriveNotFoundException => "a pasta do arquivo não existe (disco desconectado?).",
-        PathTooLongException => "o caminho do arquivo é comprido demais.",
+        UnauthorizedAccessException => Lang.T("sem permissão para escrever no arquivo.", "no permission to write to the file."),
+        DirectoryNotFoundException or DriveNotFoundException => Lang.T("a pasta do arquivo não existe (disco desconectado?).", "the file's folder does not exist (disconnected drive?)."),
+        PathTooLongException => Lang.T("o caminho do arquivo é comprido demais.", "the file path is too long."),
         _ => e.Message.TrimEnd('.', ' ') + ".",
     };
 
@@ -173,6 +175,16 @@ internal static class CaixaDeEntrada
         Conferir("caminho vazio = módulo parado", Caminho("  ", out var p1) == null && p1 == "vazio");
         Conferir("caminho relativo é recusado", Caminho("nota.md", out var p2) == null && p2 != null && p2 != "vazio");
         Conferir("caminho entre aspas serve", Caminho("\"C:\\x\\y.md\"", out _) == "C:\\x\\y.md");
+        string idioma = Lang.Choice;
+        try
+        {
+            Lang.Set("pt");
+            Caminho("nota.md", out var pt);
+            Lang.Set("en");
+            Caminho("nota.md", out var en);
+            Conferir("problem with the path in both languages", pt != null && pt.StartsWith("O caminho") && en != null && en.StartsWith("The path"), $"{pt} | {en}");
+        }
+        finally { Lang.Set(idioma); }
 
         // escrita de verdade numa pasta temporária
         string pasta = Path.Combine(Path.GetTempPath(), "ilha-teste-nota-" + Guid.NewGuid().ToString("N"));

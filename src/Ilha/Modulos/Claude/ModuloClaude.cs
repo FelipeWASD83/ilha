@@ -15,7 +15,7 @@ namespace Ilha.Claude;
 /// ferramentas/hook_permissao.py) e trocar modelo, esforço e mandar mensagem pela ponte de acessibilidade com o app.
 /// Sem "arquivoEventos" na config o módulo fica calado (o pipe de permissão continua, se "aprovarPermissoes").
 /// </summary>
-[Modulo("claude", "Claude Code")]
+[Modulo("claude", "Claude Code", English = "Claude Code")]
 internal sealed class ModuloClaude : Modulo
 {
     private ConfigClaude _cfg = new();
@@ -200,7 +200,7 @@ internal sealed class ModuloClaude : Modulo
     private void AlertarFim(Sessao s, double duracao)
     {
         if (!_cfg.AlertarAoTerminar || _atv == null) return;
-        string titulo = s.Pergunta ? "Claude Code fez uma pergunta" : "Claude Code terminou";
+        string titulo = s.Pergunta ? Lang.T("Claude Code fez uma pergunta", "Claude Code asked a question") : Lang.T("Claude Code terminou", "Claude Code finished");
         string sub = (s.Projeto.Length > 0 ? s.Projeto : "Claude Code") + (duracao > 0 ? " · " + Neutro.Duracao(duracao) : "");
         S.Ilha.Alertar(new Alerta
         {
@@ -224,7 +224,7 @@ internal sealed class ModuloClaude : Modulo
     private void AlertarPermissaoSemPonte(Sessao s)
     {
         if (_atv == null) return;
-        string sub = s.Projeto.Length > 0 ? s.Projeto + " · responda no app do Claude" : "Responda no app do Claude";
+        string sub = s.Projeto.Length > 0 ? s.Projeto + Lang.T(" · responda no app do Claude", " · answer in the Claude app") : Lang.T("Responda no app do Claude", "Answer in the Claude app");
         S.Ilha.Alertar(new Alerta
         {
             Tipo = "claude",
@@ -236,7 +236,7 @@ internal sealed class ModuloClaude : Modulo
                 p.Logo(c, new Vector2(8, 10), 32).Tocar("claude-pulso");
                 p.Desenho(c, Vector2.Zero, c.Tamanho, (dc, t) =>
                 {
-                    p.Texto.Desenhar(dc, "Claude Code pede permissão", new Vector2(56, 4), 17, Cor.Branco, largura: t.X - 56);
+                    p.Texto.Desenhar(dc, Lang.T("Claude Code pede permissão", "Claude Code asks for permission"), new Vector2(56, 4), 17, Cor.Branco, largura: t.X - 56);
                     p.Texto.Desenhar(dc, sub, new Vector2(56, 28), 13, Cor.Secundario, FontWeight.Normal, largura: t.X - 56);
                 });
                 return c;
@@ -267,13 +267,13 @@ internal sealed class ModuloClaude : Modulo
                 _alertaNaTela = pedido;
                 c.AoSoltar += () => { if (_alertaNaTela == pedido) _alertaNaTela = null; };
                 p.Logo(c, new Vector2(-4, -5), 30).Tocar("claude-pulso");
-                string cab = (pedido.Projeto.Length > 0 ? pedido.Projeto : "Claude Code") + " pede permissão";
+                string cab = (pedido.Projeto.Length > 0 ? pedido.Projeto : "Claude Code") + Lang.T(" pede permissão", " asks for permission");
                 p.Desenho(c, Vector2.Zero, c.Tamanho, (dc, t) =>
                 {
                     p.Texto.Desenhar(dc, cab, new Vector2(32, 1), 13, Cor.Secundario, largura: L - 32);
                     p.Texto.Desenhar(dc, pedido.Ferramenta, new Vector2(0, 22), 17, Cor.Branco, largura: L);
                     if (pedido.Resumo.Length > 0) p.Texto.Desenhar(dc, pedido.Resumo, new Vector2(0, 44), 13, Cor.Secundario, FontWeight.Normal, largura: L);
-                    foreach (var (x, texto, cor) in new[] { (0f, "Permitir", Cor.Verde), (176f, "Negar", Cor.Vermelho) })
+                    foreach (var (x, texto, cor) in new[] { (0f, Lang.T("Permitir", "Allow"), Cor.Verde), (176f, Lang.T("Negar", "Deny"), Cor.Vermelho) })
                     {
                         Icone.Retangulo(dc, x, 66, 164, 30, 10, new Vortice.Mathematics.Color4(cor.R, cor.G, cor.B, 0.28f));
                         var tam = p.Texto.Medir(texto, 14);
@@ -294,16 +294,23 @@ internal sealed class ModuloClaude : Modulo
 public sealed class ConfigClaude
 {
     /// <summary>A fila JSONL que os hooks escrevem (vazio = módulo calado).</summary>
+    [Label("Arquivo de eventos", "Events file")]
     [JsonPropertyName("arquivoEventos")] public string ArquivoEventos { get; set; } = "";
     /// <summary>Pasta dos arquivos de sessão do Claude Code (vazio = ~/.claude/sessions).</summary>
+    [Label("Pasta das sessões", "Sessions folder")]
     [JsonPropertyName("pastaSessoes")] public string PastaSessoes { get; set; } = "";
     /// <summary>Serve o pipe do hook PermissionRequest (ferramentas/hook_permissao.py).</summary>
+    [Label("Aprovar permissões", "Approve permissions")]
     [JsonPropertyName("aprovarPermissoes")] public bool AprovarPermissoes { get; set; } = true;
     /// <summary>Quanto o hook espera o clique antes de cair no diálogo normal (o timeout do hook tem que ser maior).</summary>
+    [Label("Espera (segundos)", "Wait (seconds)")]
     [JsonPropertyName("esperaSegundos")] public int EsperaSegundos { get; set; } = 45;
     /// <summary>Quanto o alerta de permissão fica na tela (depois, os botões continuam no cartão).</summary>
+    [Label("Alerta de permissão (segundos)", "Permission alert (seconds)")]
     [JsonPropertyName("alertaPermissaoSegundos")] public float AlertaPermissaoSegundos { get; set; } = 20;
+    [Label("Alertar ao terminar", "Alert when finished")]
     [JsonPropertyName("alertarAoTerminar")] public bool AlertarAoTerminar { get; set; } = true;
     /// <summary>Os modelos da lista (o menu do app acrescenta os que tiver a mais).</summary>
+    [Label("Modelos", "Models")]
     [JsonPropertyName("modelos")] public List<string> Modelos { get; set; } = new() { "Opus 5.5", "Fable 5.1", "Sonnet 5.5", "Haiku 5.5" };
 }

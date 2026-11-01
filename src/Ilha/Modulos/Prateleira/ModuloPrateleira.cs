@@ -14,7 +14,7 @@ namespace Ilha.Prateleira;
 /// qualquer lugar (Explorer, After Effects, Photoshop, navegador). Guarda só o caminho, nunca copia nem move; o que
 /// sumiu fica na lista, marcado como indisponível. A lista mora na seção do módulo na config ("itens").
 /// </summary>
-[Modulo("prateleira", "Prateleira")]
+[Modulo("prateleira", "Prateleira", English = "Shelf")]
 internal sealed class ModuloPrateleira : Modulo
 {
     private ConfigPrateleira _cfg = new();
@@ -37,7 +37,7 @@ internal sealed class ModuloPrateleira : Modulo
         S.Menu.Adicionar(new ItemDoMenu
         {
             Id = "prateleira",
-            Nome = "Prateleira",
+            Nome = Lang.T("Prateleira", "Shelf"),
             Abrir = atv.Abrir,
             Detalhe = () => LogicaDaPrateleira.Contagem(_itens.Count),
             Icone = (dc, palco, r) => AtividadePrateleira.DesenharIcone(dc, r),
@@ -148,7 +148,12 @@ internal sealed class ModuloPrateleira : Modulo
         r.Conferir("pasta pela largura: letra larga encurta mais do que contar letras", comW == @"C:\…\abc\def\ghi" && largoW(comW) <= 31 * 6, comW);
         r.Conferir("pasta pela largura: item na raiz não tem pasta", LogicaDaPrateleira.PastaQueCabe(@"D:\", seis, 100) == "");
 
+        string idioma = Lang.Choice;
+        Lang.Set("pt");
         r.Conferir("contagem do menu", LogicaDaPrateleira.Contagem(0) == "vazia" && LogicaDaPrateleira.Contagem(1) == "1 item" && LogicaDaPrateleira.Contagem(7) == "7 itens");
+        Lang.Set("en");
+        r.Conferir("english: menu count", LogicaDaPrateleira.Contagem(0) == "empty" && LogicaDaPrateleira.Contagem(1) == "1 item" && LogicaDaPrateleira.Contagem(7) == "7 items");
+        Lang.Set(idioma);
         r.Conferir("rolagem: desce, para no fim e no começo",
             LogicaDaPrateleira.Rolar(0, -1, 12, 5) == 1 && LogicaDaPrateleira.Rolar(6, -3, 12, 5) == 7 && LogicaDaPrateleira.Rolar(1, 4, 12, 5) == 0
             && LogicaDaPrateleira.Rolar(0, -1, 3, 5) == 0);

@@ -37,7 +37,10 @@ internal static class BotaoDoModelo
 {
     public static readonly string[] Niveis = { "Baixo", "Médio", "Alto", "Extra", "Máx" };
     public const int ULTRACODE = 5;
-    public static readonly string[] Rotulos = { "Baixo", "Médio", "Alto", "Extra", "Máx", "Ultracode" };
+    private static readonly string[] RotulosPt = { "Baixo", "Médio", "Alto", "Extra", "Máx", "Ultracode" };
+    private static readonly string[] LabelsEn = { "Low", "Medium", "High", "Extra", "Max", "Ultracode" };
+    /// <summary>Effort labels shown in the island, in the interface language (parsing the app's button uses <see cref="Niveis"/>).</summary>
+    public static string[] Rotulos => Lang.English ? LabelsEn : RotulosPt;
 
     public static bool EhBotao(string nome) =>
         nome.StartsWith("Modelo: ", StringComparison.Ordinal) || nome.StartsWith("Model: ", StringComparison.Ordinal);
@@ -115,7 +118,7 @@ internal sealed class PonteClaudeApp : IDisposable
         BlockingCollection<Trabalho> fila;
         lock (_trava)
         {
-            if (_fechada) { pronto(RespostaPonte.Falhou("A ilha está fechando.")); return; }
+            if (_fechada) { pronto(RespostaPonte.Falhou(Lang.T("A ilha está fechando.", "The island is closing."))); return; }
             fila = _fila ??= NovaThread();
             try { fila.Add(t); }
             catch (InvalidOperationException) { fila = _fila = NovaThread(); fila.Add(t); }
@@ -125,7 +128,7 @@ internal sealed class PonteClaudeApp : IDisposable
             if (Interlocked.Exchange(ref t.Feito, 1) != 0) return;
             // travou dentro da UIA: o próximo pedido sobe outra thread
             lock (_trava) { if (_fila == fila) { fila.CompleteAdding(); _fila = null; } }
-            pronto(RespostaPonte.Falhou("O app do Claude demorou demais para responder."));
+            pronto(RespostaPonte.Falhou(Lang.T("O app do Claude demorou demais para responder.", "The Claude app took too long to respond.")));
         }, null, prazoMs, Timeout.Infinite);
     }
 
@@ -162,10 +165,10 @@ internal sealed class PonteClaudeApp : IDisposable
             try
             {
                 var raiz = JanelaDoClaude(out _pidDoApp);
-                r = raiz == null ? RespostaPonte.Falhou("O app do Claude não está aberto.") : t.Fazer(raiz);
+                r = raiz == null ? RespostaPonte.Falhou(Lang.T("O app do Claude não está aberto.", "The Claude app isn't open.")) : t.Fazer(raiz);
             }
-            catch (ElementNotAvailableException) { r = RespostaPonte.Falhou("O app do Claude mudou a tela no meio; tenta de novo."); }
-            catch (Exception e) { r = RespostaPonte.Falhou("A ponte com o app falhou: " + e.Message); }
+            catch (ElementNotAvailableException) { r = RespostaPonte.Falhou(Lang.T("O app do Claude mudou a tela no meio; tenta de novo.", "The Claude app changed its screen midway; try again.")); }
+            catch (Exception e) { r = RespostaPonte.Falhou(Lang.T("A ponte com o app falhou: ", "The bridge to the app failed: ") + e.Message); }
             if (Interlocked.Exchange(ref t.Feito, 1) == 0) t.Pronto(r);
         }
         lock (_trava) { if (_fila == fila) _fila = null; }
@@ -329,7 +332,7 @@ internal sealed class PonteClaudeApp : IDisposable
         return achados.Count == 1 ? achados[0] : null;
     }
 
-    private const string SEM_SESSAO = "Não achei essa sessão aberta na tela do app do Claude (ou tem duas com o mesmo nome).";
+    private static string SEM_SESSAO => Lang.T("Não achei essa sessão aberta na tela do app do Claude (ou tem duas com o mesmo nome).", "Couldn't find this session open in the Claude app (or there are two with the same name).");
 
     private static T? Esperar<T>(Func<T?> f, int ms) where T : class
     {
@@ -386,7 +389,7 @@ internal sealed class PonteClaudeApp : IDisposable
         var p = Escolher(Paineis(raiz), alvo);
         if (p?.BotaoModelo == null) return RespostaPonte.Falhou(SEM_SESSAO);
         var (exp, menu) = AbrirMenuDoModelo(raiz, p);
-        if (menu == null) { FecharMenu(exp); return RespostaPonte.Falhou("O menu de modelo não abriu."); }
+        if (menu == null) { FecharMenu(exp); return RespostaPonte.Falhou(Lang.T("O menu de modelo não abriu.", "The model menu didn't open.")); }
         var opcoes = new List<string>();
         AutomationElement? item = null;
         void Procurar(AutomationElement m)
@@ -407,7 +410,7 @@ internal sealed class PonteClaudeApp : IDisposable
         if (item == null)
         {
             FecharMenu(exp);
-            return new RespostaPonte { Ok = false, Erro = $"O modelo {valor} não está no menu do app.", Opcoes = opcoes };
+            return new RespostaPonte { Ok = false, Erro = Lang.T($"O modelo {valor} não está no menu do app.", $"The model {valor} isn't in the app's menu."), Opcoes = opcoes };
         }
         ((InvokePattern)item.GetCurrentPattern(InvokePattern.Pattern)).Invoke();
         Thread.Sleep(500);
@@ -423,15 +426,15 @@ internal sealed class PonteClaudeApp : IDisposable
         if (p?.BotaoModelo == null) return RespostaPonte.Falhou(SEM_SESSAO);
         static bool EhEsforco(string n) => BotaoDoModelo.SemAcento(n).StartsWith("esforco", StringComparison.Ordinal) || n.StartsWith("Effort", StringComparison.Ordinal);
         var (exp, menu) = AbrirMenuDoModelo(raiz, p);
-        if (menu == null) { FecharMenu(exp); return RespostaPonte.Falhou("O menu de modelo não abriu."); }
+        if (menu == null) { FecharMenu(exp); return RespostaPonte.Falhou(Lang.T("O menu de modelo não abriu.", "The model menu didn't open.")); }
         var sub = AbrirSubmenu(raiz, menu, EhEsforco);
-        if (sub == null) { FecharMenu(exp); return RespostaPonte.Falhou("O controle de esforço não abriu (se o mouse passou por cima do app, tenta de novo)."); }
+        if (sub == null) { FecharMenu(exp); return RespostaPonte.Falhou(Lang.T("O controle de esforço não abriu (se o mouse passou por cima do app, tenta de novo).", "The effort control didn't open (if the mouse passed over the app, try again).")); }
         var radios = ItensDoMenu(sub, ControlType.RadioButton);
         var caixa = ItensDoMenu(sub, ControlType.CheckBox).FirstOrDefault(c => SemAcentoNome(c) == "ultracode");
         if (radios.Length != BotaoDoModelo.Niveis.Length)
         {
             FecharMenu(exp);
-            return RespostaPonte.Falhou($"O controle de esforço do app mudou ({radios.Length} níveis); a ponte precisa ser atualizada.");
+            return RespostaPonte.Falhou(Lang.T($"O controle de esforço do app mudou ({radios.Length} níveis); a ponte precisa ser atualizada.", $"The app's effort control changed ({radios.Length} levels); the bridge needs an update."));
         }
         int? baseAtual = null;
         for (int k = 0; k < radios.Length; k++)
@@ -448,7 +451,7 @@ internal sealed class PonteClaudeApp : IDisposable
             // marcar o Ultracode pode ter fechado o menu: abre de novo se precisar
             (exp, menu) = AbrirMenuDoModelo(raiz, p);
             sub = menu != null ? AbrirSubmenu(raiz, menu, EhEsforco) : null;
-            if (sub == null) { FecharMenu(exp); return RespostaPonte.Falhou("O controle de esforço não abriu."); }
+            if (sub == null) { FecharMenu(exp); return RespostaPonte.Falhou(Lang.T("O controle de esforço não abriu.", "The effort control didn't open.")); }
             var r2 = ItensDoMenu(sub, ControlType.RadioButton);
             if (nivel < r2.Length) ((InvokePattern)r2[nivel].GetCurrentPattern(InvokePattern.Pattern)).Invoke();
         }
@@ -464,7 +467,7 @@ internal sealed class PonteClaudeApp : IDisposable
     private static RespostaPonte Mandar(AutomationElement raiz, string alvo, string texto)
     {
         var p = Escolher(Paineis(raiz), alvo);
-        if (p?.Prompt == null) return RespostaPonte.Falhou(p == null ? SEM_SESSAO : "Não achei o campo de mensagem dessa sessão no app do Claude.");
+        if (p?.Prompt == null) return RespostaPonte.Falhou(p == null ? SEM_SESSAO : Lang.T("Não achei o campo de mensagem dessa sessão no app do Claude.", "Couldn't find this session's message field in the Claude app."));
         var valor = (ValuePattern)p.Prompt.GetCurrentPattern(ValuePattern.Pattern);
         string rascunho = valor.Current.Value ?? "";
         var area = Valido(p.Area) ? p.Area : p.Prompt.Current.BoundingRectangle;
@@ -475,7 +478,7 @@ internal sealed class PonteClaudeApp : IDisposable
         if (enviar == null)
         {
             valor.SetValue(rascunho);
-            return RespostaPonte.Falhou("O app não aceitou o texto (o botão Enviar não apareceu).");
+            return RespostaPonte.Falhou(Lang.T("O app não aceitou o texto (o botão Enviar não apareceu).", "The app didn't accept the text (the Send button didn't show up)."));
         }
         ((InvokePattern)enviar.GetCurrentPattern(InvokePattern.Pattern)).Invoke();
         Thread.Sleep(500);

@@ -24,7 +24,7 @@ public sealed class ItemDaPrateleira
 
 public sealed class ConfigPrateleira
 {
-    [DisplayName("Segundos que o cartão fica aberto quando o arraste passa sem soltar")]
+    [Label("Segundos que o cartão fica aberto quando o arraste passa sem soltar", "Seconds the card stays open when a drag passes without dropping")]
     [JsonPropertyName("segundosAposSair")] public float SegundosAposSair { get; set; } = 1.5f;
 
     // a própria ilha escreve aqui (não aparece na tela de configurações)
@@ -182,7 +182,7 @@ internal static class LogicaDaPrateleira
     }
 
     /// <summary>"vazia", "1 item", "12 itens" (o detalhe da entrada no menu).</summary>
-    public static string Contagem(int n) => n == 0 ? "vazia" : n == 1 ? "1 item" : $"{n} itens";
+    public static string Contagem(int n) => n == 0 ? Lang.T("vazia", "empty") : n == 1 ? "1 item" : Lang.T($"{n} itens", $"{n} items");
 
     /// <summary>A primeira linha visível depois de rolar `dentes` (positivo = para cima, como a rodinha).</summary>
     public static int Rolar(int primeiro, int dentes, int total, int visiveis) =>

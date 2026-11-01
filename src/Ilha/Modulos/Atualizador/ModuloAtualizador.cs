@@ -10,10 +10,10 @@ namespace Ilha.Atualizacoes;
 
 public sealed class ConfigAtualizador
 {
-    [DisplayName("Repositório no GitHub (dono/nome)")]
+    [Label("Repositório no GitHub (dono/nome)", "GitHub repository (owner/name)")]
     [JsonPropertyName("repositorio")] public string Repositorio { get; set; } = "FelipeWASD83/ilha";
 
-    [DisplayName("Procurar atualização sozinha (no máximo uma vez por dia)")]
+    [Label("Procurar atualização sozinha (no máximo uma vez por dia)", "Check for updates automatically (at most once a day)")]
     [JsonPropertyName("procurarSozinha")] public bool ProcurarSozinha { get; set; } = true;
 }
 
@@ -28,7 +28,7 @@ internal sealed class EstadoDoAtualizador
 /// Procura versão nova uma vez por dia (nunca com jogo competitivo na frente), mostra "Ilha X disponível" com os
 /// botões Atualizar e Depois, e faz a troca pelo <see cref="Atualizador"/>. Só a cópia instalada procura sozinha.
 /// </summary>
-[Modulo("atualizador", "Atualizador")]
+[Modulo("atualizador", "Atualizador", English = "Updater")]
 internal sealed partial class ModuloAtualizador : Modulo
 {
     private ConfigAtualizador _cfg = new();
@@ -167,11 +167,12 @@ internal sealed partial class ModuloAtualizador : Modulo
         if (ok)
         {
             Log.Escrever($"atualizador: atualizada de {de} para {versao}");
-            S.Avisar($"Ilha atualizada para a {versao}.");
+            S.Avisar(Lang.T($"Ilha atualizada para a {versao}.", $"Island updated to {versao}."));
             return;
         }
         Log.Escrever($"atualizador: a {versao} não deu certo ({motivo})");
-        S.Avisar($"A atualização para a {versao} não deu certo ({motivo}). A ilha continua na {Atualizador.VersaoAtual}.");
+        S.Avisar(Lang.T($"A atualização para a {versao} não deu certo ({motivo}). A ilha continua na {Atualizador.VersaoAtual}.",
+            $"The update to {versao} didn't work ({motivo}). The island stays on {Atualizador.VersaoAtual}."));
         var e = LerEstado();
         if (!e.Falharam.Contains(versao)) { e.Falharam.Add(versao); GravarEstado(e); }
     }
@@ -231,10 +232,10 @@ internal sealed partial class ModuloAtualizador : Modulo
         {
             var v = await _at.Procurar(forcar: true);
             if (v != null) Mostrar(v);
-            else S.Avisar($"A ilha já está na versão mais nova ({Atualizador.VersaoAtual}).");
+            else S.Avisar(Lang.T($"A ilha já está na versão mais nova ({Atualizador.VersaoAtual}).", $"The island is already on the latest version ({Atualizador.VersaoAtual})."));
         }
         catch (ErroDeAtualizacao ex) { S.Avisar(ex.Message); }
-        catch (Exception ex) { Log.Escrever("atualizador: erro ao procurar: " + ex); S.Avisar("Não deu para procurar atualização (detalhes no ilha.log)."); }
+        catch (Exception ex) { Log.Escrever("atualizador: erro ao procurar: " + ex); S.Avisar(Lang.T("Não deu para procurar atualização (detalhes no ilha.log).", "Couldn't check for updates (details in ilha.log).")); }
         finally { _procurando = false; }
     }
 
@@ -257,7 +258,7 @@ internal sealed partial class ModuloAtualizador : Modulo
         catch (Exception ex)
         {
             Log.Escrever("atualizador: erro ao instalar: " + ex);
-            atv.Erro("Erro inesperado (detalhes no ilha.log).");
+            atv.Erro(Lang.T("Erro inesperado (detalhes no ilha.log).", "Unexpected error (details in ilha.log)."));
         }
     }
 }

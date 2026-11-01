@@ -23,7 +23,7 @@ internal abstract class DeMentira : Atividade
 internal sealed class TimerDeMentira : DeMentira
 {
     public override string Tipo => "timer";
-    public override string Nome => "Timer de 1 minuto";
+    public override string Nome => Lang.T("Timer de 1 minuto", "1-minute timer");
     public override bool PermitidaNoCompetitivo => true;
 
     private readonly System.Windows.Forms.Timer _tique = new() { Interval = 250 };
@@ -76,8 +76,8 @@ internal sealed class TimerDeMentira : DeMentira
                 p.Desenho(c, Vector2.Zero, c.Tamanho, (dc, t) =>
                 {
                     Icone.Anel(dc, p.G.Fabrica, new Vector2(26, 26), 20, 4, 1, Cor.Laranja);
-                    p.Texto.Desenhar(dc, "Timer acabou", new Vector2(60, 4), 18, Cor.Branco);
-                    p.Texto.Desenhar(dc, "1 minuto, de mentira", new Vector2(60, 28), 13, Cor.Secundario, FontWeight.Normal);
+                    p.Texto.Desenhar(dc, Lang.T("Timer acabou", "Timer done"), new Vector2(60, 4), 18, Cor.Branco);
+                    p.Texto.Desenhar(dc, Lang.T("1 minuto, de mentira", "1 minute, fake"), new Vector2(60, 28), 13, Cor.Secundario, FontWeight.Normal);
                 });
                 return c;
             },
@@ -117,7 +117,7 @@ internal sealed class TimerDeMentira : DeMentira
                 var c = p.NovaCena(new Vector2(320, 92));
                 p.Desenho(c, Vector2.Zero, c.Tamanho, (dc, t) =>
                 {
-                    p.Texto.Desenhar(dc, _pausado ? "Timer pausado" : "Timer", new Vector2(0, 2), 13, Cor.Secundario);
+                    p.Texto.Desenhar(dc, _pausado ? Lang.T("Timer pausado", "Timer paused") : "Timer", new Vector2(0, 2), 13, Cor.Secundario);
                     p.Texto.Desenhar(dc, Texto, new Vector2(-2, 22), 48, Cor.Laranja, FontWeight.Medium, tabular: true);
                     // pausar/continuar e encerrar
                     Icone.Circulo(dc, new Vector2(t.X - 82, 50), 21, new Color4(1f, 0.62f, 0.04f, 0.22f));
@@ -142,7 +142,7 @@ internal sealed class TimerDeMentira : DeMentira
 internal sealed class MidiaDeMentira : DeMentira
 {
     public override string Tipo => "midia";
-    public override string Nome => "Música tocando";
+    public override string Nome => Lang.T("Música tocando", "Music playing");
 
     private bool _tocando = true;
     private static readonly Color4 CorDaCapa = new(0.93f, 0.42f, 0.36f, 1f);
@@ -199,8 +199,8 @@ internal sealed class MidiaDeMentira : DeMentira
                 p.Desenho(c, Vector2.Zero, c.Tamanho, (dc, t) =>
                 {
                     Capa(dc, 0, 0, 62, 14);
-                    p.Texto.Desenhar(dc, "Música de mentira", new Vector2(76, 8), 16, Cor.Branco, largura: 200);
-                    p.Texto.Desenhar(dc, "Ilha · demonstração", new Vector2(76, 32), 13, Cor.Secundario, FontWeight.Normal, largura: 200);
+                    p.Texto.Desenhar(dc, Lang.T("Música de mentira", "Fake song"), new Vector2(76, 8), 16, Cor.Branco, largura: 200);
+                    p.Texto.Desenhar(dc, Lang.T("Ilha · demonstração", "Ilha · demo"), new Vector2(76, 32), 13, Cor.Secundario, FontWeight.Normal, largura: 200);
                     // barra de progresso parada em 35%
                     Icone.Retangulo(dc, 0, 82, t.X, 4, 2, Cor.Fraco);
                     Icone.Retangulo(dc, 0, 82, t.X * 0.35f, 4, 2, Cor.Branco);
@@ -257,13 +257,13 @@ internal abstract class ComLogo : DeMentira
 internal sealed class ClaudeDeMentira : ComLogo
 {
     public override string Tipo => "claude";
-    public override string Nome => "Claude Code trabalhando";
+    public override string Nome => Lang.T("Claude Code trabalhando", "Claude Code working");
 
-    private static readonly (string texto, int ms, bool pensa)[] Passos =
+    private static readonly (string texto, string en, int ms, bool pensa)[] Passos =
     {
-        ("Lendo Ilha.cs", 2500, false), ("Pensando", 5000, true), ("Editando Ilha.cs", 2500, false),
-        ("Rodando dotnet build", 2500, false), ("Pensando", 5000, true), ("Editando Demo.cs", 2500, false),
-        ("Rodando os testes", 2500, false),
+        ("Lendo Ilha.cs", "Reading Ilha.cs", 2500, false), ("Pensando", "Thinking", 5000, true), ("Editando Ilha.cs", "Editing Ilha.cs", 2500, false),
+        ("Rodando dotnet build", "Running dotnet build", 2500, false), ("Pensando", "Thinking", 5000, true), ("Editando Demo.cs", "Editing Demo.cs", 2500, false),
+        ("Rodando os testes", "Running the tests", 2500, false),
     };
     // uma animação de bolinhas diferente a cada vez que ele pensa
     private static readonly string[] Bolinhas = { "orbita", "cometa", "onda", "divide", "anel" };
@@ -283,7 +283,7 @@ internal sealed class ClaudeDeMentira : ComLogo
         };
     }
 
-    private void Entrar((string texto, int ms, bool pensa) passo)
+    private void Entrar((string texto, string en, int ms, bool pensa) passo)
     {
         _passo.Interval = passo.ms;
         if (passo.pensa)
@@ -313,15 +313,15 @@ internal sealed class ClaudeDeMentira : ComLogo
                 p.Logo(c, new Vector2(8, 10), 32).Tocar("claude-volta");
                 p.Desenho(c, Vector2.Zero, c.Tamanho, (dc, t) =>
                 {
-                    p.Texto.Desenhar(dc, "Claude Code terminou", new Vector2(56, 4), 17, Cor.Branco);
-                    p.Texto.Desenhar(dc, "ilha · 7 passos, de mentira", new Vector2(56, 28), 13, Cor.Secundario, FontWeight.Normal);
+                    p.Texto.Desenhar(dc, Lang.T("Claude Code terminou", "Claude Code finished"), new Vector2(56, 4), 17, Cor.Branco);
+                    p.Texto.Desenhar(dc, Lang.T("ilha · 7 passos, de mentira", "ilha · 7 steps, fake"), new Vector2(56, 28), 13, Cor.Secundario, FontWeight.Normal);
                 });
                 return c;
             },
         });
     }
 
-    private string Agora => _terminou ? "Esperando você" : Passos[_i % Passos.Length].texto;
+    private string Agora => _terminou ? Lang.T("Esperando você", "Waiting for you") : Lang.T(Passos[_i % Passos.Length].texto, Passos[_i % Passos.Length].en);
 
     public override void Comecar()
     {
@@ -366,7 +366,7 @@ internal sealed class ClaudeDeMentira : ComLogo
                 {
                     p.Texto.Desenhar(dc, "Claude Code · ilha", new Vector2(32, 1), 13, Cor.Secundario);
                     p.Texto.Desenhar(dc, Agora, new Vector2(0, 28), 20, Cor.Branco, largura: t.X);
-                    p.Texto.Desenhar(dc, "Opus 5.5 · Alto, de mentira", new Vector2(0, 60), 12, Cor.Secundario, FontWeight.Normal);
+                    p.Texto.Desenhar(dc, Lang.T("Opus 5.5 · Alto, de mentira", "Opus 5.5 · High, fake"), new Vector2(0, 60), 12, Cor.Secundario, FontWeight.Normal);
                 });
                 return c;
             }
@@ -377,11 +377,12 @@ internal sealed class ClaudeDeMentira : ComLogo
 internal sealed class GptDeMentira : ComLogo
 {
     public override string Tipo => "ia";
-    public override string Nome => "GPT respondendo";
+    public override string Nome => Lang.T("GPT respondendo", "GPT replying");
 
-    private static readonly (string texto, int ms, bool escreve)[] Passos =
+    private static readonly (string texto, string en, int ms, bool escreve)[] Passos =
     {
-        ("Pensando", 4500, false), ("Escrevendo a resposta", 4000, true), ("Pensando", 4500, false), ("Escrevendo a resposta", 3500, true),
+        ("Pensando", "Thinking", 4500, false), ("Escrevendo a resposta", "Writing the reply", 4000, true),
+        ("Pensando", "Thinking", 4500, false), ("Escrevendo a resposta", "Writing the reply", 3500, true),
     };
     private static readonly string[] Bolinhas = { "cometa", "orbita", "divide", "onda", "anel" };
     private readonly System.Windows.Forms.Timer _passo = new();
@@ -400,7 +401,7 @@ internal sealed class GptDeMentira : ComLogo
         };
     }
 
-    private void Entrar((string texto, int ms, bool escreve) passo)
+    private void Entrar((string texto, string en, int ms, bool escreve) passo)
     {
         _passo.Interval = passo.ms;
         if (!passo.escreve)
@@ -430,15 +431,15 @@ internal sealed class GptDeMentira : ComLogo
                 p.Logo(c, new Vector2(8, 10), 32).Tocar("chatgpt-volta");
                 p.Desenho(c, Vector2.Zero, c.Tamanho, (dc, t) =>
                 {
-                    p.Texto.Desenhar(dc, "O GPT respondeu", new Vector2(56, 4), 17, Cor.Branco);
-                    p.Texto.Desenhar(dc, "Chat da ilha, de mentira", new Vector2(56, 28), 13, Cor.Secundario, FontWeight.Normal);
+                    p.Texto.Desenhar(dc, Lang.T("O GPT respondeu", "GPT replied"), new Vector2(56, 4), 17, Cor.Branco);
+                    p.Texto.Desenhar(dc, Lang.T("Chat da ilha, de mentira", "Ilha chat, fake"), new Vector2(56, 28), 13, Cor.Secundario, FontWeight.Normal);
                 });
                 return c;
             },
         });
     }
 
-    private string Agora => _terminou ? "Resposta pronta" : Passos[_i % Passos.Length].texto;
+    private string Agora => _terminou ? Lang.T("Resposta pronta", "Reply ready") : Lang.T(Passos[_i % Passos.Length].texto, Passos[_i % Passos.Length].en);
 
     public override void Comecar()
     {
@@ -481,9 +482,9 @@ internal sealed class GptDeMentira : ComLogo
                 Logo(p, c, new Vector2(0, 0), 24);
                 p.Desenho(c, Vector2.Zero, c.Tamanho, (dc, t) =>
                 {
-                    p.Texto.Desenhar(dc, "Chat · GPT-6 Luna, de mentira", new Vector2(32, 2), 13, Cor.Secundario);
+                    p.Texto.Desenhar(dc, Lang.T("Chat · GPT-6 Luna, de mentira", "Chat · GPT-6 Luna, fake"), new Vector2(32, 2), 13, Cor.Secundario);
                     p.Texto.Desenhar(dc, Agora, new Vector2(0, 28), 20, Cor.Branco, largura: t.X);
-                    p.Texto.Desenhar(dc, "Na fase 5 isto vira o chat de verdade", new Vector2(0, 60), 12, Cor.Secundario, FontWeight.Normal);
+                    p.Texto.Desenhar(dc, Lang.T("Na fase 5 isto vira o chat de verdade", "In phase 5 this becomes the real chat"), new Vector2(0, 60), 12, Cor.Secundario, FontWeight.Normal);
                 });
                 return c;
             }
@@ -495,14 +496,14 @@ internal sealed class GptDeMentira : ComLogo
 internal sealed class GaleriaDeMentira : DeMentira
 {
     public override string Tipo => "galeria";
-    public override string Nome => "Galeria de animações";
+    public override string Nome => Lang.T("Galeria de animações", "Animation gallery");
 
-    private static readonly (string titulo, string[] nomes)[] Linhas =
+    private static readonly (string titulo, string en, string[] nomes)[] Linhas =
     {
-        ("Claude", new[] { "claude-loop", "claude-volta", "claude-saida", "claude-entrada", "claude-pulso", "claude-some", "claude-surge", "claude-bola" }),
-        ("Bolinhas do Claude", new[] { "claude-bola-cresce", "claude-bola-orbita", "claude-bola-cometa", "claude-bola-onda", "claude-bola-divide", "claude-bola-anel", "claude-bola-encolhe", "claude-bola-orbita-entrada" }),
-        ("GPT", new[] { "chatgpt-loop", "chatgpt-volta", "chatgpt-saida", "chatgpt-entrada", "chatgpt-pulso", "chatgpt-some", "chatgpt-surge", "chatgpt-bola" }),
-        ("Bolinhas do GPT", new[] { "chatgpt-bola-cresce", "chatgpt-bola-orbita", "chatgpt-bola-cometa", "chatgpt-bola-onda", "chatgpt-bola-divide", "chatgpt-bola-anel", "chatgpt-bola-encolhe", "chatgpt-bola-orbita-entrada" }),
+        ("Claude", "Claude", new[] { "claude-loop", "claude-volta", "claude-saida", "claude-entrada", "claude-pulso", "claude-some", "claude-surge", "claude-bola" }),
+        ("Bolinhas do Claude", "Claude dots", new[] { "claude-bola-cresce", "claude-bola-orbita", "claude-bola-cometa", "claude-bola-onda", "claude-bola-divide", "claude-bola-anel", "claude-bola-encolhe", "claude-bola-orbita-entrada" }),
+        ("GPT", "GPT", new[] { "chatgpt-loop", "chatgpt-volta", "chatgpt-saida", "chatgpt-entrada", "chatgpt-pulso", "chatgpt-some", "chatgpt-surge", "chatgpt-bola" }),
+        ("Bolinhas do GPT", "GPT dots", new[] { "chatgpt-bola-cresce", "chatgpt-bola-orbita", "chatgpt-bola-cometa", "chatgpt-bola-onda", "chatgpt-bola-divide", "chatgpt-bola-anel", "chatgpt-bola-encolhe", "chatgpt-bola-orbita-entrada" }),
     };
 
     public override void Comecar() => Ligar();
@@ -519,8 +520,9 @@ internal sealed class GaleriaDeMentira : DeMentira
             if (f == Forma.Compacta)
                 p.Desenho(c, Vector2.Zero, c.Tamanho, (dc, t) =>
                 {
-                    var tam = p.Texto.Medir("Galeria de animações", 13);
-                    p.Texto.Desenhar(dc, "Galeria de animações", new Vector2(t.X - tam.X, (t.Y - tam.Y) / 2), 13, Cor.Branco);
+                    string titulo = Lang.T("Galeria de animações", "Animation gallery");
+                    var tam = p.Texto.Medir(titulo, 13);
+                    p.Texto.Desenhar(dc, titulo, new Vector2(t.X - tam.X, (t.Y - tam.Y) / 2), 13, Cor.Branco);
                 });
             return c;
         }
@@ -533,7 +535,7 @@ internal sealed class GaleriaDeMentira : DeMentira
         {
             for (int r = 0; r < Linhas.Length; r++)
             {
-                p.Texto.Desenhar(dc, Linhas[r].titulo, new Vector2(2, r * LINHA), 12, Cor.Secundario);
+                p.Texto.Desenhar(dc, Lang.T(Linhas[r].titulo, Linhas[r].en), new Vector2(2, r * LINHA), 12, Cor.Secundario);
                 for (int k = 0; k < Linhas[r].nomes.Length; k++)
                 {
                     string rot = Rotulo(Linhas[r].nomes[k]);
@@ -549,7 +551,7 @@ internal sealed class GaleriaDeMentira : DeMentira
 internal sealed class UsoDeMentira : DeMentira
 {
     public override string Tipo => "uso";
-    public override string Nome => "Uso do PC alto";
+    public override string Nome => Lang.T("Uso do PC alto", "High PC usage");
 
     private readonly System.Windows.Forms.Timer _tique = new() { Interval = 1000 };
     private readonly List<float> _hist = new();
@@ -606,7 +608,7 @@ internal sealed class UsoDeMentira : DeMentira
                 var c = p.NovaCena(new Vector2(320, 84));
                 p.Desenho(c, Vector2.Zero, c.Tamanho, (dc, t) =>
                 {
-                    p.Texto.Desenhar(dc, "Uso do PC, de mentira", new Vector2(0, 0), 13, Cor.Secundario);
+                    p.Texto.Desenhar(dc, Lang.T("Uso do PC, de mentira", "PC usage, fake"), new Vector2(0, 0), 13, Cor.Secundario);
                     p.Texto.Desenhar(dc, $"CPU {Cpu}%", new Vector2(0, 22), 26, Cor.Branco, tabular: true);
                     p.Texto.Desenhar(dc, "GPU 41% · 62 °C · VRAM 5,1 GB", new Vector2(0, 60), 12, Cor.Secundario, FontWeight.Normal);
                     Grafico(dc, t.X - 140, 26, 140, 50);
@@ -652,8 +654,8 @@ internal sealed class Demonstracao
                 Icone.Retangulo(dc, 6, 8, 36, 36, 10, Cor.Fraco);
                 Icone.Circulo(dc, new Vector2(18, 26), 6, Cor.Branco);
                 Icone.Circulo(dc, new Vector2(30, 26), 6, Cor.Branco);
-                p.Texto.Desenhar(dc, "AirPods Pro conectados", new Vector2(56, 4), 17, Cor.Branco);
-                p.Texto.Desenhar(dc, "Alerta de teste", new Vector2(56, 28), 13, Cor.Secundario, FontWeight.Normal);
+                p.Texto.Desenhar(dc, Lang.T("AirPods Pro conectados", "AirPods Pro connected"), new Vector2(56, 4), 17, Cor.Branco);
+                p.Texto.Desenhar(dc, Lang.T("Alerta de teste", "Test alert"), new Vector2(56, 28), 13, Cor.Secundario, FontWeight.Normal);
                 Icone.Anel(dc, p.G.Fabrica, new Vector2(t.X - 20, 26), 14, 3.5f, 0.8f, Cor.Verde);
             });
             return c;

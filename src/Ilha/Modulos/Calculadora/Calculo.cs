@@ -40,6 +40,12 @@ internal static class Calculo
     // "1.234,5" como 1,234 × 0,5 (dois números colados viram multiplicação implícita), resultado errado e calado.
     private static readonly Regex MilharComDecimal = new(@"\G\d{1,3}(\.\d{3})+,\d+", RegexOptions.CultureInvariant);
     private static readonly Regex MilharSoPontos = new(@"\G\d{1,3}(\.\d{3}){2,}(?![\d.,])", RegexOptions.CultureInvariant);
+    // English thousands where no other reading makes sense ("1,234.5", "1,234,567": comma then dot, or two comma groups),
+    // in either language. A single group ("1,000") is thousands only with the English interface; in Portuguese it stays
+    // 1,0 as before. A leading zero ("0,125") is always a decimal.
+    private static readonly Regex MilharInglesComDecimal = new(@"\G[1-9]\d{0,2}(,\d{3})+\.\d+", RegexOptions.CultureInvariant);
+    private static readonly Regex MilharInglesSoVirgulas = new(@"\G[1-9]\d{0,2}(,\d{3}){2,}(?![\d.,])", RegexOptions.CultureInvariant);
+    private static readonly Regex MilharInglesUmGrupo = new(@"\G[1-9]\d{0,2},\d{3}(?![\d.,])", RegexOptions.CultureInvariant);
     private static readonly Regex Numero = new(@"\G(\d+([.,]\d+)?|[.,]\d+)(e[+-]?\d+)?", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
     private static readonly Regex Nome = new(@"\G[a-zA-Z]+[0-9]?", RegexOptions.CultureInvariant);
 
@@ -61,6 +67,12 @@ internal static class Calculo
             if ((m = MilharComDecimal.Match(t, i)).Success || (m = MilharSoPontos.Match(t, i)).Success)
             {
                 saida.Add(new Ficha(TipoFicha.Num, double.Parse(m.Value.Replace(".", "").Replace(',', '.'), CultureInfo.InvariantCulture), ""));
+                i += m.Length;
+            }
+            else if ((m = MilharInglesComDecimal.Match(t, i)).Success || (m = MilharInglesSoVirgulas.Match(t, i)).Success
+                     || (Lang.English && (m = MilharInglesUmGrupo.Match(t, i)).Success))
+            {
+                saida.Add(new Ficha(TipoFicha.Num, double.Parse(m.Value.Replace(",", ""), CultureInfo.InvariantCulture), ""));
                 i += m.Length;
             }
             else if ((m = Numero.Match(t, i)).Success)
@@ -88,7 +100,7 @@ internal static class Calculo
                 saida.Add(new Ficha(TipoFicha.Op, 0, op));
                 i++;
             }
-            else throw Erro($"Caractere que não entendi: \"{c}\"");
+            else throw Erro(Lang.T($"Caractere que não entendi: \"{c}\"", $"Character I didn't get: \"{c}\""));
         }
         return saida;
     }
@@ -96,7 +108,7 @@ internal static class Calculo
     /// <summary>Avalia a expressão. graus: trigonometria em graus (senão radianos); ans: o último resultado.</summary>
     public static double Avaliar(string texto, bool graus = false, double ans = 0)
     {
-        if (string.IsNullOrWhiteSpace(texto)) throw Erro("Escreva uma conta.");
+        if (string.IsNullOrWhiteSpace(texto)) throw Erro(Lang.T("Escreva uma conta.", "Type a calculation."));
         var a = new Analisador(Fichas(texto), graus, ans);
         return a.Tudo();
     }
@@ -126,7 +138,9 @@ internal static class Calculo
             if (_p < _f.Count)
             {
                 var t = _f[_p];
-                throw Erro(t.Tipo == TipoFicha.Op && t.Texto == ")" ? "Sobrou um parêntese fechando." : $"Não esperava \"{Mostrar(t)}\" aqui.");
+                throw Erro(t.Tipo == TipoFicha.Op && t.Texto == ")"
+                    ? Lang.T("Sobrou um parêntese fechando.", "An extra closing parenthesis.")
+                    : Lang.T($"Não esperava \"{Mostrar(t)}\" aqui.", $"Didn't expect \"{Mostrar(t)}\" here."));
             }
             return Conferir(r.V);
         }
@@ -155,7 +169,7 @@ internal static class Calculo
                 {
                     string op = _f[_p++].Texto;
                     var b = Unario();
-                    if (op == "/" && b.V == 0) throw Erro("Divisão por zero.");
+                    if (op == "/" && b.V == 0) throw Erro(Lang.T("Divisão por zero.", "Division by zero."));
                     a = new Valor(op == "*" ? a.V * b.V : a.V / b.V, false);
                 }
                 else if (ComecaOperando())
@@ -190,7 +204,7 @@ internal static class Calculo
                 _p++;
                 var e = Unario(); // 2^-3 vale; e 2^3^2 = 2^(3^2)
                 double v = Math.Pow(b.V, e.V);
-                if (double.IsNaN(v)) throw Erro("Potência sem resultado real.");
+                if (double.IsNaN(v)) throw Erro(Lang.T("Potência sem resultado real.", "Power with no real result."));
                 return new Valor(v, false);
             }
             return b;
@@ -209,13 +223,13 @@ internal static class Calculo
 
         private Valor Primario()
         {
-            if (_p >= _f.Count) throw Erro("A conta parou no meio.");
+            if (_p >= _f.Count) throw Erro(Lang.T("A conta parou no meio.", "The calculation stopped halfway."));
             var t = _f[_p++];
             if (t.Tipo == TipoFicha.Num) return new Valor(t.Num, false);
             if (t.Tipo == TipoFicha.Op && t.Texto == "(")
             {
                 var x = Soma();
-                if (!EhOp(")")) throw Erro("Falta fechar um parêntese.");
+                if (!EhOp(")")) throw Erro(Lang.T("Falta fechar um parêntese.", "A parenthesis is missing its closing one."));
                 _p++;
                 return new Valor(x.V, false);
             }
@@ -231,34 +245,34 @@ internal static class Calculo
                     {
                         _p++;
                         arg = Soma();
-                        if (!EhOp(")")) throw Erro("Falta fechar um parêntese.");
+                        if (!EhOp(")")) throw Erro(Lang.T("Falta fechar um parêntese.", "A parenthesis is missing its closing one."));
                         _p++;
                     }
                     else
                     {
-                        if (!ComecaOperando() && !EhOp("-")) throw Erro($"\"{t.Texto}\" precisa de um valor.");
+                        if (!ComecaOperando() && !EhOp("-")) throw Erro(Lang.T($"\"{t.Texto}\" precisa de um valor.", $"\"{t.Texto}\" needs a value."));
                         arg = Unario();
                     }
                     return new Valor(Aplicar(t.Texto, arg.V, _graus), false);
                 }
-                throw Erro($"Não conheço \"{t.Texto}\".");
+                throw Erro(Lang.T($"Não conheço \"{t.Texto}\".", $"I don't know \"{t.Texto}\"."));
             }
-            throw Erro($"Não esperava \"{t.Texto}\" aqui.");
+            throw Erro(Lang.T($"Não esperava \"{t.Texto}\" aqui.", $"Didn't expect \"{t.Texto}\" here."));
         }
     }
 
     private static double Conferir(double v)
     {
-        if (double.IsNaN(v)) throw Erro("Sem resultado.");
-        if (double.IsInfinity(v)) throw Erro("Grande demais para a calculadora.");
+        if (double.IsNaN(v)) throw Erro(Lang.T("Sem resultado.", "No result."));
+        if (double.IsInfinity(v)) throw Erro(Lang.T("Grande demais para a calculadora.", "Too big for the calculator."));
         return v == 0 ? 0 : v; // tira o -0
     }
 
     /// <summary>n! para inteiro de 0 a 170 (acima disso estoura o double).</summary>
     public static double Fatorial(double n)
     {
-        if (!double.IsFinite(n) || Math.Floor(n) != n || n < 0) throw Erro("Fatorial só de inteiro, 0 ou mais.");
-        if (n > 170) throw Erro("Fatorial grande demais (o máximo é 170).");
+        if (!double.IsFinite(n) || Math.Floor(n) != n || n < 0) throw Erro(Lang.T("Fatorial só de inteiro, 0 ou mais.", "Factorial only of a whole number, 0 or more."));
+        if (n > 170) throw Erro(Lang.T("Fatorial grande demais (o máximo é 170).", "Factorial too big (the maximum is 170)."));
         double r = 1;
         for (int i = 2; i <= n; i++) r *= i;
         return r;
@@ -267,7 +281,7 @@ internal static class Calculo
     // corta o resíduo de ponto flutuante da trigonometria (sin 180° = 1,2e-16 vira 0)
     private static double Limpar(double x) => Math.Abs(x) < 1e-14 ? 0 : x;
 
-    private const string SoPositivo = "O logaritmo só existe para número maior que zero.";
+    private static string SoPositivo => Lang.T("O logaritmo só existe para número maior que zero.", "The logarithm only exists for numbers above zero.");
 
     private static double Aplicar(string nome, double x, bool graus)
     {
@@ -278,12 +292,13 @@ internal static class Calculo
             case "cos": return Limpar(Math.Cos(rad));
             case "tan":
                 if (graus ? Math.Abs((x % 180 + 180) % 180 - 90) < 1e-9 : Math.Abs(Math.Cos(rad)) < 1e-14)
-                    throw Erro("A tangente não existe nesse ângulo.");
+                    throw Erro(Lang.T("A tangente não existe nesse ângulo.", "The tangent does not exist at this angle."));
                 return Limpar(Math.Tan(rad));
             case "asin":
             case "acos":
             {
-                if (x < -1 || x > 1) throw Erro($"Arco-{(nome == "asin" ? "seno" : "cosseno")} só de −1 a 1.");
+                if (x < -1 || x > 1)
+                    throw Erro(Lang.T($"Arco-{(nome == "asin" ? "seno" : "cosseno")} só de −1 a 1.", $"Arc{(nome == "asin" ? "sine" : "cosine")} only from −1 to 1."));
                 double r = nome == "asin" ? Math.Asin(x) : Math.Acos(x);
                 return Limpar(graus ? r * 180 / Math.PI : r);
             }
@@ -295,10 +310,10 @@ internal static class Calculo
             case "ln": if (x <= 0) throw Erro(SoPositivo); return Math.Log(x);
             case "log": if (x <= 0) throw Erro(SoPositivo); return ArredondaPotencia(Math.Log10(x));
             case "log2": if (x <= 0) throw Erro(SoPositivo); return ArredondaPotencia(Math.Log2(x));
-            case "sqrt": if (x < 0) throw Erro("Raiz quadrada de número negativo não existe aqui."); return Math.Sqrt(x);
+            case "sqrt": if (x < 0) throw Erro(Lang.T("Raiz quadrada de número negativo não existe aqui.", "No square root of a negative number here.")); return Math.Sqrt(x);
             case "cbrt": return Math.Cbrt(x);
             case "abs": return Math.Abs(x);
-            default: throw Erro("Função desconhecida.");
+            default: throw Erro(Lang.T("Função desconhecida.", "Unknown function."));
         }
     }
 
@@ -316,6 +331,15 @@ internal static class Calculo
     {
         NumberDecimalSeparator = ",", NumberGroupSeparator = ".", NumberGroupSizes = new[] { 3 }, NegativeSign = "-",
     };
+
+    /// <summary>The English counterpart: decimal point, comma for thousands.</summary>
+    internal static readonly NumberFormatInfo En = new()
+    {
+        NumberDecimalSeparator = ".", NumberGroupSeparator = ",", NumberGroupSizes = new[] { 3 }, NegativeSign = "-",
+    };
+
+    /// <summary>The number format shown to the user, following the interface language.</summary>
+    internal static NumberFormatInfo Tela => Lang.English ? En : Br;
 
     /// <summary>O toPrecision(12) do JS: 12 algarismos significativos ("0,1 + 0,2" dá 0,3).</summary>
     internal static double Doze(double n) => double.Parse(n.ToString("G12", CultureInfo.InvariantCulture), NumberStyles.Float, CultureInfo.InvariantCulture);
@@ -341,8 +365,8 @@ internal static class Calculo
         if (n == 0) return "0";
         double limpo = Doze(n);
         double a = Math.Abs(limpo);
-        if (a >= 1e15 || a < 1e-9) return Cientifica(limpo, maisNoExpoente: false);
-        return limpo.ToString("#,##0.############", Br);
+        if (a >= 1e15 || a < 1e-9) return Cientifica(limpo, maisNoExpoente: false, Tela.NumberDecimalSeparator);
+        return limpo.ToString("#,##0.############", Tela);
     }
 
     /// <summary>O mesmo número sem milhar, para voltar a ser digitado ou colado ("1234,5").</summary>
@@ -353,7 +377,7 @@ internal static class Calculo
         double limpo = Doze(n);
         double a = Math.Abs(limpo);
         // String(numero) do JS: notação científica a partir de 1e21 e abaixo de 1e-7
-        if (a >= 1e21 || a < 1e-7) return Cientifica(limpo, maisNoExpoente: true);
-        return ((decimal)limpo).ToString("0.############################", CultureInfo.InvariantCulture).Replace('.', ',');
+        if (a >= 1e21 || a < 1e-7) return Cientifica(limpo, maisNoExpoente: true, Tela.NumberDecimalSeparator);
+        return ((decimal)limpo).ToString("0.############################", CultureInfo.InvariantCulture).Replace(".", Tela.NumberDecimalSeparator);
     }
 }

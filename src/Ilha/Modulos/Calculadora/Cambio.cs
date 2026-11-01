@@ -9,7 +9,11 @@ using System.Threading.Tasks;
 
 namespace Ilha.Calculadora;
 
-internal sealed record Moeda(string Id, string Nome, string Simbolo, string[] Apelidos);
+internal sealed record Moeda(string Id, string Nome, string Simbolo, string[] Apelidos, string En)
+{
+    /// <summary>The name shown to the user, in the interface language.</summary>
+    public string NomeTela => Lang.T(Nome, En);
+}
 
 /// <summary>Quanto vale 1 unidade de cada moeda, em reais; quando é a cotação e de onde veio.</summary>
 internal sealed class Cotacoes
@@ -35,21 +39,25 @@ internal static class Cambio
 {
     public static readonly Moeda[] Moedas =
     {
-        new("BRL", "Real", "R$", new[] { "brl", "real", "reais", "r$" }),
-        new("USD", "Dólar americano", "US$", new[] { "usd", "dólar", "dólares", "dolares", "us$", "$", "dollar", "dollars", "dólar americano" }),
-        new("EUR", "Euro", "€", new[] { "eur", "euro", "euros", "€" }),
-        new("GBP", "Libra esterlina", "£", new[] { "gbp", "libra esterlina", "libras esterlinas", "£" }),
-        new("JPY", "Iene", "¥", new[] { "jpy", "iene", "ienes", "yen", "¥" }),
-        new("CAD", "Dólar canadense", "CA$", new[] { "cad", "dólar canadense", "dólares canadenses", "ca$" }),
-        new("AUD", "Dólar australiano", "A$", new[] { "aud", "dólar australiano", "dólares australianos", "a$" }),
-        new("CHF", "Franco suíço", "Fr", new[] { "chf", "franco", "francos", "franco suíço", "francos suíços" }),
-        new("CNY", "Yuan", "CN¥", new[] { "cny", "yuan", "yuans", "renminbi", "cn¥" }),
-        new("ARS", "Peso argentino", "AR$", new[] { "ars", "peso", "pesos", "peso argentino", "pesos argentinos", "ar$" }),
-        new("BTC", "Bitcoin", "₿", new[] { "btc", "bitcoin", "bitcoins", "₿" }),
-        new("ETH", "Ethereum", "Ξ", new[] { "eth", "ethereum", "ether" }),
+        new("BRL", "Real", "R$", new[] { "brl", "real", "reais", "r$", "reals", "brazilian real", "brazilian reals" }, "Brazilian real"),
+        new("USD", "Dólar americano", "US$", new[] { "usd", "dólar", "dólares", "dolares", "us$", "$", "dollar", "dollars", "dólar americano", "us dollar", "us dollars" }, "US dollar"),
+        new("EUR", "Euro", "€", new[] { "eur", "euro", "euros", "€" }, "Euro"),
+        // "pound" alone is mass (lb), like "libra"
+        new("GBP", "Libra esterlina", "£", new[] { "gbp", "libra esterlina", "libras esterlinas", "£", "pound sterling", "pounds sterling", "british pound", "british pounds" }, "British pound"),
+        new("JPY", "Iene", "¥", new[] { "jpy", "iene", "ienes", "yen", "¥", "japanese yen" }, "Japanese yen"),
+        new("CAD", "Dólar canadense", "CA$", new[] { "cad", "dólar canadense", "dólares canadenses", "ca$", "canadian dollar", "canadian dollars" }, "Canadian dollar"),
+        new("AUD", "Dólar australiano", "A$", new[] { "aud", "dólar australiano", "dólares australianos", "a$", "australian dollar", "australian dollars" }, "Australian dollar"),
+        new("CHF", "Franco suíço", "Fr", new[] { "chf", "franco", "francos", "franco suíço", "francos suíços", "franc", "francs", "swiss franc", "swiss francs" }, "Swiss franc"),
+        new("CNY", "Yuan", "CN¥", new[] { "cny", "yuan", "yuans", "renminbi", "cn¥", "chinese yuan" }, "Chinese yuan"),
+        new("ARS", "Peso argentino", "AR$", new[] { "ars", "peso", "pesos", "peso argentino", "pesos argentinos", "ar$", "argentine peso", "argentine pesos" }, "Argentine peso"),
+        new("BTC", "Bitcoin", "₿", new[] { "btc", "bitcoin", "bitcoins", "₿" }, "Bitcoin"),
+        new("ETH", "Ethereum", "Ξ", new[] { "eth", "ethereum", "ether" }, "Ethereum"),
     };
 
     public static Moeda? Achar(string id) => Moedas.FirstOrDefault(m => m.Id == id);
+
+    /// <summary>The rate source as shown to the user: the "BCE" stored in the state is the ECB in English.</summary>
+    public static string NomeDaFonte(string fonte) => fonte == "BCE" ? Lang.T("BCE", "ECB") : fonte;
 
     public const string UrlAwesome = "https://economia.awesomeapi.com.br/json/last/";
     // api.frankfurter.app responde 301 para cá desde 2025 (conferido em 01/11/2026)
@@ -132,7 +140,7 @@ internal static class Cambio
     {
         if (!double.IsFinite(valor)) return "";
         string fmt = (milhar ? "#,##0.00" : "0.00") + new string('#', Casas(valor, id) - 2);
-        return valor.ToString(fmt, Calculo.Br);
+        return valor.ToString(fmt, Calculo.Tela);
     }
 
     /// <summary>Busca as cotações: AwesomeAPI e, se ela falhar, a Frankfurter. Lança com mensagem em português.</summary>
@@ -143,10 +151,15 @@ internal static class Cambio
         {
             var c = await BuscarAwesome(http, ct).ConfigureAwait(false);
             if (c.Real.Count >= 2) return c;
-            erro = "A AwesomeAPI não devolveu cotação nenhuma.";
+            erro = Lang.T("A AwesomeAPI não devolveu cotação nenhuma.", "AwesomeAPI returned no rates.");
         }
         catch (OperationCanceledException) when (ct.IsCancellationRequested) { throw; }
-        catch (Exception e) { erro = e is HttpRequestException h && h.StatusCode != null ? $"A AwesomeAPI respondeu {(int)h.StatusCode.Value}." : "Não consegui buscar as cotações."; }
+        catch (Exception e)
+        {
+            erro = e is HttpRequestException h && h.StatusCode != null
+                ? Lang.T($"A AwesomeAPI respondeu {(int)h.StatusCode.Value}.", $"AwesomeAPI answered {(int)h.StatusCode.Value}.")
+                : Lang.T("Não consegui buscar as cotações.", "Couldn't fetch the exchange rates.");
+        }
         Log.Escrever("calculadora: " + erro + " Tentando a Frankfurter.");
         try
         {
@@ -155,7 +168,7 @@ internal static class Cambio
         }
         catch (OperationCanceledException) when (ct.IsCancellationRequested) { throw; }
         catch (Exception e) { Log.Escrever("calculadora: Frankfurter falhou: " + e.Message); }
-        throw new Exception(erro + " Confira a internet.");
+        throw new Exception(erro + Lang.T(" Confira a internet.", " Check the internet connection."));
     }
 
     public static async Task<Cotacoes> BuscarAwesome(HttpClient http, CancellationToken ct) =>

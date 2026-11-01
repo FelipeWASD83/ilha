@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.ComponentModel;
 using System.ComponentModel.DataAnnotations;
 using System.Text.Json.Nodes;
 using System.Text.Json.Serialization;
@@ -12,7 +11,7 @@ namespace Ilha.ContaGotas;
 /// do pixel de verdade, copia o hex e mostra o cartão com RGB, HSL e as últimas cores. Nada roda antes do atalho
 /// e nada fica aberto depois. Não abre no modo competitivo, com tela cheia na frente nem com a ilha pausada.
 /// </summary>
-[Modulo("contagotas", "Conta-gotas")]
+[Modulo("contagotas", "Conta-gotas", English = "Color picker")]
 internal sealed class ModuloContaGotas : Modulo
 {
     private ConfigContaGotas _cfg = new();
@@ -31,11 +30,12 @@ internal sealed class ModuloContaGotas : Modulo
         S.Ilha.Adicionar(_atv);
         var ficou = S.Atalhos.Registrar("contagotas", new Atalho { Mods = Nativo.MOD_CONTROL | Nativo.MOD_ALT, Tecla = 0x50 }, Pegar);
         if (ficou == null && !(S.Config().AtalhosModulos.TryGetValue("contagotas", out var a) && a.Tecla == 0))
-            S.Avisar("O atalho do conta-gotas (Ctrl + Alt + P) já é de outro programa. Troque em \"atalhosModulos\" → \"contagotas\" na configuração.");
+            S.Avisar(Lang.T("O atalho do conta-gotas (Ctrl + Alt + P) já é de outro programa. Troque em \"atalhosModulos\" → \"contagotas\" na configuração.",
+                "The color picker shortcut (Ctrl + Alt + P) already belongs to another program. Change it in \"atalhosModulos\" → \"contagotas\" in the settings."));
         S.Menu.Adicionar(new ItemDoMenu
         {
             Id = "contagotas",
-            Nome = "Conta-gotas",
+            Nome = Lang.T("Conta-gotas", "Color picker"),
             // o clique no menu chega no meio do tratamento do mouse da ilha: a lupa abre logo depois
             Abrir = () => S.NaInterface(Pegar),
             Detalhe = () => _cfg.Cores.Count > 0 ? (_cfg.HexMinusculo ? _cfg.Cores[0].ToLowerInvariant() : _cfg.Cores[0]) : null,
@@ -119,15 +119,15 @@ internal sealed class ModuloContaGotas : Modulo
 
 public sealed class ConfigContaGotas
 {
-    [DisplayName("Cores guardadas")]
-    [Description("Quantas das últimas cores ficam no cartão")]
+    [Label("Cores guardadas", "Saved colors")]
+    [Help("Quantas das últimas cores ficam no cartão", "How many of the latest colors stay on the card")]
     [Range(1, 24)]
     [JsonPropertyName("guardar")] public int Guardar { get; set; } = 12;
 
-    [DisplayName("Hex em minúsculas")]
+    [Label("Hex em minúsculas", "Lowercase hex")]
     [JsonPropertyName("hexMinusculo")] public bool HexMinusculo { get; set; }
 
-    [DisplayName("Últimas cores")]
-    [Description("Uma por linha, a mais nova primeiro (#RRGGBB)")]
+    [Label("Últimas cores", "Latest colors")]
+    [Help("Uma por linha, a mais nova primeiro (#RRGGBB)", "One per line, newest first (#RRGGBB)")]
     [JsonPropertyName("cores")] public List<string> Cores { get; set; } = new();
 }
