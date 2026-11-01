@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Reflection;
 using System.Windows.Forms;
@@ -23,6 +24,16 @@ internal sealed class Nucleo : IDisposable
     private readonly Visibilidade _visib;
     private readonly Teclas _teclas;
     private readonly Bandeja _bandeja;
+    private readonly Sons _sons;
+    private readonly Atalhos _atalhos;
+    private readonly Entrada _entrada;
+    private readonly Indicadores _indicadores = new();
+    private readonly Servicos _servicos;
+    private readonly Dictionary<string, Modulo> _modulos = new();
+    private readonly Dictionary<string, string> _cfgModulos = new();
+
+    public IReadOnlyDictionary<string, Modulo> ModulosLigados => _modulos;
+    public Servicos Servicos => _servicos;
     private readonly FileSystemWatcher? _vigiaConfig;
     private readonly Timer _releitura = new() { Interval = 300 };
 
@@ -41,16 +52,33 @@ internal sealed class Nucleo : IDisposable
         Demonstracao = new Demonstracao(Ilha);
 
         _visib = new Visibilidade(Config);
-        _visib.Mudou += ctx => Ilha.Contexto(ctx);
+        _visib.Mudou += ctx =>
+        {
+            Ilha.Contexto(ctx);
+            foreach (var m in _modulos.Values)
+                try { m.Contexto(ctx); } catch (Exception e) { Log.Escrever($"módulo {m.Id} (contexto): {e}"); }
+        };
         Ilha.Contexto(_visib.Atual);
+        _sons = new Sons(() => Config, () => _visib.Atual);
+        Ilha.Sons = _sons;
+        Ilha.Indicadores = _indicadores;
+        _entrada = new Entrada();
+        _atalhos = new Atalhos(_vis.Handle, () => Config);
 
         _vis.TelaMudou += () => Ilha.Reposicionar();
         _vis.Acordou += () => { Ilha.Reposicionar(forcar: true); _visib.Avaliar(); };
-        _vis.Atalho += id => { if (Teclas.Eh(id)) Ilha.Atalho(); };
+        _vis.Atalho += id => { if (Teclas.Eh(id)) Ilha.Atalho(); else _atalhos.Disparou(id); };
 
         _teclas = new Teclas(_vis.Handle);
+        _servicos = new Servicos
+        {
+            Ilha = Ilha, Sons = _sons, Atalhos = _atalhos, Entrada = _entrada, Indicadores = _indicadores,
+            ContextoAtual = () => _visib.Atual, Config = () => Config, SalvarModulo = SalvarModulo,
+            Avisar = texto => _bandeja?.Avisar(texto),
+        };
         _bandeja = new Bandeja(this);
         RegistrarAtalho();
+        LigarModulos();
         Inicio.Definir(Config.IniciarComWindows);
 
         // a config é um JSON editável: salvou, vale na hora
@@ -91,6 +119,82 @@ internal sealed class Nucleo : IDisposable
         Ilha.Aquecer();
         using var proc = System.Diagnostics.Process.GetCurrentProcess();
         Log.Escrever($"memória depois de abrir: {proc.WorkingSet64 / 1048576} MB (working set), {proc.PrivateMemorySize64 / 1048576} MB privados, heap .NET {GC.GetTotalMemory(false) / 1048576} MB");
+    }
+
+    // ------------------------------------------------------------------ módulos
+
+    private System.Text.Json.Nodes.JsonObject SecaoDoModulo(string id, bool padrao)
+    {
+        if (Config.Modulos[id] is not System.Text.Json.Nodes.JsonObject s)
+        {
+            s = new System.Text.Json.Nodes.JsonObject { ["ligado"] = padrao };
+            Config.Modulos[id] = s;
+        }
+        return s;
+    }
+
+    private static bool Ligado(System.Text.Json.Nodes.JsonObject s, bool padrao) =>
+        s["ligado"] is System.Text.Json.Nodes.JsonValue v && v.TryGetValue(out bool b) ? b : padrao;
+
+    /// <summary>Liga os módulos marcados como ligados (e desliga os que foram desligados na config).</summary>
+    private void LigarModulos()
+    {
+        bool novaSecao = false;
+        foreach (var m in Modulos.Descobrir())
+        {
+            bool tinha = Config.Modulos.ContainsKey(m.Info.Id);
+            var secao = SecaoDoModulo(m.Info.Id, m.Info.LigadoPorPadrao);
+            novaSecao |= !tinha;
+            bool quer = Ligado(secao, m.Info.LigadoPorPadrao);
+            string texto = secao.ToJsonString();
+            if (_modulos.TryGetValue(m.Info.Id, out var vivo))
+            {
+                if (!quer)
+                {
+                    try { vivo.Parar(); } catch (Exception e) { Log.Escrever($"módulo {vivo.Id} (parar): {e}"); }
+                    _modulos.Remove(m.Info.Id);
+                    Log.Escrever($"módulo {m.Info.Id} desligado");
+                }
+                else if (_cfgModulos.GetValueOrDefault(m.Info.Id) != texto)
+                {
+                    try { vivo.ConfigMudou(secao); } catch (Exception e) { Log.Escrever($"módulo {vivo.Id} (config): {e}"); }
+                }
+                _cfgModulos[m.Info.Id] = texto;
+                continue;
+            }
+            if (!quer) continue;
+            try
+            {
+                var mod = Modulos.Criar(m);
+                mod.Ligar(_servicos, secao);
+                mod.Contexto(_visib.Atual);
+                _modulos[mod.Id] = mod;
+                _cfgModulos[mod.Id] = texto;
+                Log.Escrever($"módulo {mod.Id} ligado");
+            }
+            catch (Exception e) { Log.Escrever($"módulo {m.Info.Id} não ligou: {e}"); }
+        }
+        if (novaSecao) Config.Salvar();
+    }
+
+    private void SalvarModulo(string id, object? dados)
+    {
+        var secao = dados == null ? new System.Text.Json.Nodes.JsonObject()
+            : System.Text.Json.JsonSerializer.SerializeToNode(dados, dados.GetType(), Config.Json) as System.Text.Json.Nodes.JsonObject ?? new();
+        bool ligado = Config.Modulos[id] is System.Text.Json.Nodes.JsonObject antes ? Ligado(antes, true) : true;
+        secao["ligado"] = ligado;
+        Config.Modulos[id] = secao;
+        _cfgModulos[id] = secao.ToJsonString();
+        Config.Salvar();
+    }
+
+    public void LigarModulo(string id, bool ligado)
+    {
+        var m = Modulos.Descobrir().Find(x => x.Info.Id == id);
+        if (m.Tipo == null) return;
+        SecaoDoModulo(id, m.Info.LigadoPorPadrao)["ligado"] = ligado;
+        Config.Salvar();
+        LigarModulos();
     }
 
     private void RegistrarAtalho()
@@ -136,6 +240,8 @@ internal sealed class Nucleo : IDisposable
         Ilha.TrocarConfig(nova);
         _bandeja.Atualizar(nova.Pausada);
         if (atalho) RegistrarAtalho();
+        _atalhos.Reaplicar();
+        LigarModulos();
         if (nova.IniciarComWindows != Inicio.Ligado()) Inicio.Definir(nova.IniciarComWindows);
         Log.Escrever("config relida");
     }
@@ -172,6 +278,11 @@ internal sealed class Nucleo : IDisposable
 
     public void Dispose()
     {
+        foreach (var m in _modulos.Values)
+            try { m.Parar(); } catch (Exception e) { Log.Escrever($"módulo {m.Id} (parar): {e}"); }
+        _modulos.Clear();
+        _atalhos.Dispose();
+        _entrada.Dispose();
         _vigiaConfig?.Dispose();
         _releitura.Dispose();
         _bandeja.Dispose();

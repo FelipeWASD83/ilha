@@ -25,6 +25,7 @@ internal sealed class Ilha : IDisposable
     private const float CARTAO_FOLGA = 18, CARTAO_MIN = 340, RAIO_EXPANDIDA = 30, RAIO_ALERTA = 28;
     private const float OMBRO = 7;
     private const float SOMBRA = 30;
+    private const float PONTO = 7, PONTO_VAO = 5;
 
     private readonly Grafico _g;
     private readonly Palco _p;
@@ -54,6 +55,25 @@ internal sealed class Ilha : IDisposable
     private bool _sobre, _expandida, _porAtalho;
     private Atividade? _foco;
     private Atividade? _painel;
+    private Indicadores? _indicadores;
+    private ContainerVisual _pontos = null!;
+    private SpriteVisual _pontoCamera = null!, _pontoMic = null!;
+    private bool _pontosVisiveis;
+    private float _extraPontos;
+
+    /// <summary>Toca o som de cada alerta e chegada (null = sem som).</summary>
+    public Sons? Sons { get; set; }
+
+    /// <summary>Câmera e microfone em uso: a ilha desenha as bolinhas verde e laranja no canto da pílula.</summary>
+    public Indicadores? Indicadores
+    {
+        get => _indicadores;
+        set
+        {
+            _indicadores = value;
+            if (value != null) value.Mudou += () => Aplicar();
+        }
+    }
     private Estado _estado = Estado.Oculta;
     private bool _janelasVisiveis;
 
@@ -224,6 +244,15 @@ internal sealed class Ilha : IDisposable
 
         _vagaCorpo = new Vaga { Host = hostCorpo };
         _vagaBolha = new Vaga { Host = hostBolha };
+
+        // bolinhas de câmera (verde) e microfone (laranja), como as do iPhone
+        _pontos = c.CreateContainerVisual();
+        _pontos.Opacity = 0;
+        _pontoCamera = Ponto(c, Cor.Verde);
+        _pontoMic = Ponto(c, Cor.Laranja);
+        _pontos.Children.InsertAtTop(_pontoCamera);
+        _pontos.Children.InsertAtTop(_pontoMic);
+        _raiz.Children.InsertAtTop(_pontos);
         // começa escondida acima da tela
         _raiz.Offset = new Vector3(0, -_p.Px(ALTURA_MAX), 0);
     }
@@ -314,6 +343,19 @@ internal sealed class Ilha : IDisposable
         v.Size = new Vector2(L, A);
         v.Clip = c.CreateGeometricClip(geo);
         _raiz.Children.InsertAtTop(v);
+        return v;
+    }
+
+    private SpriteVisual Ponto(Compositor c, Vortice.Mathematics.Color4 cor)
+    {
+        float d = _p.Px(PONTO);
+        var v = c.CreateSpriteVisual();
+        v.Size = new Vector2(d, d);
+        v.Brush = c.CreateColorBrush(Cor.Wr(cor));
+        var g = c.CreateEllipseGeometry();
+        g.Center = new Vector2(d / 2);
+        g.Radius = new Vector2(d / 2);
+        v.Clip = c.CreateGeometricClip(g);
         return v;
     }
 
@@ -454,7 +496,7 @@ internal sealed class Ilha : IDisposable
         {
             // algo novo aparece expandindo por um instante (não no Não Incomodar)
             if (!(_ctx.NaoPerturbe && _cfg.RespeitarNaoPerturbe) && a.TemExpandida && Permitida(a))
-                Alertar(new Alerta { Tipo = "chegada", Criar = p => a.Criar(p, Forma.Expandida), PermitidoNoCompetitivo = a.PermitidaNoCompetitivo, Segundos = _cfg.AlertaSegundos * 0.7f, Dono = a });
+                Alertar(new Alerta { Tipo = "chegada", Som = "chegada", Criar = p => a.Criar(p, Forma.Expandida), PermitidoNoCompetitivo = a.PermitidaNoCompetitivo, Segundos = _cfg.AlertaSegundos * 0.7f, Dono = a });
         }
         if (!a.Ativa)
         {
@@ -524,6 +566,8 @@ internal sealed class Ilha : IDisposable
         {
             _relogioAlerta.Interval = Math.Max(1, (int)(1000 * (_alerta.Segundos ?? _cfg.AlertaSegundos)));
             _relogioAlerta.Start();
+            string som = _alerta.Som ?? _alerta.Tipo;
+            if (som.Length > 0) Sons?.Tocar(som, _alerta.Importante);
         }
         Aplicar();
     }
@@ -543,6 +587,13 @@ internal sealed class Ilha : IDisposable
         if (_sobre) return;
         _sobre = true;
         if (_expandida) _porAtalho = false;
+        if (_estado == Estado.Compacta && !_expandida && Visiveis().FirstOrDefault() is { Tipo: "privacidade" } priv)
+        {
+            _foco = priv;
+            _expandida = true;
+            Aplicar();
+            return;
+        }
         if (_estado is Estado.Compacta or Estado.Ociosa) Aplicar();
     }
 
@@ -644,6 +695,20 @@ internal sealed class Ilha : IDisposable
         _geoCorpo.StartAnimation("Size", a);
     }
 
+    /// <summary>Abre esta atividade expandida (ferramentas pelo atalho delas; qualquer uma pelo módulo).</summary>
+    public void Expandir(Atividade a)
+    {
+        if (_cfg.Pausada) return;
+        if (_alerta != null) { _relogioAlerta.Stop(); _fila.Clear(); _alerta = null; }
+        _foco = a;
+        _expandida = true;
+        _porAtalho = true;
+        Aplicar();
+    }
+
+    /// <summary>A atividade expandida agora (null se nenhuma).</summary>
+    public Atividade? Expandida => _expandida ? _foco : null;
+
     public void Recolher()
     {
         if (!_expandida) return;
@@ -689,7 +754,8 @@ internal sealed class Ilha : IDisposable
             return Cartao(Estado.Alerta, $"alerta:{al.GetHashCode()}:{al.Dono?.Versao ?? 0}", () => al.Criar(_p), RAIO_ALERTA);
         }
 
-        if (_expandida && _foco != null && (_foco.Ativa || _foco == _painel) && (Permitida(_foco) || _foco == _painel && !_ctx.Competitivo))
+        bool avulsa = _foco == _painel || _foco?.EhFerramenta == true;
+        if (_expandida && _foco != null && (_foco.Ativa || avulsa) && (Permitida(_foco) || avulsa && !_ctx.Competitivo))
         {
             var f = _foco;
             return Cartao(Estado.Expandida, $"exp:{f.GetHashCode()}:{f.Versao}", () => f.Criar(_p, Forma.Expandida), RAIO_EXPANDIDA);
@@ -701,7 +767,10 @@ internal sealed class Ilha : IDisposable
             var a = vis[0];
             string ch = $"cmp:{a.GetHashCode()}:{a.Versao}";
             var tam = TamanhoDaCena(_vagaCorpo, ch, () => a.Criar(_p, Forma.Compacta), out var criar);
-            float l = MathF.Max(COMPACTA_MIN, tam.X + COMPACTA_FOLGA * 2), h = COMPACTA_A;
+            float l = MathF.Max(a.LarguraCompactaMinima ?? COMPACTA_MIN, tam.X + COMPACTA_FOLGA * 2), h = COMPACTA_A;
+            // com as bolinhas de privacidade na pílula, ela alarga para elas não cobrirem o conteúdo
+            _extraPontos = PontosDevemAparecer(Estado.Compacta, a) ? LarguraPontos() + 8 : 0;
+            l += _extraPontos;
             if (_sobre) { l += PREVIA_L; h += PREVIA_A; }
             bool bolha = _cfg.Dividir && vis.Count > 1;
             string? cb = null;
@@ -746,7 +815,8 @@ internal sealed class Ilha : IDisposable
     {
         if (_raiz == null) return;
         var pl = Planejar();
-        var assinatura = (pl.Estado, pl.Corpo, pl.Raio, pl.ChaveCorpo, pl.Bolha, pl.ChaveBolha, _janelasVisiveis || pl.Estado == Estado.Oculta);
+        var assinatura = (pl.Estado, pl.Corpo, pl.Raio, pl.ChaveCorpo, pl.Bolha, pl.ChaveBolha, _janelasVisiveis || pl.Estado == Estado.Oculta,
+            (_indicadores?.Camera ?? false) && PontosDevemAparecer(pl.Estado, _foco), (_indicadores?.Microfone ?? false) && PontosDevemAparecer(pl.Estado, _foco));
         if (animar && pl.Estado == _estado && assinatura.Equals(_ultimoPlano) && pl.CenaCorpo == null)
         {
             if (_expandida && _porAtalho) LigarVigia(); else _vigiaClique.Stop();
@@ -764,6 +834,7 @@ internal sealed class Ilha : IDisposable
             _vigiaClique.Stop();
             TrocarCena(_vagaCorpo, null, null, 0, animar);
             TrocarCena(_vagaBolha, null, null, 0, animar);
+            AnimarEscalar(_pontos, "Opacity", 0, 120, animar);
             AnimarEscalar(_formaBolha, "Opacity", 0, 150, animar);
             if (!_janelasVisiveis) { _raiz.Offset = new Vector3(0, -_p.Px(ALTURA_MAX), 0); return; }
             var lote = c.CreateScopedBatch(CompositionBatchTypes.Animation);
@@ -818,6 +889,10 @@ internal sealed class Ilha : IDisposable
         }
 
         TrocarCena(_vagaCorpo, pl.ChaveCorpo, pl.CenaCorpo, corpoPx.Y, animar);
+        // o conteúdo da compacta desliza para a esquerda quando as bolinhas pedem espaço
+        float extra = pl.Estado == Estado.Compacta ? _p.Px(_extraPontos) : 0;
+        Mover(_vagaCorpo.Host, new Vector3(cx - MathF.Round(extra / 2), topo, 0), animar);
+        PosicionarPontos(pl.Estado, corpoPx, topo, cx, animar);
         TrocarCena(_vagaBolha, pl.Bolha ? pl.ChaveBolha : null, pl.CenaBolha, bolhaPx, animar);
         lote2.End();
         lote2.Completed += (_, _) =>
@@ -846,7 +921,42 @@ internal sealed class Ilha : IDisposable
         if (anterior != _estado) EstadoMudou?.Invoke(_estado);
     }
 
-    private (Estado, Vector2, float, string?, bool, string?, bool) _ultimoPlano;
+    private (Estado, Vector2, float, string?, bool, string?, bool, bool, bool) _ultimoPlano;
+
+    private float LarguraPontos()
+    {
+        int n = (_indicadores?.Camera == true ? 1 : 0) + (_indicadores?.Microfone == true ? 1 : 0);
+        return n == 0 ? 0 : n * PONTO + (n - 1) * PONTO_VAO;
+    }
+
+    // a própria atividade de privacidade já mostra as bolinhas; no modo competitivo elas ficam escondidas
+    private bool PontosDevemAparecer(Estado e, Atividade? principal) =>
+        _indicadores?.Algum == true && !_ctx.Competitivo && !_cfg.Pausada
+        && e is Estado.Compacta or Estado.Expandida or Estado.Alerta
+        && (e != Estado.Compacta || Visiveis().FirstOrDefault()?.Tipo != "privacidade")
+        && !(e == Estado.Expandida && principal?.Tipo == "privacidade");
+
+    private void PosicionarPontos(Estado e, Vector2 corpoPx, float topo, float cx, bool animar)
+    {
+        var vis = Visiveis();
+        bool mostrar = PontosDevemAparecer(e, e == Estado.Expandida ? _foco : vis.FirstOrDefault());
+        _pontosVisiveis = mostrar;
+        AnimarEscalar(_pontos, "Opacity", mostrar ? 1 : 0, 160, animar);
+        if (!mostrar) return;
+        float d = _p.Px(PONTO), vao = _p.Px(PONTO_VAO);
+        float x = 0;
+        foreach (var (ponto, ligado) in new[] { (_pontoMic, _indicadores!.Microfone), (_pontoCamera, _indicadores.Camera) })
+        {
+            ponto.Opacity = ligado ? 1 : 0;
+            ponto.Offset = new Vector3(x, 0, 0);
+            if (ligado) x += d + vao;
+        }
+        float largura = x - vao;
+        // compacta: centradas na altura, no espaço extra da direita; cartões: no canto de cima, dentro da folga
+        float margem = e == Estado.Compacta ? _p.Px(COMPACTA_FOLGA) : _p.Px(CARTAO_FOLGA) * 0.8f;
+        float y = e == Estado.Compacta ? (corpoPx.Y - d) / 2 : _p.Px(CARTAO_FOLGA) * 0.4f;
+        Mover(_pontos, new Vector3(MathF.Round(cx + corpoPx.X / 2 - margem - largura), MathF.Round(topo + y), 0), animar);
+    }
 
     private void LigarVigia()
     {

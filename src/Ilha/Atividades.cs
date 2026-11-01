@@ -113,6 +113,8 @@ internal sealed class Alerta
     public bool Importante;
     public float? Segundos;
     public Atividade? Dono;
+    // som que toca quando o alerta aparece (null = o próprio Tipo; "" = sem som)
+    public string? Som;
 }
 
 /// <summary>
@@ -125,6 +127,10 @@ internal abstract class Atividade
     public abstract string Nome { get; }
     public virtual bool PermitidaNoCompetitivo => false;
     public virtual bool TemExpandida => true;
+    /// <summary>Ferramenta (calculadora, tradutor, IA): abre expandida pelo atalho mesmo sem estar "em andamento".</summary>
+    public virtual bool EhFerramenta => false;
+    /// <summary>Largura mínima da pílula compacta (null = a padrão); a de privacidade é só as bolinhas.</summary>
+    public virtual float? LarguraCompactaMinima => null;
     public bool Ativa { get; private set; }
     public DateTime Desde { get; private set; }
 

@@ -12,6 +12,13 @@ public sealed class Atalho
     [JsonPropertyName("tecla")] public int Tecla { get; set; } = 0x20; // espaço
 }
 
+public sealed class ConfigSons
+{
+    [JsonPropertyName("ligados")] public bool Ligados { get; set; } = true;
+    // 0 a 1
+    [JsonPropertyName("volume")] public double Volume { get; set; } = 0.6;
+}
+
 public sealed class Mola
 {
     // abaixo de 1 passa do ponto e volta (o overshoot); 1 para sem passar
@@ -50,6 +57,11 @@ public sealed class Config
     // desenhar texto e ícone pela placa de vídeo em vez do processador (gasta ~110 MB a mais de RAM)
     [JsonPropertyName("desenharNaGpu")] public bool DesenharNaGpu { get; set; }
     [JsonPropertyName("mola")] public Mola Mola { get; set; } = new();
+    [JsonPropertyName("sons")] public ConfigSons Sons { get; set; } = new();
+    // atalhos dos módulos por nome ("calculadora", "tradutor", "ia", "timer"...); o que não estiver aqui usa o padrão do módulo
+    [JsonPropertyName("atalhosModulos")] public Dictionary<string, Atalho> AtalhosModulos { get; set; } = new();
+    // uma seção por módulo, com "ligado" e o que o módulo quiser guardar
+    [JsonPropertyName("modulos")] public System.Text.Json.Nodes.JsonObject Modulos { get; set; } = new();
 
     // Fora do AppData de propósito: processo aberto de dentro do app do Claude (pacote MSIX) enxerga uma
     // cópia virtual do AppData, e a config de lá não seria a mesma da ilha aberta pelo Menu Iniciar.
@@ -72,6 +84,10 @@ public sealed class Config
             c.Mola ??= new();
             c.Prioridades ??= new();
             c.JogosCompetitivos ??= new();
+            c.Sons ??= new();
+            c.Sons.Volume = double.IsFinite(c.Sons.Volume) ? Math.Clamp(c.Sons.Volume, 0, 1) : 0.6;
+            c.AtalhosModulos ??= new();
+            c.Modulos ??= new();
             c.Tamanho = Limite(c.Tamanho, 0.5f, 3f, 1f);
             c.DistanciaDoTopo = Limite(c.DistanciaDoTopo, 0f, 200f, 10f);
             c.AlertaSegundos = Limite(c.AlertaSegundos, 1f, 60f, 4f);

@@ -71,6 +71,30 @@ internal sealed class Escrita
         return new Vector2(MathF.Ceiling(m.WidthIncludingTrailingWhitespace), MathF.Ceiling(m.Height));
     }
 
+    /// <summary>
+    /// Campo de texto da Entrada: o texto (ou bolinhas, se for senha) com o cursor, rolando para o cursor ficar visível
+    /// quando o texto passa da largura. `vazio` aparece apagado quando não tem nada escrito.
+    /// </summary>
+    public void DesenharCampo(ID2D1DeviceContext dc, string texto, int cursor, bool senha, Vector2 pos, float largura,
+        float tamanho, Color4 cor, string vazio = "", bool comCursor = true)
+    {
+        string mostrado = senha ? new string('•', texto.Length) : texto;
+        cursor = Math.Clamp(cursor, 0, mostrado.Length);
+        if (mostrado.Length == 0 && vazio.Length > 0)
+        {
+            Desenhar(dc, vazio, pos, tamanho, new Color4(cor.R, cor.G, cor.B, 0.35f), FontWeight.Normal, largura: largura);
+            if (comCursor) Icone.Retangulo(dc, pos.X, pos.Y + tamanho * 0.15f, 1.6f, tamanho * 1.15f, 0.8f, cor);
+            return;
+        }
+        using var l = Layout(mostrado, tamanho, FontWeight.Normal);
+        l.HitTestTextPosition((uint)cursor, false, out float cx, out _, out _);
+        float rolagem = MathF.Max(0, cx - largura + 4);
+        dc.PushAxisAlignedClip(new System.Drawing.RectangleF(pos.X, pos.Y - 2, largura, tamanho * 1.6f), AntialiasMode.Aliased);
+        using (var b = dc.CreateSolidColorBrush(cor)) dc.DrawTextLayout(new Vector2(pos.X - rolagem, pos.Y), l, b, DrawTextOptions.EnableColorFont);
+        if (comCursor) Icone.Retangulo(dc, pos.X + cx - rolagem, pos.Y + tamanho * 0.15f, 1.6f, tamanho * 1.15f, 0.8f, cor);
+        dc.PopAxisAlignedClip();
+    }
+
     /// <summary>Desenha com a linha de base calculada para o texto ficar centrado na altura dada.</summary>
     public void Desenhar(ID2D1DeviceContext dc, string texto, Vector2 pos, float tamanho, Color4 cor,
         FontWeight peso = FontWeight.SemiBold, bool tabular = false, float largura = 4000)

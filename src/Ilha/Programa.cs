@@ -34,6 +34,21 @@ public static class Programa
             Environment.Exit(Autoteste.Rodar());
             return;
         }
+        int iTeste = Array.IndexOf(args, "--testar");
+        if (iTeste >= 0)
+        {
+            // autoteste dos módulos, sem janela: o relatório vai para o console e para ~/.ilha/testes.txt
+            var saida = new System.IO.StringWriter();
+            var antes = Console.Out;
+            Console.SetOut(saida);
+            int r = Modulos.Testar(iTeste + 1 < args.Length ? args[iTeste + 1] : null);
+            Console.SetOut(antes);
+            System.IO.Directory.CreateDirectory(Config.Pasta);
+            System.IO.File.WriteAllText(System.IO.Path.Combine(Config.Pasta, "testes.txt"), saida.ToString());
+            Console.Write(saida.ToString());
+            Environment.Exit(r);
+            return;
+        }
 
         bool sair = Array.IndexOf(args, "--sair") >= 0;
         using var instancia = new Mutex(true, @"Local\Ilha.Instancia", out bool primeira);
