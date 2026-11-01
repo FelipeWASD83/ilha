@@ -24,6 +24,9 @@ internal sealed class AtividadeMidia : Atividade
     private const float Y_BOTOES = 106f, A_BOTOES = 30f;
     private const float MARGEM_BARRA = 4f;
     private const float BAIXA = 0.2f;
+    // pílula: capa na ponta esquerda, visualizador na direita, meio vazio (o núcleo põe a hora ali)
+    internal const float COMPACTA_L = 170f, CAPA_COMPACTA = 24f, FOLGA_MEIO = 6f;
+    internal static float InicioDoVisualizador => COMPACTA_L - 4 * 5.5f + 2.5f;
     private static readonly Color4 CorPadrao = new(1f, 1f, 1f, 0.85f);
 
     // dados que o módulo põe
@@ -37,6 +40,19 @@ internal sealed class AtividadeMidia : Atividade
     public float PassoVolume = 0.02f;
 
     public Action? AoAnterior, AoTocarPausar, AoProxima;
+
+    public override (float De, float Ate)? MeioLivreCompacta => MeioLivre();
+
+    /// <summary>
+    /// O vão entre a capa e o visualizador, encolhido por igual dos dois lados para a hora ficar no centro da pílula
+    /// (a cena é centralizada nela).
+    /// </summary>
+    internal static (float De, float Ate) MeioLivre()
+    {
+        float meio = COMPACTA_L / 2;
+        float metade = MathF.Min(meio - CAPA_COMPACTA - FOLGA_MEIO, InicioDoVisualizador - FOLGA_MEIO - meio);
+        return (meio - metade, meio + metade);
+    }
     public Action<TimeSpan>? AoBuscar;
 
     // cenas vivas
@@ -259,9 +275,9 @@ internal sealed class AtividadeMidia : Atividade
             }
             case Forma.Compacta:
             {
-                var c = p.NovaCena(new Vector2(170, 24));
-                p.Desenho(c, Vector2.Zero, new Vector2(24, 24), (dc, t) => Capa.Desenhar(dc, p, _capa, 1, 1, 22, 6));
-                Visualizador(p, c, new Vector2(170 - 4 * 5.5f + 2.5f, 4), 16);
+                var c = p.NovaCena(new Vector2(COMPACTA_L, 24));
+                p.Desenho(c, Vector2.Zero, new Vector2(CAPA_COMPACTA, 24), (dc, t) => Capa.Desenhar(dc, p, _capa, 1, 1, 22, 6));
+                Visualizador(p, c, new Vector2(InicioDoVisualizador, 4), 16);
                 return c;
             }
             default:

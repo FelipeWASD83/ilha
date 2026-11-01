@@ -78,6 +78,8 @@ internal sealed class Servicos
     public required Atalhos Atalhos { get; init; }
     public required Entrada Entrada { get; init; }
     public required Indicadores Indicadores { get; init; }
+    /// <summary>As entradas do menu principal da ilha (cada módulo põe as suas no Iniciar).</summary>
+    public required MenuDaIlha Menu { get; init; }
     public required Func<Contexto> ContextoAtual { get; init; }
     public required Func<Config> Config { get; init; }
     public required Action<string, object?> SalvarModulo { get; init; }

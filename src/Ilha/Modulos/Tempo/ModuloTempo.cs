@@ -277,6 +277,14 @@ internal sealed class ModuloTempo : Modulo
         var som = Sons.Arquivo("timer");
         Ok(som != null && som.EndsWith("timer.wav", StringComparison.OrdinalIgnoreCase), "som \"timer\" encontrado" + (som == null ? " (faltando)" : ""));
 
+        // --- vão da hora na pílula, entre o anel e o tempo
+        var m1 = AtividadeTempo.MeioLivre(40, 0);
+        Ok(m1 is { } v1 && v1.De >= AtividadeTempo.FIM_DO_ANEL && v1.Ate <= AtividadeTempo.COMPACTA_L - 40, $"meio livre com \"24:59\" fica entre o anel e o tempo ({m1})");
+        var m2 = AtividadeTempo.MeioLivre(55, 14);
+        Ok(m2 is { } v2 && m1 is { } w1 && v2.Ate < w1.Ate && v2.Ate <= AtividadeTempo.COMPACTA_L - 55 - AtividadeTempo.VAO_MAIS - 14,
+            $"\"+N\" e hora no tempo encolhem o meio livre ({m2})");
+        Ok(AtividadeTempo.MeioLivre(140, 0) == null, "tempo encostando no anel: sem meio livre");
+
         return r.ToString().TrimEnd();
     }
 }

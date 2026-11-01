@@ -49,7 +49,7 @@ internal sealed class Bandeja : IDisposable
         colada.Click += (_, _) => n.AlternarColada();
         menu.Opening += (_, _) => colada.Checked = n.Config.Colada;
         var config = new ToolStripMenuItem("Configurações...") { Font = new Font(SystemFonts.MenuFont ?? Control.DefaultFont, FontStyle.Bold) };
-        config.Click += (_, _) => JanelaDeConfiguracoes.Mostrar(() => n.Config, c => c.Salvar(), JanelaDeConfiguracoes.ModulosDaConfig(n.Config), n.Servicos.Atalhos.Padroes);
+        config.Click += (_, _) => n.AbrirConfiguracoes();
         var json = new ToolStripMenuItem("Abrir o config.json");
         json.Click += (_, _) => Abrir("notepad.exe", Config.Arquivo);
         var atualizar = new ToolStripMenuItem("Procurar atualização");

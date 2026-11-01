@@ -69,6 +69,7 @@ public static class Programa
         ThreadPool.RegisterWaitForSingleObject(pedidoDeSair, (_, _) => NaInterface(nucleo.Sair), null, -1, true);
         if (Array.IndexOf(args, "--medir") >= 0) Medidor.Comecar(nucleo);
         else if (Array.IndexOf(args, "--roteiro") >= 0) nucleo.Demonstracao.Roteiro();
+        else if (Array.IndexOf(args, "--teste-mouse") >= 0) TesteDoMouse.Comecar(nucleo);
         int d = Array.IndexOf(args, "--demo");
         if (d >= 0 && d + 1 < args.Length)
         {

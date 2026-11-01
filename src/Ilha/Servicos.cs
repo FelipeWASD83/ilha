@@ -267,8 +267,16 @@ internal sealed class Entrada : IDisposable
     private Action? _fechou;
     private Action<System.Drawing.Image>? _imagem;
     private bool _multilinha;
+    private bool _soTeclas;
 
     public bool Aberta { get; private set; }
+    /// <summary>Aberta só para a ilha ouvir o teclado (o Esc), sem campo de módulo nenhum.</summary>
+    public bool SoTeclas => Aberta && _soTeclas;
+    /// <summary>
+    /// Esc com a ilha focada: o núcleo decide. true = ele tratou e a ilha continua com o teclado (voltou para o
+    /// menu); false = fecha e devolve o foco para a janela de antes.
+    /// </summary>
+    public Func<bool>? AoEsc;
     public string Texto => _caixa.Text;
     public int Cursor => _caixa.SelectionStart;
     public int Selecao => _caixa.SelectionLength;
@@ -303,7 +311,18 @@ internal sealed class Entrada : IDisposable
 
     private void AoTeclar(object? s, KeyEventArgs e)
     {
-        if (e.KeyCode == Keys.Escape) { e.SuppressKeyPress = true; Fechar(); return; }
+        if (e.KeyCode == Keys.Escape)
+        {
+            e.SuppressKeyPress = true;
+            bool fica = false;
+            try { fica = AoEsc?.Invoke() ?? false; } catch (Exception ex) { Log.Escrever("Esc: " + ex); }
+            // true: o núcleo tratou (voltou para o menu, que já passou para o modo teclado, ou só fechou um alerta e o
+            // campo do módulo continua como estava)
+            if (Aberta && !fica) Fechar();
+            return;
+        }
+        // só ouvindo o Esc: o resto do teclado não faz nada
+        if (_soTeclas) { e.SuppressKeyPress = true; return; }
         if (e.KeyCode is Keys.Up or Keys.Down or Keys.PageUp or Keys.PageDown or Keys.Tab && !(_multilinha && e.KeyCode is Keys.Up or Keys.Down))
         {
             if (Tecla != null) { e.SuppressKeyPress = true; e.Handled = true; Tecla(e.KeyCode); return; }
@@ -326,7 +345,10 @@ internal sealed class Entrada : IDisposable
     public void Abrir(string inicial, Action<string> mudou, Action<string> enter, Action? fechou = null,
         Action<System.Drawing.Image>? imagem = null, bool multilinha = false, bool senha = false)
     {
-        if (Aberta) Fechar(devolverFoco: false);
+        // do modo teclado para um campo: o foco já é nosso, só troca (sem piscar)
+        if (Aberta && !_soTeclas) Fechar(devolverFoco: false);
+        _soTeclas = false;
+        _caixa.ReadOnly = false;
         _mudou = mudou;
         _enter = enter;
         _fechou = fechou;
@@ -340,12 +362,49 @@ internal sealed class Entrada : IDisposable
         // de um campo para outro: a janela da frente já é a invisível da ilha; a de antes continua a original
         var frente = Nativo.GetForegroundWindow();
         if (frente != _form.Handle) _antes = frente;
+        bool jaAberta = Aberta;
         Aberta = true;
+        if (jaAberta) { _caixa.Focus(); Avisar(); return; }
         _form.Show();
         _form.Activate();
         Nativo.SetForegroundWindow(_form.Handle);
         _caixa.Focus();
         Avisar();
+    }
+
+    /// <summary>
+    /// A ilha pega o teclado (o clique nela): só para o Esc funcionar. Não faz nada se um campo de módulo já estiver
+    /// aberto. Fechar devolve o foco para a janela onde ele estava.
+    /// </summary>
+    public void Focar()
+    {
+        if (Aberta) return;
+        var frente = Nativo.GetForegroundWindow();
+        if (frente != _form.Handle) _antes = frente;
+        _soTeclas = true;
+        _caixa.ReadOnly = true;
+        _caixa.Text = "";
+        Aberta = true;
+        _form.Show();
+        _form.Activate();
+        Nativo.SetForegroundWindow(_form.Handle);
+        _caixa.Focus();
+    }
+
+    /// <summary>O campo do módulo fecha (ele recebe o "fechou"), mas a ilha continua com o teclado para o Esc.</summary>
+    public void ModoTeclado()
+    {
+        if (!Aberta || _soTeclas) return;
+        var f = _fechou;
+        _fechou = null;
+        _mudou = null;
+        _enter = null;
+        _imagem = null;
+        _soTeclas = true;
+        _caixa.ReadOnly = true;
+        _caixa.Text = "";
+        f?.Invoke();
+        Mudou?.Invoke();
     }
 
     /// <summary>Troca senha ou multilinha com o campo aberto, sem piscar o foco.</summary>
@@ -368,6 +427,8 @@ internal sealed class Entrada : IDisposable
     {
         if (!Aberta) return;
         Aberta = false;
+        _soTeclas = false;
+        _caixa.ReadOnly = false;
         _form.Hide();
         if (devolverFoco && _antes != IntPtr.Zero) Nativo.SetForegroundWindow(_antes);
         var f = _fechou;

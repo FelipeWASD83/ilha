@@ -11,13 +11,15 @@ using Vortice.Mathematics;
 namespace Ilha.Ar;
 
 /// <summary>
-/// O ar-condicionado na ilha. Ferramenta (abre pelo atalho ou pelo clique), e aparece na pílula quando o último
-/// estado conhecido diz que o ar está ligado.
+/// O ar-condicionado na ilha. Ferramenta: nunca fica na pílula; abre pelo menu da ilha ou pelo atalho, e só aparece
+/// sozinho num alerta curto quando o estado do ar muda (ligou, desligou, modo ou alvo), seja pelo controle remoto,
+/// pelo site, pela nova aba ou pela própria ilha. A sala mudando não é mudança. O alerta do que a ilha mandou sai
+/// quando ela recolhe (com o cartão aberto ele cobriria os botões), um só para a leva de cliques.
 ///
 /// O que importa é não gastar chamada da LG: cada GET /api/estado diz ao servidor "alguém está olhando" e faz ele
-/// ler o ar de 3 em 3 minutos. Por isso o GET /api/estado só sai com o cartão ABERTO (pelo clique ou pelo atalho),
-/// de 4 em 4 s como o site e a nova aba, e para quando o cartão fecha; nunca no hover. Com o cartão fechado, a pílula
-/// usa o último estado conhecido e o GET /api/historico (que não gasta chamada), no máximo de 15 em 15 min.
+/// ler o ar de 3 em 3 minutos. Por isso o GET /api/estado só sai com o cartão ABERTO, de 4 em 4 s como o site e a nova
+/// aba, e para quando o cartão fecha; nunca no hover. Com o cartão fechado, quem informa é o GET /api/historico, que
+/// nunca faz o servidor ler a LG (ele devolve as leituras que o servidor já fez): de 45 em 45 s, barato na rede de casa.
 /// Comando: POST /api/comando, um por vez. Nunca /api/atualizar, nunca turbo.
 /// </summary>
 internal sealed class AtividadeAr : Atividade
@@ -25,10 +27,11 @@ internal sealed class AtividadeAr : Atividade
     public const string NomeCredencial = "ar-do-quarto";
     private const int LEITURA_MS = 4000;
     private const int ALVO_MS = 1200;
-    private const int HISTORICO_MS = 15 * 60 * 1000;
-    private const int HISTORICO_PRIMEIRO_MS = 20_000;
+    private const int HISTORICO_MS = 45_000;
+    private const int HISTORICO_PRIMEIRO_MS = 5_000;
     private const float L = 340;
-    // informação mais velha que isso não acende a pílula (o mini PC pode ter parado de ler)
+    private const float ALERTA_SEGUNDOS = 3.5f;
+    // temperatura da sala mais velha que isso não vai para o menu (o mini PC pode ter parado de ler)
     private static readonly TimeSpan Validade = TimeSpan.FromMinutes(45);
     private static readonly TimeSpan AvisoDeComando = TimeSpan.FromSeconds(10);
 
@@ -50,6 +53,13 @@ internal sealed class AtividadeAr : Atividade
     private string _enderecoUsado = "";
     private EstadoAr? _conhecido;
     private DateTime _conhecidoEm;
+    // o lido_em (relógio do servidor) do que está em _conhecido: ponto do histórico com o mesmo t não sobrescreve
+    // o resumo do POST, que traz o pedido aplicado por cima da leitura de antes
+    private long? _conhecidoT;
+    private readonly DetectorDeMudanca _detector = new();
+    private readonly AlertaAdiado _adiado = new();
+    private bool _vigiaPausada;
+    private string? _detalheMostrado;
     private string _layout = "", _assinaturaTela = "";
 
     // botões medidos uma vez por layout (a largura de cada pílula depende do texto)
@@ -82,12 +92,15 @@ internal sealed class AtividadeAr : Atividade
         _parado = false;
         _temChave = Credenciais.Existe(NomeCredencial);
         _enderecoUsado = Endereco;
+        S.Ilha.EstadoMudou += AoMudarEstado;
         AgendarHistorico(HISTORICO_PRIMEIRO_MS);
     }
 
     public void Parar()
     {
         _parado = true;
+        S.Ilha.EstadoMudou -= AoMudarEstado;
+        _adiado.Limpar();
         _leitura.Stop();
         _envioAlvo.Stop();
         _historico.Stop();
@@ -110,11 +123,42 @@ internal sealed class AtividadeAr : Atividade
     /// <summary>O atalho: abre o cartão; com ele aberto, recolhe.</summary>
     public void Alternar()
     {
-        // o atalho continua registrado depois de o módulo ser desligado (o núcleo não tira): aí não faz nada
         if (_parado) return;
         if (Aberta) S.Ilha.Recolher();
         else S.Ilha.Expandir(this);
     }
+
+    /// <summary>A entrada do menu: abre o cartão.</summary>
+    public void Abrir()
+    {
+        if (!_parado) S.Ilha.Expandir(this);
+    }
+
+    /// <summary>
+    /// Jogo competitivo: a consulta ao histórico para (o alerta nem apareceria). Ao voltar, a primeira leitura é só
+    /// referência de novo: o que mudou durante o jogo não vira alerta atrasado.
+    /// </summary>
+    public void PausarVigia(bool pausar)
+    {
+        if (_parado || pausar == _vigiaPausada) return;
+        _vigiaPausada = pausar;
+        if (pausar) { _historico.Stop(); _adiado.Limpar(); return; }
+        _detector.Zerar();
+        AgendarHistorico(HISTORICO_PRIMEIRO_MS);
+    }
+
+    /// <summary>A linha pequena da entrada no menu: a temperatura da sala que se sabe (ou o que falta configurar).</summary>
+    public string? DetalheDoMenu()
+    {
+        if (_parado) return null;
+        if (!Configurado) return Endereco.Length == 0 ? "configurar" : "falta a chave";
+        if (_chaveRecusada) return "chave recusada";
+        if (_conhecido?.Sala is double s && DateTime.UtcNow - _conhecidoEm < Validade) return "sala " + ContasAr.FormatarNumero(s) + " °C";
+        return null;
+    }
+
+    /// <summary>Estado do ar para o ícone do menu (cor do modo quando ligado).</summary>
+    public EstadoAr? Conhecido => _conhecido != null && DateTime.UtcNow - _conhecidoEm < Validade ? _conhecido : null;
 
     private void Reiniciar()
     {
@@ -125,11 +169,14 @@ internal sealed class AtividadeAr : Atividade
         _fila.Limpar();
         _resumo = null;
         _conhecido = null;
+        _conhecidoT = null;
+        _detector.Zerar();
+        _adiado.Limpar();
         _problema = _problemaComando = null;
         _chaveRecusada = false;
         _lendo = _lendoHistorico = false;
         _temChave = Credenciais.Existe(NomeCredencial);
-        AtualizarAtiva();
+        AtualizarMenu();
         AtualizarTela();
         AgendarHistorico(HISTORICO_PRIMEIRO_MS);
         if (Aberta && Configurado) LerEstado();
@@ -161,7 +208,7 @@ internal sealed class AtividadeAr : Atividade
             // fechou: nada de GET até abrir de novo
             _leitura.Stop();
             if (_digitando && S.Entrada.Aberta) S.Entrada.Fechar(devolverFoco: false);
-            AtualizarAtiva();
+            AtualizarMenu();
             return;
         }
         if (Configurado && !_chaveRecusada && !_lendo) LerEstado();
@@ -170,7 +217,7 @@ internal sealed class AtividadeAr : Atividade
     private void AgendarHistorico(int ms)
     {
         _historico.Stop();
-        if (_parado || !Configurado) return;
+        if (_parado || !Configurado || _vigiaPausada) return;
         _historico.Interval = ms;
         _historico.Start();
     }
@@ -178,8 +225,8 @@ internal sealed class AtividadeAr : Atividade
     private void TiqueHistorico()
     {
         _historico.Interval = HISTORICO_MS;
-        AtualizarAtiva();
-        if (_parado || !Configurado) { _historico.Stop(); return; }
+        AtualizarMenu();
+        if (_parado || !Configurado || _vigiaPausada) { _historico.Stop(); return; }
         // com o cartão aberto quem informa é o /api/estado
         if (Aberta || _lendoHistorico || _chaveRecusada) return;
         LerHistorico();
@@ -213,17 +260,22 @@ internal sealed class AtividadeAr : Atividade
             if (reinicio != _reinicio) return;
             _lendoHistorico = false;
             if (_parado) return;
-            if (r.Tipo == TipoResposta.Chave) { _chaveRecusada = true; AtualizarAtiva(); return; }
+            if (r.Tipo == TipoResposta.Chave) { _chaveRecusada = true; AtualizarMenu(); return; }
             if (r.Tipo != TipoResposta.Ok) return;
             var h = ContasAr.LerHistorico(r.Corpo);
             if (h?.Ultimo is not PontoHistorico p || p.Ligado == null) return;
+            long agora = Environment.TickCount64;
+            // o cartão abriu enquanto o pedido ia: o /api/estado já está informando
+            if (!Aberta) Avisar(_detector.Leitura(p.T, EstadoBasico.De(p), agora));
+            // a confirmação atrasada da LG ainda pode trazer o valor de antes do comando: o menu fica com o pedido
+            var lido = _detector.ComPedidos(EstadoBasico.De(p), agora);
             var e = _conhecido?.Copia() ?? new EstadoAr();
-            e.Ligado = p.Ligado;
-            e.Modo = p.Modo ?? e.Modo;
-            e.Alvo = p.Alvo ?? e.Alvo;
+            e.Ligado = lido.Ligado;
+            e.Modo = lido.Modo ?? e.Modo;
+            e.Alvo = lido.Alvo ?? e.Alvo;
             e.Sala = p.Sala ?? e.Sala;
-            Conhecer(e, p.T, h.Value.Agora);
-            AtualizarAtiva();
+            Conhecer(e, p.T, h.Value.Agora, doHistorico: true);
+            AtualizarMenu();
             AtualizarTela();
         });
     }
@@ -235,7 +287,7 @@ internal sealed class AtividadeAr : Atividade
         _problemaComando = null;
         if (campo == "alvo") { _envioAlvo.Stop(); _envioAlvo.Start(); }
         else Enviar();
-        AtualizarAtiva();
+        AtualizarMenu();
         AtualizarTela();
     }
 
@@ -250,6 +302,7 @@ internal sealed class AtividadeAr : Atividade
         {
             Log.Escrever("ar: comando recusado aqui: " + e.Message);
             _fila.Terminou();
+            SoltarAdiado();
             return;
         }
         _versaoPost++;
@@ -261,19 +314,22 @@ internal sealed class AtividadeAr : Atividade
             _fila.Terminou();
             _versaoPost++;
             if (_parado) return;
-            if (r.Tipo == TipoResposta.Ok) Aplicar(r);
+            if (r.Tipo == TipoResposta.Ok) Aplicar(r, lote);
             else
             {
                 if (r.Tipo == TipoResposta.Chave) { _chaveRecusada = true; _problema = r.Problema; }
                 else { _problemaComando = r.Problema; _problemaComandoAte = DateTime.UtcNow + AvisoDeComando; }
-                AtualizarAtiva();
+                AtualizarMenu();
                 AtualizarTela();
             }
             if (_fila.TemEsperando && !_envioAlvo.Enabled) Enviar();
+            // a ilha recolheu com este POST no caminho: o alerta guardado sai agora, já com ele
+            SoltarAdiado();
         });
     }
 
-    private void Aplicar(RespostaAr r)
+    /// <summary>Resposta do GET /api/estado, ou do POST /api/comando (com o `pedido` que foi nele).</summary>
+    private void Aplicar(RespostaAr r, IReadOnlyDictionary<string, object>? pedido = null)
     {
         if (r.Tipo == TipoResposta.Ok)
         {
@@ -283,7 +339,23 @@ internal sealed class AtividadeAr : Atividade
             {
                 _resumo = resumo;
                 _problema = null;
-                if (resumo.Estado != null) Conhecer(resumo.Estado, resumo.LidoEm, null);
+                long agora = Environment.TickCount64;
+                if (pedido != null)
+                    Avisar(_detector.Comandou(pedido, resumo.LidoEm, resumo.Estado is { } er ? EstadoBasico.De(er) : null, agora));
+                else if (resumo.Estado != null && resumo.LidoEm is long t)
+                    Avisar(_detector.Leitura(t, EstadoBasico.De(resumo.Estado), agora));
+                if (resumo.Estado != null)
+                {
+                    var e = resumo.Estado.Copia();
+                    if (pedido == null)
+                    {
+                        var lido = _detector.ComPedidos(EstadoBasico.De(e), agora);
+                        e.Ligado = lido.Ligado;
+                        e.Modo = lido.Modo;
+                        e.Alvo = lido.Alvo;
+                    }
+                    Conhecer(e, resumo.LidoEm, null, doHistorico: false);
+                }
             }
         }
         else
@@ -292,37 +364,124 @@ internal sealed class AtividadeAr : Atividade
             _problema = r.Problema;
             if (r.Tipo == TipoResposta.Chave) _chaveRecusada = true;
         }
-        AtualizarAtiva();
+        AtualizarMenu();
         AtualizarTela();
     }
 
-    /// <summary>Guarda o que se sabe do ar e de quando é (a idade pelo relógio do servidor, quando ele manda o dele).</summary>
-    private void Conhecer(EstadoAr e, long? lidoEm, long? agoraServidor)
+    /// <summary>
+    /// Guarda o que se sabe do ar e de quando é (a idade pelo relógio do servidor, quando ele manda o dele). Ponto do
+    /// histórico só entra se for de uma leitura MAIS NOVA que a do que está guardado: o resumo do POST vem com o
+    /// lido_em antigo e o pedido aplicado, e o ponto dessa mesma leitura traria o valor de antes do comando.
+    /// </summary>
+    private void Conhecer(EstadoAr e, long? lidoEm, long? agoraServidor, bool doHistorico)
     {
         long agora = agoraServidor ?? DateTimeOffset.UtcNow.ToUnixTimeSeconds();
         var quando = lidoEm is long l ? DateTime.UtcNow - TimeSpan.FromSeconds(Math.Max(0, agora - l)) : DateTime.UtcNow;
-        if (_conhecido != null && quando < _conhecidoEm) return;
+        if (_conhecido != null)
+        {
+            if (lidoEm is long t && _conhecidoT is long ct) { if (doHistorico ? t <= ct : t < ct) return; }
+            else if (quando < _conhecidoEm) return;
+        }
         if (_conhecido?.Vento != null && e.Vento == null) e.Vento = _conhecido.Vento;
         _conhecido = e.Copia();
         _conhecidoEm = quando;
+        _conhecidoT = lidoEm ?? _conhecidoT;
+    }
+
+    // ------------------------------------------------------------------ alerta de mudança
+
+    private void Avisar(MudancaAr? m)
+    {
+        if (m == null || _parado) return;
+        if (m.PelaIlha)
+        {
+            // o comando saiu do cartão: o alerta espera a ilha recolher (aberto, ele seria desenhado por cima)
+            _adiado.Guardar(m, Environment.TickCount64);
+            SoltarAdiado();
+            return;
+        }
+        // mudança de fora com o cartão aberto já está na frente dele
+        if (!Aberta) Mostrar(m);
+    }
+
+    private void AoMudarEstado(Estado e)
+    {
+        // de dentro do Aplicar do núcleo: o alerta entra depois que ele termina
+        if (!_adiado.Vazio && S.Ilha.Expandida == null) S.NaInterface(SoltarAdiado);
+    }
+
+    /// <summary>Solta o alerta dos comandos da ilha quando nada está aberto e nenhum comando está no caminho.</summary>
+    private void SoltarAdiado()
+    {
+        if (_adiado.Vazio || _parado || S.Ilha.Expandida != null) return;
+        if (_fila.Enviando || _fila.TemEsperando || _envioAlvo.Enabled) return;
+        if (_vigiaPausada) { _adiado.Limpar(); return; }
+        if (_adiado.Soltar(_detector.Referencia, Environment.TickCount64) is { } m) Mostrar(m);
+    }
+
+    private void Mostrar(MudancaAr m)
+    {
+        var (titulo, sub) = TextosDoAlerta(m, _conhecido?.Sala);
+        var depois = m.Depois;
+        bool desligou = m.Tipo == TipoMudanca.Desligou;
+        Alertar(new Alerta
+        {
+            Tipo = "ar",
+            // o que a própria ilha mandou não precisa de som: quem mandou está olhando
+            Som = m.PelaIlha ? "" : "chegada",
+            Segundos = ALERTA_SEGUNDOS,
+            Criar = p =>
+            {
+                var c = p.NovaCena(new Vector2(300, 52));
+                p.Desenho(c, Vector2.Zero, c.Tamanho, (dc, t) =>
+                {
+                    var centro = new Vector2(26, 26);
+                    var cor = ContasAr.CorModo(depois.Modo);
+                    Icone.Circulo(dc, centro, 20, desligou ? Cor.Fraco : Alfa(cor, 0.22f));
+                    if (m.Tipo == TipoMudanca.Ajuste) IconesAr.DoModo(dc, p.G.Fabrica, depois.Modo, centro, 10, cor);
+                    else IconesAr.Energia(dc, p.G.Fabrica, centro, 9, desligou ? Cor.Branco : cor, 2.4f);
+                    p.Texto.Desenhar(dc, titulo, new Vector2(60, 4), 17, Cor.Branco, largura: t.X - 60);
+                    p.Texto.Desenhar(dc, sub, new Vector2(60, 28), 13, Cor.Secundario, FontWeight.Normal, largura: t.X - 60);
+                });
+                return c;
+            },
+        });
+    }
+
+    /// <summary>Título e linha de baixo do alerta ("Ar ligado" / "Gelando · 22°", "Ar em 23°" / "Era 22° · Gelando"...).</summary>
+    internal static (string Titulo, string Sub) TextosDoAlerta(MudancaAr m, double? sala)
+    {
+        var d = m.Depois;
+        bool temAlvo = d.Alvo != null && d.Modo != "FAN";
+        string acao = d.Modo != null ? ContasAr.AcaoModo(d.Modo) : "";
+        string graus = temAlvo ? ContasAr.FormatarGraus(d.Alvo) : "";
+        string salaTxt = sala != null ? "Sala com " + ContasAr.FormatarGraus(sala) : "";
+        static string Juntar(params string[] partes) => string.Join(" · ", Array.FindAll(partes, x => x.Length > 0));
+        switch (m.Tipo)
+        {
+            case TipoMudanca.Ligou:
+                return ("Ar ligado", Juntar(acao, graus));
+            case TipoMudanca.Desligou:
+                return ("Ar desligado", salaTxt.Length > 0 ? salaTxt : "Ar do quarto");
+            default:
+                if (m.MudouModo)
+                    return ("Ar no modo " + ContasAr.NomeModo(d.Modo), Juntar(graus, m.MudouAlvo ? "era " + ContasAr.FormatarGraus(m.Antes.Alvo) : ""));
+                return ("Ar em " + graus, Juntar("Era " + ContasAr.FormatarGraus(m.Antes.Alvo), acao));
+        }
     }
 
     // ------------------------------------------------------------------ o que mostrar
 
     private EstadoAr? NoCartao => ContasAr.Mesclar(_resumo?.Estado, _fila.Locais);
-    private EstadoAr? NaPilula => ContasAr.Mesclar(_conhecido, _fila.Locais);
 
-    private void AtualizarAtiva()
+    /// <summary>O detalhe ou o ícone da entrada do menu mudou: o menu aberto redesenha.</summary>
+    private void AtualizarMenu()
     {
-        var e = NaPilula;
-        bool ligado = !_parado && Configurado && !_chaveRecusada && e?.Ligado == true && DateTime.UtcNow - _conhecidoEm < Validade;
-        if (ligado && !Ativa) Ligar();
-        else if (!ligado && Ativa)
-        {
-            // desligar a atividade com o cartão aberto fecharia o cartão no meio do uso: espera ele fechar
-            // (o TiqueLeitura chama de novo quando ele fecha)
-            if (!Aberta) Desligar();
-        }
+        var k = Conhecido;
+        string? detalhe = DetalheDoMenu() + "|" + k?.Ligado + "|" + k?.Modo;
+        if (detalhe == _detalheMostrado) return;
+        _detalheMostrado = detalhe;
+        S.Menu.Redesenhar();
     }
 
     private string ChaveLayout()
@@ -345,9 +504,7 @@ internal sealed class AtividadeAr : Atividade
             return;
         }
         var e = NoCartao;
-        var p = NaPilula;
-        string assinatura = string.Join("|", e?.Ligado, e?.Modo, e?.Alvo, e?.Sala, e?.Vento, e?.Erro, p?.Ligado, p?.Modo, p?.Alvo,
-            Aviso()?.Texto, Meta(), _avisoEntrada);
+        string assinatura = string.Join("|", e?.Ligado, e?.Modo, e?.Alvo, e?.Sala, e?.Vento, e?.Erro, Aviso()?.Texto, Meta(), _avisoEntrada);
         if (assinatura == _assinaturaTela) return;
         _assinaturaTela = assinatura;
         Redesenhar();
@@ -432,45 +589,17 @@ internal sealed class AtividadeAr : Atividade
 
     protected override Cena Montar(Palco p, Forma f)
     {
-        switch (f)
+        // nunca fica na pílula (a atividade não liga): só o cartão é pedido
+        if (Aberta && !_leitura.Enabled) S.NaInterface(AbriuCartao);
+        _layout = ChaveLayout();
+        _assinaturaTela = "";
+        return _layout switch
         {
-            case Forma.Bolha:
-            {
-                var c = p.NovaCena(new Vector2(22, 22));
-                p.Desenho(c, Vector2.Zero, c.Tamanho, (dc, t) =>
-                {
-                    var e = NaPilula;
-                    IconesAr.DoModo(dc, p.G.Fabrica, e?.Modo, new Vector2(11, 11), 9, ContasAr.CorModo(e?.Modo));
-                });
-                return c;
-            }
-            case Forma.Compacta:
-            {
-                var c = p.NovaCena(new Vector2(144, 24));
-                p.Desenho(c, Vector2.Zero, c.Tamanho, (dc, t) =>
-                {
-                    var e = NaPilula;
-                    var cor = ContasAr.CorModo(e?.Modo);
-                    IconesAr.DoModo(dc, p.G.Fabrica, e?.Modo, new Vector2(12, 12), 9, cor);
-                    bool temAlvo = e?.Alvo != null && e.Modo != "FAN";
-                    string txt = temAlvo ? ContasAr.FormatarGraus(e!.Alvo) : ContasAr.FormatarGraus(e?.Sala);
-                    var tam = p.Texto.Medir(txt, 15, FontWeight.SemiBold, tabular: true);
-                    p.Texto.Desenhar(dc, txt, new Vector2(t.X - tam.X, (t.Y - tam.Y) / 2), 15, temAlvo ? cor : Cor.Secundario, FontWeight.SemiBold, tabular: true);
-                });
-                return c;
-            }
-            default:
-                if (Aberta && !_leitura.Enabled) S.NaInterface(AbriuCartao);
-                _layout = ChaveLayout();
-                _assinaturaTela = "";
-                return _layout switch
-                {
-                    "digitando" => CenaDigitando(p),
-                    "lendo" => CenaLendo(p),
-                    _ when _layout.StartsWith("config") => CenaConfig(p),
-                    _ => CenaCompleta(p),
-                };
-        }
+            "digitando" => CenaDigitando(p),
+            "lendo" => CenaLendo(p),
+            _ when _layout.StartsWith("config") => CenaConfig(p),
+            _ => CenaCompleta(p),
+        };
     }
 
     private static Color4 Alfa(Color4 c, float a) => new(c.R, c.G, c.B, c.A * a);
@@ -821,6 +950,23 @@ internal static class IconesAr
         using var traco = f.CreateStrokeStyle(new StrokeStyleProperties { StartCap = CapStyle.Round, EndCap = CapStyle.Round });
         dc.DrawGeometry(g, b, esp, traco);
         Icone.Linha(dc, new Vector2(c.X, c.Y - r * 1.12f), new Vector2(c.X, c.Y - r * 0.2f), esp, cor, f);
+    }
+
+    /// <summary>
+    /// O ícone do menu: o aparelho na parede e três traços de vento saindo, na cor do modo quando se sabe que está
+    /// ligado (cinza quando desligado ou sem leitura recente).
+    /// </summary>
+    public static void Aparelho(ID2D1DeviceContext dc, ID2D1Factory1 f, RectangleF r, EstadoAr? e)
+    {
+        float x = r.X, y = r.Y, s = r.Width / 24f;
+        Icone.Retangulo(dc, x + 1 * s, y + 3 * s, 22 * s, 10 * s, 3 * s, new Color4(1, 1, 1, 0.92f));
+        Icone.Linha(dc, new Vector2(x + 5 * s, y + 10 * s), new Vector2(x + 19 * s, y + 10 * s), 1.4f * s, new Color4(0, 0, 0, 0.55f), f);
+        var cor = e?.Ligado == true ? ContasAr.CorModo(e.Modo) : Cor.Secundario;
+        for (int i = -1; i <= 1; i++)
+        {
+            float cx = x + (12 + i * 5.5f) * s;
+            Icone.Linha(dc, new Vector2(cx, y + 15.5f * s), new Vector2(cx + i * 1.6f * s, y + 21.5f * s), 1.8f * s, cor, f);
+        }
     }
 
     /// <summary>Uma chave pequena (o botão de trocar a chave do servidor).</summary>

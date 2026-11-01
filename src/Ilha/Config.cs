@@ -45,6 +45,12 @@ public sealed class Config
     // com o Não Incomodar (ou uma sessão de Foco) ligado: sem chegada nem alerta, menos alarme de timer
     [JsonPropertyName("respeitarNaoPerturbe")] public bool RespeitarNaoPerturbe { get; set; } = true;
     [JsonPropertyName("alertaSegundos")] public float AlertaSegundos { get; set; } = 4f;
+    // depois que o mouse sai do cartão aberto, quanto esperar antes de recolher (o mouse voltando cancela)
+    [JsonPropertyName("atrasoRecolherMs")] public int AtrasoRecolherMs { get; set; } = 600;
+    // borda fina e clara que aparece só com fundo escuro atrás (não existe no modo colado)
+    [JsonPropertyName("bordaAdaptativa")] public bool BordaAdaptativa { get; set; } = true;
+    // a hora no meio da pílula compacta, quando a atividade deixa o meio livre (nunca na área de trabalho)
+    [JsonPropertyName("relogio")] public bool Relogio { get; set; } = true;
     // ordem entre as atividades; alerta não entra: ele sempre passa por cima de todas
     [JsonPropertyName("prioridades")] public List<string> Prioridades { get; set; } = new() { "volume", "claude", "ia", "timer", "midia", "uso" };
     // nome do .exe (com ou sem ".exe"), sem diferença de maiúscula
@@ -91,6 +97,7 @@ public sealed class Config
             c.Tamanho = Limite(c.Tamanho, 0.5f, 3f, 1f);
             c.DistanciaDoTopo = Limite(c.DistanciaDoTopo, 0f, 200f, 10f);
             c.AlertaSegundos = Limite(c.AlertaSegundos, 1f, 60f, 4f);
+            c.AtrasoRecolherMs = Math.Clamp(c.AtrasoRecolherMs, 0, 5000);
             c.Mola.Amortecimento = Limite(c.Mola.Amortecimento, 0.3f, 1.5f, 0.68f);
             c.Mola.PeriodoMs = Limite(c.Mola.PeriodoMs, 20f, 200f, 55f);
             return c;

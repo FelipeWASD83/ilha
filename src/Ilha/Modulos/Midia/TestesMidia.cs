@@ -25,6 +25,7 @@ internal static class TestesMidia
         Executar("formato do áudio", TestarFormato);
         Executar("cor da capa", TestarCor);
         Executar("textos e volume", TestarTextos);
+        Executar("meio livre da pílula", TestarMeio);
         Executar("sondas", Sondas);
         return _s.ToString().TrimEnd('\n');
     }
@@ -330,6 +331,15 @@ internal static class TestesMidia
     }
 
     // ------------------------------------------------------------------ textos
+
+    private static void TestarMeio()
+    {
+        var (de, ate) = AtividadeMidia.MeioLivre();
+        Ok(de >= AtividadeMidia.CAPA_COMPACTA + AtividadeMidia.FOLGA_MEIO, $"meio livre começa depois da capa ({de})");
+        Ok(ate <= AtividadeMidia.InicioDoVisualizador - AtividadeMidia.FOLGA_MEIO, $"meio livre acaba antes do visualizador ({ate})");
+        Ok(MathF.Abs((de + ate) / 2 - AtividadeMidia.COMPACTA_L / 2) < 0.01f, "meio livre centrado na pílula");
+        Ok(ate - de >= 60, $"meio livre cabe a hora ({ate - de} DIP)");
+    }
 
     private static void TestarTextos()
     {

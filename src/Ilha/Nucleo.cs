@@ -28,6 +28,7 @@ internal sealed class Nucleo : IDisposable
     private readonly Atalhos _atalhos;
     private readonly Entrada _entrada;
     private readonly Indicadores _indicadores = new();
+    private readonly MenuDaIlha _menu = new();
     private readonly Servicos _servicos;
     private readonly Dictionary<string, Modulo> _modulos = new();
     private readonly Dictionary<string, string> _cfgModulos = new();
@@ -47,7 +48,23 @@ internal sealed class Nucleo : IDisposable
         _vis = new JanelaVisual();
         _toque = new JanelaToque();
         Ilha = new Ilha(_g, Config, _vis, _toque);
-        Ilha.DefinirPainel(new Painel());
+        Ilha.DefinirPainel(new Menu(_menu));
+        _menu.Adicionar(new ItemDoMenu
+        {
+            Id = "configuracoes", Nome = "Configurações", Ordem = 1000, Abrir = AbrirConfiguracoes,
+            Icone = (dc, p, r) =>
+            {
+                // engrenagem: anel com dentes
+                var c = new System.Numerics.Vector2(r.X + r.Width / 2, r.Y + r.Height / 2);
+                for (int i = 0; i < 8; i++)
+                {
+                    float a = i * MathF.PI / 4;
+                    var d = new System.Numerics.Vector2(MathF.Cos(a), MathF.Sin(a));
+                    Icone.Linha(dc, c + d * 7, c + d * 11, 3.2f, Cor.Branco, p.G.Fabrica);
+                }
+                Icone.Anel(dc, p.G.Fabrica, c, 7, 3, 1, Cor.Branco);
+            },
+        });
         Aquecer();
         Demonstracao = new Demonstracao(Ilha);
 
@@ -63,6 +80,8 @@ internal sealed class Nucleo : IDisposable
         Ilha.Sons = _sons;
         Ilha.Indicadores = _indicadores;
         _entrada = new Entrada();
+        Ilha.Entrada = _entrada;
+        _entrada.AoEsc = Ilha.VoltarPeloEsc;
         _atalhos = new Atalhos(_vis.Handle, () => Config);
 
         _vis.TelaMudou += () => Ilha.Reposicionar();
@@ -72,7 +91,7 @@ internal sealed class Nucleo : IDisposable
         _teclas = new Teclas(_vis.Handle);
         _servicos = new Servicos
         {
-            Ilha = Ilha, Sons = _sons, Atalhos = _atalhos, Entrada = _entrada, Indicadores = _indicadores,
+            Ilha = Ilha, Sons = _sons, Atalhos = _atalhos, Entrada = _entrada, Indicadores = _indicadores, Menu = _menu,
             ContextoAtual = () => _visib.Atual, Config = () => Config, SalvarModulo = SalvarModulo,
             Avisar = texto => _bandeja?.Avisar(texto),
         };
@@ -157,6 +176,7 @@ internal sealed class Nucleo : IDisposable
                     // o que o módulo pediu ao núcleo sai junto: atalhos e atividades
                     _atalhos.RemoverDoDono(vivo.Id);
                     Ilha.RemoverDoDono(vivo.Id);
+                    _menu.RemoverDoDono(vivo.Id);
                     _modulos.Remove(m.Info.Id);
                     Log.Escrever($"módulo {m.Info.Id} desligado");
                 }
@@ -177,8 +197,9 @@ internal sealed class Nucleo : IDisposable
                 // marca de quem são os atalhos e as atividades pedidos durante o Iniciar
                 _atalhos.Dono = mod.Id;
                 Ilha.DonoAtual = mod.Id;
+                _menu.Dono = mod.Id;
                 try { mod.Ligar(_servicos, secao); }
-                finally { _atalhos.Dono = null; Ilha.DonoAtual = null; }
+                finally { _atalhos.Dono = null; Ilha.DonoAtual = null; _menu.Dono = null; }
                 mod.Contexto(_visib.Atual);
                 _modulos[mod.Id] = mod;
                 _cfgModulos[mod.Id] = texto;
@@ -195,11 +216,16 @@ internal sealed class Nucleo : IDisposable
                     try { mod.Parar(); } catch (Exception e2) { Log.Escrever($"módulo {m.Info.Id} (parar depois da falha): {e2}"); }
                     _atalhos.RemoverDoDono(m.Info.Id);
                     Ilha.RemoverDoDono(m.Info.Id);
+                    _menu.RemoverDoDono(m.Info.Id);
                 }
             }
         }
         if (novaSecao) Config.Salvar();
     }
+
+    /// <summary>A tela de configurações (menu do ícone e menu principal da ilha).</summary>
+    public void AbrirConfiguracoes() =>
+        JanelaDeConfiguracoes.Mostrar(() => Config, c => c.Salvar(), JanelaDeConfiguracoes.ModulosDaConfig(Config), _atalhos.Padroes);
 
     private void SalvarModulo(string id, object? dados)
     {

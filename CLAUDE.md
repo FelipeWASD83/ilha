@@ -5,7 +5,8 @@ que está acontecendo (mídia, timer, Claude Code, alertas). Criada em 01/11/202
 aprovado em 7 fases. Repositório **público** (`FelipeWASD83/ilha`, MIT), escolha dele ao criar. O README
 explica o uso; aqui ficam as decisões e as armadilhas.
 
-**Fases 1 a 7 entregues (0.3.0, 01/11/2026).** 0.1.0 foi o núcleo; 0.2.0 as animações das logos e das
+**0.4.0 (01/11/2026): menu principal, foco só no clique, borda adaptativa, relógio, conta-gotas, prateleira, nota,
+mixer, gravando, limite do Claude, mascote como palco e o ar só avisando quando muda.** Fases 1 a 7 entregues na 0.3.0. 0.1.0 foi o núcleo; 0.2.0 as animações das logos e das
 bolinhas, o instalador, o Menu Iniciar e o iniciar com o Windows; 0.3.0 todos os módulos (mídia, volume,
 câmera/mic, sons, timer, uso do PC, Claude Code, mascote, calculadora, IA, tradutor, ar, fones, print, render,
 notificações), a tela de configurações e o atualizador. Os módulos foram escritos em paralelo por agentes, cada um
@@ -93,10 +94,54 @@ antes do plano; o resumo está no plano aprovado na conversa de 01/11/2026 e os 
   em `127.0.0.1:8089`, **nunca o servidor da casa**.
 - **Notificações**: lê o `wpndatabase.db` (a API oficial exige identidade de pacote); esquema não documentado,
   desligado por padrão e com lista de apps vazia.
-- **Config local do Felipe** (fora do git, em `~/.ilha/config.json`): `claude.arquivoEventos`,
-  `mascote.arquivoEventos`, `mascote.pastaFolhas` e `ar.endereco` apontam para coisas do PC dele (a fila de eventos
-  que os hooks do mascote já escrevem, as folhas do Clawd e o mini PC). Os caminhos ficam só lá: nada de caminho
-  pessoal nem nome de projeto privado no repositório (é público).
+- **Config local do Felipe** (fora do git, em `~/.ilha/config.json`): `claude.arquivoEventos` (a fila que os hooks
+  do mascote escrevem), `mascote.comandoAbrir` (o mesmo comando do atalho "Mascote" do Menu Iniciar),
+  `nota.arquivo` (a `Vida\Caixa de entrada.md` do cofre), `limite.statuslineAnterior` (a status line de antes) e
+  `ar.endereco` (o mini PC). Os caminhos ficam só lá: nada de caminho pessoal nem nome de projeto privado no
+  repositório (é público).
+
+## Núcleo da 0.4.0 (não desfazer sem ler)
+
+- **Menu principal** (`Menu.cs`): substitui o painel de hora e data. Cada módulo põe as entradas dele por
+  `S.Menu.Adicionar(new ItemDoMenu {...})` (ícone só com formas, nunca letra); o núcleo marca o dono e tira as entradas
+  quando o módulo desliga. Todo cartão aberto que não é o menu ganha a faixa "< Menu" em cima: o núcleo embrulha a
+  cena (`ComVoltar`, `Cena.Interna`), e os botões da cena de dentro continuam valendo com o deslocamento.
+- **Teclado:** a ilha só pega o foco num clique nela (`Entrada.Focar`, a mesma janela invisível dos campos, em modo só
+  teclas). O Esc volta para o menu **só se a ilha foi clicada** (`_clicada`); aberta pelo atalho, o Esc fecha e
+  devolve o foco, como antes. Recolher sempre devolve o foco (`Entrada.Fechar`). Esc nunca é capturado no Windows
+  todo (o conta-gotas registra o Esc só enquanto a lupa está aberta).
+- **Mouse e região (o bug "fica em cima do mouse", reproduzido com o `--teste-mouse` em 01/11/2026):** um alerta que
+  nascia embaixo do cursor parado ganhava um WM_MOUSEMOVE falso do Windows, a ilha achava que o mouse estava em cima
+  e o alerta nunca saía (ficou 10 s quando devia sumir em 4). Agora o movimento com o cursor no mesmo ponto da última
+  troca de região não conta (`_cursorNaMudanca`), um vigia de 150 ms confere com `WindowFromPoint` enquanto a ilha
+  acha que o mouse está em cima, e a região de toque só cresce quando a mola assenta (antes ia para o tamanho final
+  na hora e segurava clique em cima de outro app), menos quando foi o próprio mouse que abriu. Botão solto que não
+  desceu na janela de toque não é clique.
+- **Atraso para recolher:** `atrasoRecolherMs` (600).
+- **Borda adaptativa** (`SondaDeFundo.cs`): traço de 1 px por fora da pílula e da bolha, aceso só com fundo escuro.
+  A sonda faz um BitBlt das faixas logo fora da pílula e da sombra (atrás dela a própria ilha cobre), 2 vezes por
+  segundo, só com a ilha visível e nunca com tela cheia na frente; histerese 0,22/0,30. Medido em 01/11/2026: cada
+  leitura espera o compositor ~10 ms e, a 4 por segundo, custava +0,01% de processador (0,020% contra 0,010%); a
+  espera é que motivou baixar para 2 e parar em tela cheia (jogo). O custo vai para o log a cada minuto ("borda: N
+  leituras"). Não existe no modo colado.
+- **Relógio:** a atividade declara `MeioLivreCompacta`; o núcleo desenha a hora ali quando cabe, nunca na área de
+  trabalho.
+- **Soltar arquivos** (`Soltura.cs`): alvo OLE na janela de toque, só caminhos de verdade, efeito atalho ou cópia
+  (nunca mover). Com a ilha escondida, a pílula vazia aparece no topo do meio quando um arraste de arquivo (a captura
+  do mouse está numa janela `CLIPBRDWNDCLASS`, a do DoDragDrop) que começou fora dali chega perto. **Não confirmado
+  na tela** se essa classe é a do arraste do Explorer neste Windows: se a zona nunca aparecer, o log diz qual classe
+  viu ("zona de soltar: captura com ...").
+- **Mascote:** o módulo é só o palco. O app do mascote (projeto privado, fora daqui) manda o quadro pronto pelo pipe
+  `\\.\pipe\ilha-acompanhante` (servido pela ilha, só o mesmo usuário) e recebe onde a pílula está, para entrar
+  quando é solto em cima dela e sair quando é arrastado de dentro.
+- **Limite do Claude:** `ferramentas/statusline_uso.py` fica no lugar da status line do Claude Code, grava só
+  `rate_limits` em `~/.ilha/uso-claude.json` e chama a status line de antes (instalado em 01/11/2026; cópia do
+  settings em `settings.json.antes-limite`). **Em aberto:** se as sessões do app Desktop rodam a status line; até o
+  fim da sessão de 01/11/2026 o arquivo não tinha aparecido (a sessão já estava aberta antes da troca).
+- **Ar:** saiu da pílula. O módulo lê `GET /api/historico` (que não faz o servidor ler a LG) de 45 em 45 s e avisa
+  quando ligado, modo ou alvo mudam; temperatura da sala sozinha não avisa. Mudança feita pela ilha avisa na hora e a
+  confirmação que vem depois fica calada. Mudança pelo controle remoto aparece em até 15 min (a cadência do servidor
+  com ninguém olhando), ou 3 min com algo olhando.
 
 ## Aprovar permissão do Claude Code pela ilha
 
@@ -171,6 +216,12 @@ questão. Release feita fora deste PC terá outro hash: testar o `.exe` do pacot
   partida pequeno e o aquecimento de fontes e janela ao abrir).
 
 ## Testado e não testado
+
+**0.4.0 (01/11/2026):** autotestes de todos os 21 módulos passam (`--testar`: 1195 ok). O bug do mouse foi
+reproduzido na 0.3.0 com o `--teste-mouse` (alerta preso 10 s, região cobrindo o cursor aos 12 ms). Revisão com
+agentes achou e corrigiu 11 defeitos do núcleo novo (Esc pelo atalho prendia o menu, zona de soltar abrindo com
+qualquer clique segurado, foco roubado da tela de configurações, entre outros) e os módulos tiveram conferência
+própria. O resto do que foi visto ou não na tela fica na seção da versão no `CHANGELOG.md` e no relatório da sessão.
 
 **0.3.0 (01/11/2026):** os autotestes de todos os módulos passam (`--testar`: 912 ok, 1 pulou porque o simulador do
 ar não estava aberto). Na tela, com a ilha de verdade e os atalhos globais: pílula com o Claude Code real (sessões

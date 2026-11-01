@@ -41,6 +41,8 @@ internal sealed class Audio : IDisposable
     public event Action<bool>? VolumeMudou;
     /// <summary>A lista de saídas ou o padrão mudou.</summary>
     public event Action? ListaMudou;
+    /// <summary>A saída padrão (multimídia) trocou; IdPadrao já é a nova (null = nenhuma).</summary>
+    public event Action? PadraoMudou;
     /// <summary>Um aparelho conectou (true) ou desconectou (false); o id é o do endpoint que mudou.</summary>
     public event Action<string, bool>? Conexao;
 
@@ -148,6 +150,7 @@ internal sealed class Audio : IDisposable
             Mudo = false;
             Db = float.NegativeInfinity;
             ListaMudou?.Invoke();
+            PadraoMudou?.Invoke();
             return;
         }
         try
@@ -165,6 +168,7 @@ internal sealed class Audio : IDisposable
         catch (Exception e) { Log.Escrever("volume: aparelho padrão: " + e.Message); SoltarVolume(); }
         finally { Com.Soltar(d); }
         ListaMudou?.Invoke();
+        PadraoMudou?.Invoke();
     }
 
     private void Reler()

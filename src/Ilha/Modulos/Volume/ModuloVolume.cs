@@ -1,5 +1,7 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
+using System.Numerics;
 using System.Runtime.InteropServices;
 using System.Text;
 using System.Text.Json.Nodes;
@@ -17,6 +19,10 @@ public sealed class ConfigVolume
     [JsonPropertyName("mostrarConexoes")] public bool MostrarConexoes { get; set; } = true;
     // EXPERIMENTAL: some com o pop-up de volume do Windows (some junto com o de brilho, modo avião e área de trabalho virtual)
     [JsonPropertyName("esconderOsdDoWindows")] public bool EsconderOsdDoWindows { get; set; }
+    // volume de cada app (Spotify, Discord, navegador, jogo) no cartão, na aba "Apps"
+    [JsonPropertyName("mixer")] public bool Mixer { get; set; } = true;
+    // mostrar também os apps com som aberto mas parado agora (como o mixer antigo do Windows)
+    [JsonPropertyName("mostrarParados")] public bool MostrarParados { get; set; }
 
     internal void Corrigir()
     {
@@ -32,6 +38,11 @@ internal sealed class ModuloVolume : Modulo
     private Audio? _audio;
     private AtividadeVolume? _atv;
     private OsdDoWindows? _osd;
+    private Mixer? _mixer;
+    private IconesDeApps? _icones;
+    private bool _competitivo;
+    private List<string>? _listaCompetitiva;
+    private string? _detalheMenu;
     private readonly Dictionary<string, DateTime> _avisados = new();
 
     public override Type? TipoConfig => typeof(ConfigVolume);
@@ -43,13 +54,31 @@ internal sealed class ModuloVolume : Modulo
         // se a ilha anterior morreu com o pop-up nativo escondido, ele volta antes de qualquer coisa
         OsdDoWindows.RestaurarDaUltimaVez();
         _audio = new Audio(S.NaInterface);
-        _atv = new AtividadeVolume(_audio, () => _cfg, () => S.Ilha.Expandida == _atv);
+        _icones = new IconesDeApps(S.NaInterface);
+        _atv = new AtividadeVolume(_audio, () => _cfg, () => S.Ilha.Expandida == _atv, () => _mixer, _icones);
         S.Ilha.Adicionar(_atv);
         _audio.VolumeMudou += AoMudarVolume;
         _audio.ListaMudou += () => _atv?.ListaMudou();
         _audio.Conexao += AoConectar;
+        _audio.PadraoMudou += () => _mixer?.TrocarAparelho(_audio?.IdPadrao);
         _audio.Iniciar();
         AplicarOsd();
+        _competitivo = S.ContextoAtual().Competitivo;
+        AplicarMixer();
+        S.Menu.Adicionar(new ItemDoMenu
+        {
+            Id = "volume",
+            Nome = "Som",
+            Ordem = 30,
+            Abrir = AbrirCartao,
+            Icone = (dc, p, r) =>
+            {
+                bool mudo = _audio?.Mudo ?? false;
+                Desenhos.AltoFalante(dc, p.G.Fabrica, new Vector2(r.X, r.Y), r.Width / 24f, Cor.Branco, Logica.Ondas(_audio?.Escala ?? 0, mudo), mudo);
+            },
+            Detalhe = DetalheDoMenu,
+        });
+        _detalheMenu = DetalheDoMenu();
     }
 
     public override void ConfigMudou(JsonObject cfg)
@@ -57,7 +86,53 @@ internal sealed class ModuloVolume : Modulo
         _cfg = Ler<ConfigVolume>(cfg);
         _cfg.Corrigir();
         AplicarOsd();
+        AplicarMixer();
     }
+
+    public override void Contexto(Contexto ctx)
+    {
+        if (_mixer != null && !ReferenceEquals(_listaCompetitiva, S.Config().JogosCompetitivos))
+        {
+            _listaCompetitiva = S.Config().JogosCompetitivos;
+            _mixer.TrocarCompetitivos(_listaCompetitiva);
+        }
+        if (ctx.Competitivo == _competitivo) return;
+        _competitivo = ctx.Competitivo;
+        AplicarMixer();
+    }
+
+    /// <summary>
+    /// O mixer existe com ele ligado na config e fora do modo competitivo (no jogo competitivo as sessões, inclusive a
+    /// do jogo, são soltas). Reabre sozinho ao sair do jogo.
+    /// </summary>
+    private void AplicarMixer()
+    {
+        bool quer = _cfg.Mixer && !_competitivo && _audio != null;
+        if (quer && _mixer == null)
+        {
+            _listaCompetitiva = S.Config().JogosCompetitivos;
+            var m = new Mixer(S.NaInterface, _listaCompetitiva);
+            m.Mudou += l => { if (_mixer == m) _atv?.AppsMudaram(l); };
+            _mixer = m;
+            m.Iniciar(_audio!.IdPadrao);
+        }
+        else if (!quer && _mixer != null)
+        {
+            _mixer.Dispose();
+            _mixer = null;
+            _atv?.SemMixer();
+        }
+    }
+
+    private void AbrirCartao()
+    {
+        if (_atv == null) return;
+        _atv.AbrirCartao();
+        S.Ilha.Expandir(_atv);
+    }
+
+    private string? DetalheDoMenu() =>
+        _audio is not { TemAparelho: true } a ? "sem saída" : a.Mudo ? "mudo" : Logica.Porcentagem(a.Escala) + "%";
 
     private void AplicarOsd()
     {
@@ -75,6 +150,9 @@ internal sealed class ModuloVolume : Modulo
             _osd.MudouDeFora(!ctx.Competitivo && !ctx.D3DExclusivo && !S.Config().Pausada);
         }
         _atv.VolumeMudou(deFora);
+        // o menu só redesenha quando o número que ele mostra muda
+        var d = DetalheDoMenu();
+        if (d != _detalheMenu) { _detalheMenu = d; S.Menu.Redesenhar(); }
     }
 
     private void AoConectar(string id, bool conectou)
@@ -93,6 +171,10 @@ internal sealed class ModuloVolume : Modulo
     {
         _osd?.Dispose();
         _osd = null;
+        _mixer?.Dispose();
+        _mixer = null;
+        _icones?.Dispose();
+        _icones = null;
         _atv?.Esconder();
         _audio?.Dispose();
         _audio = null;
@@ -224,8 +306,209 @@ internal sealed class ModuloVolume : Modulo
 
         Conferir(Marshal.SizeOf<ValorDePropriedade>() == 24 && Marshal.SizeOf<ChaveDePropriedade>() == 20, "PROPVARIANT com 24 bytes e PROPERTYKEY com 20");
 
+        TestarMixer(Conferir);
         Sonda(r, Conferir);
+        SondaDoMixer(r, Conferir);
         return r.ToString().TrimEnd();
+    }
+
+    /// <summary>A lógica do mixer por app: identificador, caminho, nome, agrupamento e rolagem (nomes de exemplo).</summary>
+    private static void TestarMixer(Action<bool, string> conferir)
+    {
+        const string vazio = "{00000000-0000-0000-0000-000000000000}";
+        string idApp = "{0.0.0.00000000}.{6f1a}|\\Device\\HarddiskVolume3\\Programas\\Tocador\\tocador.exe%b" + vazio;
+        conferir(LogicaDoMixer.CaminhoNoIdentificador(idApp) == "\\Device\\HarddiskVolume3\\Programas\\Tocador\\tocador.exe", "caminho do .exe tirado do identificador da sessão");
+        conferir(LogicaDoMixer.CaminhoNoIdentificador("{0.0.0.00000000}.{6f1a}|#%b{A9EF3FD9-4240-455E-A4D5-F2B3301887B2}") == null, "identificador dos sons do sistema (\"#\") não tem caminho");
+        conferir(LogicaDoMixer.CaminhoNoIdentificador(null) == null && LogicaDoMixer.CaminhoNoIdentificador("sem barra") == null
+            && LogicaDoMixer.CaminhoNoIdentificador("x|\\Device\\HarddiskVolume3\\pasta%b" + vazio) == null, "identificador fora do formato (ou sem .exe) não inventa caminho");
+        conferir(LogicaDoMixer.CaminhoNoIdentificador("x|\\Device\\HarddiskVolume3\\a.exe") == "\\Device\\HarddiskVolume3\\a.exe", "identificador sem o \"%b\" no fim também serve");
+
+        var mapa = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["\\Device\\HarddiskVolume3"] = "C:",
+            ["\\Device\\HarddiskVolume30"] = "D:",
+        };
+        conferir(LogicaDoMixer.ParaCaminhoDos("\\Device\\HarddiskVolume3\\Programas\\x.exe", mapa) == "C:\\Programas\\x.exe", "\\Device\\HarddiskVolume3 vira C:");
+        conferir(LogicaDoMixer.ParaCaminhoDos("\\Device\\HarddiskVolume30\\Jogos\\y.exe", mapa) == "D:\\Jogos\\y.exe", "Volume30 não casa com o prefixo do Volume3");
+        conferir(LogicaDoMixer.ParaCaminhoDos("\\device\\harddiskvolume3\\z.exe", mapa) == "C:\\z.exe", "sem diferença de maiúscula no aparelho");
+        conferir(LogicaDoMixer.ParaCaminhoDos("\\Device\\HarddiskVolume9\\z.exe", mapa) == null && LogicaDoMixer.ParaCaminhoDos("E:\\a.exe", mapa) == "E:\\a.exe", "aparelho sem letra devolve null; caminho com letra fica como está");
+
+        conferir(LogicaDoMixer.Indireto("@%SystemRoot%\\System32\\AudioSrv.Dll,-202") && !LogicaDoMixer.Indireto("Tocador") && !LogicaDoMixer.Indireto(null), "nome indireto (@dll,-id) reconhecido");
+        var lista = new[] { "jogo.exe", "Outro" };
+        conferir(LogicaDoMixer.EhCompetitivo("JOGO.EXE", lista) && LogicaDoMixer.EhCompetitivo("outro.exe", lista) && LogicaDoMixer.EhCompetitivo("C:\\x\\Jogo.exe", lista), "lista competitiva com e sem \".exe\", sem diferença de maiúscula, pelo caminho");
+        conferir(!LogicaDoMixer.EhCompetitivo("tocador.exe", lista) && !LogicaDoMixer.EhCompetitivo(null, lista) && !LogicaDoMixer.EhCompetitivo("", lista), "o que não está na lista não é competitivo");
+
+        SessaoDeSom Se(string id, uint pid, string? cam, int estado = LogicaDoMixer.Ativa, float vol = 1f, bool mudo = false, bool sistema = false,
+            string? exib = null, string? desc = null, string? exe = null, bool vivo = true) =>
+            new(id, pid, sistema, cam, exe, exib, desc, estado, vol, mudo, vivo);
+
+        const string nav = "C:\\Programas\\Navegador\\nav.exe";
+        var sessoes = new List<SessaoDeSom>
+        {
+            Se("a", 10, nav, LogicaDoMixer.Inativa, 0.3f, desc: "Navegador Exemplo"),
+            Se("b", 11, nav.ToUpperInvariant(), LogicaDoMixer.Ativa, 0.8f, desc: "Navegador Exemplo"),
+            Se("c", 20, "C:\\Programas\\Chat\\chat.exe", LogicaDoMixer.Ativa, 0.5f, mudo: true, desc: "Chat Exemplo"),
+            Se("d", 0, null, LogicaDoMixer.Inativa, 1f, sistema: true, exib: "@%SystemRoot%\\System32\\AudioSrv.Dll,-202"),
+            Se("e", 30, "C:\\Jogos\\Velho\\velho.exe", LogicaDoMixer.Expirada),
+            Se("f", 40, "C:\\Jogos\\Fechado\\fechado.exe", vivo: false),
+            Se("g", 50, null, exe: "semcaminho.exe"),
+            Se("h", 51, null, exe: "semcaminho.exe"),
+            Se("i", 60, "C:\\Programas\\Musica\\musica.exe", LogicaDoMixer.Ativa, 0.4f, exib: "Música", desc: "Descrição do arquivo"),
+        };
+        var apps = LogicaDoMixer.Agrupar(sessoes);
+        var navApp = apps.Find(a => a.Nome == "Navegador Exemplo");
+        conferir(navApp != null && navApp.Sessoes == 2 && Math.Abs(navApp.Volume - 0.8f) < 0.001f && navApp.Tocando,
+            "duas sessões do mesmo .exe (processos diferentes) viram uma linha; o volume é o da sessão tocando");
+        conferir(apps.Find(a => a.Nome == "Chat Exemplo") is { Mudo: true }, "app com todas as sessões mudas aparece mudo");
+        conferir(!apps.Any(a => a.Nome.Contains("velho")) && !apps.Any(a => a.Nome.Contains("fechado")), "sessão expirada e processo fechado ficam de fora");
+        conferir(apps.Count(a => a.Nome == "semcaminho") == 2, "sem caminho, o agrupamento é por processo (dois pids, duas linhas)");
+        conferir(apps.Count > 0 && apps[^1].Sistema && apps[^1].Nome == LogicaDoMixer.NomeDoSistema && apps[^1].Chave == LogicaDoMixer.ChaveDoSistema,
+            "sons do sistema com nome próprio, no fim da lista");
+        conferir(apps.Find(a => a.Caminho?.EndsWith("musica.exe") == true)?.Nome == "Música", "nome de exibição da sessão vem antes da descrição do arquivo");
+        var naoSistema = apps.Where(a => !a.Sistema).Select(a => a.Nome).ToList();
+        conferir(naoSistema.SequenceEqual(naoSistema.OrderBy(n => n, StringComparer.CurrentCultureIgnoreCase)), "ordem alfabética (a lista não pula quando um app para)");
+
+        conferir(LogicaDoMixer.Nome(new[] { Se("x", 1, "C:\\a\\Coisa.exe") }) == "Coisa", "sem nome nem descrição: nome do .exe sem a extensão");
+        conferir(LogicaDoMixer.Nome(new[] { Se("x", 1, null, exe: "coisa.exe", exib: "  ", desc: "") }) == "coisa", "nome em branco não conta; cai para o .exe da lista de processos");
+        conferir(LogicaDoMixer.Nome(new[] { Se("x", 1, null, exib: "@arquivo.dll,-5") }) == "App", "nome indireto não resolvido nunca aparece cru");
+
+        var parados = LogicaDoMixer.Visiveis(apps, false, new HashSet<string>());
+        conferir(!parados.Any(a => !a.Tocando), "sem \"mostrarParados\" só aparecem os apps tocando");
+        conferir(LogicaDoMixer.Visiveis(apps, true, new HashSet<string>()).Count == apps.Count, "com \"mostrarParados\" aparecem todos");
+        conferir(LogicaDoMixer.Visiveis(apps, false, new HashSet<string> { LogicaDoMixer.ChaveDoSistema }).Any(a => a.Sistema), "com o cartão aberto, o app que já apareceu fica mesmo parado");
+
+        conferir(LogicaDoMixer.Rolagem(0, -1, 8, 5) == 1 && LogicaDoMixer.Rolagem(3, -1, 8, 5) == 3 && LogicaDoMixer.Rolagem(1, 3, 8, 5) == 0, "rolagem presa entre o topo e o fim");
+        conferir(LogicaDoMixer.Rolagem(2, 0, 3, 5) == 0, "lista encolheu: a rolagem volta para o topo");
+
+        // valores locais (o que a ilha mandou) contra as leituras do mixer
+        AppDeSom Ap(string chave, float vol = 0.5f, bool mudo = false) => new(chave, chave, null, false, vol, mudo, true, 1);
+        var doisApps = new List<AppDeSom> { Ap("a", 0.2f), Ap("b", 0.9f, true) };
+        var nada = new HashSet<string>();
+        var vols = new Dictionary<string, float> { ["a"] = 0.7f, ["b"] = 0.4f };
+        var mudos = new Dictionary<string, bool> { ["b"] = false };
+        bool soltou = LogicaDoMixer.Reconciliar(vols, mudos, doisApps, nada, nada, null);
+        conferir(!soltou && vols.Count == 2 && mudos.Count == 1, "leitura sem confirmação (de antes do Set) não solta o valor local: a barra e o mudo não voltam");
+        soltou = LogicaDoMixer.Reconciliar(vols, mudos, doisApps, new HashSet<string> { "b" }, nada, null);
+        conferir(soltou && vols.ContainsKey("a") && !vols.ContainsKey("b") && mudos.Count == 0, "app confirmado solta volume e mudo; o outro continua");
+        vols = new() { ["a"] = 0.7f, ["b"] = 0.4f };
+        mudos = new() { ["a"] = true };
+        LogicaDoMixer.Reconciliar(vols, mudos, doisApps, new HashSet<string> { "a", "b" }, nada, "a");
+        conferir(vols.Count == 1 && vols.ContainsKey("a") && mudos.Count == 0, "o volume do app arrastado fica com o do dedo mesmo confirmado (o mudo dele solta)");
+        vols = new() { ["a"] = 0.7f };
+        LogicaDoMixer.Reconciliar(vols, new Dictionary<string, bool>(), doisApps, nada, new HashSet<string> { "a" }, null);
+        conferir(vols.Count == 0, "mudança por fora (outro contexto) solta o valor local");
+        vols = new() { ["sumiu"] = 0.7f };
+        mudos = new() { ["sumiu"] = true };
+        LogicaDoMixer.Reconciliar(vols, mudos, doisApps, nada, nada, null);
+        conferir(vols.Count == 0 && mudos.Count == 0, "app que saiu da lista não deixa valor local para trás");
+
+        // o serviço de áudio reiniciando
+        int total = 0, n = 0;
+        for (; LogicaDoMixer.EsperaParaReabrir(n) >= 0; n++) total += LogicaDoMixer.EsperaParaReabrir(n);
+        conferir(LogicaDoMixer.EsperaParaReabrir(0) == 1000 && LogicaDoMixer.EsperaParaReabrir(3) == 8000 && LogicaDoMixer.EsperaParaReabrir(4) == 15_000
+            && LogicaDoMixer.EsperaParaReabrir(7) == 30_000, "reabrir o mixer espera 1, 2, 4, 8, 15 e 30 s");
+        conferir(n == 8 && total == 120_000, $"desiste depois de 8 tentativas em 2 min ({n} em {total / 1000} s)");
+
+        // o contexto do aviso de sessão
+        var buf = Marshal.AllocHGlobal(16);
+        try
+        {
+            Marshal.StructureToPtr(Audio.ContextoDaIlha, buf, false);
+            conferir(Audio.DaIlha(Mixer.LerContexto(buf)), "aviso de sessão com o GUID da ilha é eco (não relê)");
+            var outro = Guid.NewGuid();
+            Marshal.StructureToPtr(outro, buf, false);
+            conferir(Mixer.LerContexto(buf) == outro && !Audio.DaIlha(outro), "aviso com outro GUID é mudança de fora");
+        }
+        finally { Marshal.FreeHGlobal(buf); }
+        conferir(Mixer.LerContexto(IntPtr.Zero) == Guid.Empty && !Audio.DaIlha(Guid.Empty), "aviso sem contexto (ponteiro nulo) é mudança de fora");
+    }
+
+    /// <summary>
+    /// Sonda real do mixer, só leitura, numa thread MTA (como o mixer de verdade): abre o gerente de sessões da saída
+    /// padrão, registra e solta o aviso de sessão nova, e lista os apps com os nomes. Nenhum volume é mudado.
+    /// </summary>
+    private static void SondaDoMixer(StringBuilder r, Action<bool, string> conferir)
+    {
+        var linhas = new List<(bool Ok, string Texto)>();
+        var info = new List<string>();
+        var t = new System.Threading.Thread(() =>
+        {
+            IMMDeviceEnumerator? en = null;
+            try
+            {
+                en = (IMMDeviceEnumerator)ComDeAudio.NovoEnumerador();
+                if (en.GetDefaultAudioEndpoint(FluxoAudio.Render, PapelAudio.Multimidia, out var d) != 0) { info.Add("aviso   sonda do mixer: nenhuma saída padrão agora"); return; }
+                IAudioSessionManager2 g;
+                try
+                {
+                    var iid = typeof(IAudioSessionManager2).GUID;
+                    int hr = d.Activate(ref iid, Com.CLSCTX_ALL, IntPtr.Zero, out var obj);
+                    linhas.Add((hr == 0, $"sonda do mixer: IAudioSessionManager2 da saída padrão (0x{hr:X8})"));
+                    if (hr != 0) return;
+                    g = (IAudioSessionManager2)obj;
+                }
+                finally { Com.Soltar(d); }
+                try
+                {
+                    var aviso = new AvisoDeSonda();
+                    int r1 = g.RegisterSessionNotification(aviso);
+                    int hrE = g.GetSessionEnumerator(out var lista);
+                    linhas.Add((hrE == 0, $"sonda do mixer: GetSessionEnumerator (0x{hrE:X8})"));
+                    var lidas = new List<SessaoDeSom>();
+                    var apps = new AppsDoSistema();
+                    apps.Processos();
+                    var vivos = AppsDoSistema.ListarProcessos();
+                    if (hrE == 0)
+                    {
+                        try
+                        {
+                            lista.GetCount(out int n);
+                            for (int i = 0; i < n; i++)
+                            {
+                                if (lista.GetSession(i, out var o) != 0) continue;
+                                try
+                                {
+                                    var c2 = (IAudioSessionControl2)o;
+                                    var vol = (ISimpleAudioVolume)c2;
+                                    c2.GetState(out int estado);
+                                    c2.GetProcessId(out uint pid);
+                                    bool sistema = c2.IsSystemSoundsSession() == 0;
+                                    c2.GetSessionIdentifier(out var id);
+                                    c2.GetDisplayName(out var nome);
+                                    string? exe = apps.ExeDoPid(pid);
+                                    // a sonda nunca abre processo: só o caminho que vem no identificador
+                                    string? cam = sistema ? null : apps.Caminho(id, 0, null, Array.Empty<string>());
+                                    vol.GetMasterVolume(out float v);
+                                    vol.GetMute(out bool m);
+                                    lidas.Add(new SessaoDeSom(i.ToString(), pid, sistema, cam, exe, AppsDoSistema.Exibicao(nome), apps.Descricao(cam), estado, v, m, pid == 0 || vivos.ContainsKey(pid)));
+                                }
+                                finally { Com.Soltar(o); }
+                            }
+                        }
+                        finally { Com.Soltar(lista); }
+                    }
+                    int r2 = r1 == 0 ? g.UnregisterSessionNotification(aviso) : -1;
+                    linhas.Add((r1 == 0 && r2 == 0, $"sonda do mixer: aviso de sessão nova registra e solta numa thread MTA (0x{r1:X8}, 0x{r2:X8})"));
+                    int comCaminho = lidas.Count(x => !x.Sistema && x.Caminho != null), semCaminho = lidas.Count(x => !x.Sistema && x.Caminho == null);
+                    var agrupados = LogicaDoMixer.Agrupar(lidas);
+                    linhas.Add((true, $"sonda do mixer: {lidas.Count} sessões ({comCaminho} com o caminho pelo identificador, {semCaminho} sem), {agrupados.Count} linhas"));
+                    foreach (var a in agrupados) info.Add($"          · {a.Nome}  [{(a.Tocando ? "tocando" : "parado")}, {Logica.Porcentagem(a.Volume)}%{(a.Mudo ? ", mudo" : "")}, {a.Sessoes} sessão(ões)]");
+                }
+                finally { Com.Soltar(g); }
+            }
+            catch (Exception e) { linhas.Add((false, "sonda do mixer: " + e.Message)); }
+            finally { Com.Soltar(en); }
+        }) { IsBackground = true, Name = "ilha-teste-mixer" };
+        t.SetApartmentState(System.Threading.ApartmentState.MTA);
+        t.Start();
+        if (!t.Join(10_000)) { conferir(false, "sonda do mixer: não terminou em 10 s"); return; }
+        foreach (var (ok, texto) in linhas) conferir(ok, texto);
+        foreach (var l in info) r.AppendLine(l);
+    }
+
+    private sealed class AvisoDeSonda : IAudioSessionNotification
+    {
+        public int OnSessionCreated(IntPtr sessao) => 0;
     }
 
     /// <summary>Sonda real, só leitura: lista as saídas e lê o volume sem mudar nada no sistema.</summary>

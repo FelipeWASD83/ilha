@@ -61,6 +61,50 @@ internal sealed class Ilha : IDisposable
     private bool _pontosVisiveis;
     private float _extraPontos;
 
+    // borda clara: aparece só com fundo escuro em volta (a sonda lê poucas vezes por segundo, só com a ilha visível)
+    private ShapeVisual? _borda, _bordaBolha;
+    private readonly SondaDeFundo _sonda = new();
+    private readonly System.Windows.Forms.Timer _relogioSonda = new() { Interval = 500 };
+    private bool _bordaLigada;
+    private long _ultimoLogDaSonda;
+
+    // hora no meio da compacta: as superfícies vivas, redesenhadas quando o minuto vira
+    private readonly List<Superficie> _relogios = new();
+    private readonly System.Windows.Forms.Timer _minutoRelogio = new() { Interval = 5_000 };
+    private int _minutoDesenhado = -1;
+
+    // o mouse: posição do cursor quando a região mudou (movimento "falso" do Windows nesse ponto não conta como entrar)
+    private Nativo.POINT? _cursorNaMudanca;
+    private readonly System.Windows.Forms.Timer _vigiaSobre = new() { Interval = 150 };
+    private System.Drawing.Rectangle _regiaoAplicada;
+    // região que espera a mola crescer: um relógio próprio aplica (o fim do lote de animação se perdia quando outro
+    // Aplicar com o mesmo plano chegava no meio, e a região do cartão nunca crescia)
+    private Action? _regiaoPendente;
+    private readonly System.Windows.Forms.Timer _relogioRegiao = new() { Interval = 380 };
+    private AlvoDeSoltar? _alvoDeSoltar;
+
+    /// <summary>O campo de texto da ilha (o núcleo usa para o Esc: a ilha só ouve o teclado depois de um clique nela).</summary>
+    public Entrada? Entrada { get; set; }
+
+    /// <summary>Quem recebe arquivos soltos em cima da ilha (a prateleira).</summary>
+    public IReceptorDeArquivos? Receptor
+    {
+        get => _receptor;
+        set
+        {
+            _receptor = value;
+            if (value != null) _vigiaArraste.Start();
+            else { _vigiaArraste.Stop(); _zonaDeSoltar = false; }
+        }
+    }
+    private IReceptorDeArquivos? _receptor;
+
+    // zona de soltar: com a ilha escondida não existe pílula para receber o arquivo. Com o botão segurado perto do topo
+    // do meio da tela, a pílula vazia aparece para o arraste cair nela (só enquanto o botão estiver apertado)
+    private readonly System.Windows.Forms.Timer _vigiaArraste = new() { Interval = 125 };
+    private bool _zonaDeSoltar;
+    private long _apertadoDesde;
+
     /// <summary>Toca o som de cada alerta e chegada (null = sem som).</summary>
     public Sons? Sons { get; set; }
 
@@ -87,6 +131,18 @@ internal sealed class Ilha : IDisposable
     public event Action<Estado>? EstadoMudou;
     public Estado EstadoAtual => _estado;
     public IntPtr JanelaVisual => _vis.Handle;
+
+    // ---- para o --teste-mouse
+    public IntPtr HandleDoToque => _toque.Handle;
+    public float Escala => _g.Escala;
+    public System.Drawing.RectangleF CorpoNaTela => new(_rCorpo.X + _janX, _rCorpo.Y + _janY, _rCorpo.Width, _rCorpo.Height);
+    public string Diagnostico => $"estado={_estado} sobre={_sobre} alerta={(_alerta != null)} expandida={_expandida} porAtalho={_porAtalho} corpo={CorpoNaTela}";
+    public void TesteClicarNoCorpo()
+    {
+        int x = (int)(_rCorpo.Left + _rCorpo.Width / 2), y = (int)(_rCorpo.Top + _rCorpo.Height / 2);
+        Apertou(x, y);
+        Clicou(x, y);
+    }
 
     private sealed class Vaga
     {
@@ -126,8 +182,20 @@ internal sealed class Ilha : IDisposable
         };
         _toque.Rolou += Rolou;
         _relogioAlerta.Tick += (_, _) => { _relogioAlerta.Stop(); FimDoAlerta(); };
+        _relogioSaida.Interval = Math.Max(1, cfg.AtrasoRecolherMs);
         _relogioSaida.Tick += (_, _) => { _relogioSaida.Stop(); if (!_sobre && _expandida && !_porAtalho) Recolher(); };
         _vigiaClique.Tick += (_, _) => VigiarCliqueFora();
+        _relogioSonda.Tick += (_, _) => Sondar();
+        _minutoRelogio.Tick += (_, _) =>
+        {
+            if (_relogios.Count == 0) { _minutoRelogio.Stop(); return; }
+            if (DateTime.Now.Minute == _minutoDesenhado) return;
+            foreach (var s in _relogios.ToArray()) s.Redesenhar();
+        };
+        _vigiaSobre.Tick += (_, _) => VigiarSobre();
+        _relogioRegiao.Tick += (_, _) => { _relogioRegiao.Stop(); var r = _regiaoPendente; _regiaoPendente = null; r?.Invoke(); };
+        _vigiaArraste.Tick += (_, _) => VigiarArraste();
+        _alvoDeSoltar = AlvoDeSoltar.Registrar(_toque.Handle, () => Receptor);
 
         Reposicionar(forcar: true);
     }
@@ -196,6 +264,8 @@ internal sealed class Ilha : IDisposable
         _geoBolha.StartAnimation("Offset", lado);
 
         if (_cfg.Sombra) Sombras(c);
+        _borda = _bordaBolha = null;
+        if (_cfg.BordaAdaptativa && !colada) Borda(c, L, A);
         // os "ombros": curvas côncavas pretas que emendam a pílula na borda da tela, como se ela saísse dela
         _ombros.Clear();
         if (colada)
@@ -336,6 +406,86 @@ internal sealed class Ilha : IDisposable
         dc.DrawImage(saida, null, null, InterpolationMode.Linear, CompositeMode.SourceOver);
     }
     /// <summary>
+    /// Traço fino e claro em volta da pílula e da bolha, por fora da forma (a geometria copia a dela por expressão,
+    /// 0,5 traço maior). Começa apagado; a sonda acende e apaga com uma transição curta.
+    /// </summary>
+    private void Borda(Compositor c, float L, float A)
+    {
+        float esp = MathF.Max(1, MathF.Round(_g.Escala));
+        var pincel = c.CreateColorBrush(Windows.UI.Color.FromArgb(92, 255, 255, 255));
+        ShapeVisual Contorno(CompositionRoundedRectangleGeometry forma)
+        {
+            var geo = c.CreateRoundedRectangleGeometry();
+            foreach (var (prop, expr) in new[] { ("Size", "f.Size + Vector2(e, e)"), ("Offset", "f.Offset - Vector2(e / 2, e / 2)"), ("CornerRadius", "f.CornerRadius + Vector2(e / 2, e / 2)") })
+            {
+                var x = c.CreateExpressionAnimation(expr);
+                x.SetReferenceParameter("f", forma);
+                x.SetScalarParameter("e", esp);
+                geo.StartAnimation(prop, x);
+            }
+            var s = c.CreateSpriteShape(geo);
+            s.StrokeBrush = pincel;
+            s.StrokeThickness = esp;
+            var v = c.CreateShapeVisual();
+            v.Size = new Vector2(L, A);
+            v.Shapes.Add(s);
+            return v;
+        }
+        _borda = Contorno(_geoCorpo);
+        _borda.Opacity = _bordaLigada ? 1 : 0;
+        _camada.Children.InsertAtTop(_borda);
+        _bordaBolha = Contorno(_geoBolha);
+        var op = c.CreateExpressionAnimation("fb.Opacity * b.Opacity");
+        op.SetReferenceParameter("fb", _formaBolha);
+        op.SetReferenceParameter("b", _borda);
+        _bordaBolha.StartAnimation("Opacity", op);
+        _camada.Children.InsertAtTop(_bordaBolha);
+    }
+
+    private void LigarSonda()
+    {
+        // cada leitura espera o compositor (~10 ms medidos): com tela cheia na frente (jogo) não lê nada
+        bool rodar = _borda != null && _janelasVisiveis && _estado != Estado.Oculta && !_ctx.TelaCheia && !_ctx.D3DExclusivo;
+        if (rodar && !_relogioSonda.Enabled) { _relogioSonda.Start(); Sondar(); }
+        else if (!rodar) _relogioSonda.Stop();
+    }
+
+    /// <summary>
+    /// Lê faixas finas logo fora da pílula e da sombra (dos lados e embaixo): atrás dela não dá, a própria ilha cobre.
+    /// Medido em 01/11/2026: ~10 ms de espera por leitura e +0,01% de processador a 4 por segundo; ficou em 2 por segundo.
+    /// Histerese para não piscar: acende abaixo de 0,22 de luminância e apaga acima de 0,30.
+    /// </summary>
+    private void Sondar()
+    {
+        if (_borda == null || !_janelasVisiveis || _estado == Estado.Oculta || _ctx.TelaCheia || _ctx.D3DExclusivo) { _relogioSonda.Stop(); return; }
+        var r = CorpoNaTela;
+        int fora = (int)_p.Px(40), faixa = Math.Max(2, (int)_p.Px(4)), abaixo = (int)_p.Px(46);
+        float direita = _temBolha ? _rBolha.Right + _janX : r.Right;
+        var faixas = new[]
+        {
+            new System.Drawing.Rectangle((int)r.Left - fora - faixa, (int)r.Top, faixa, Math.Max(1, (int)r.Height)),
+            new System.Drawing.Rectangle((int)direita + fora, (int)r.Top, faixa, Math.Max(1, (int)r.Height)),
+            new System.Drawing.Rectangle((int)r.Left, (int)r.Bottom + abaixo, Math.Max(1, (int)r.Width), faixa),
+        };
+        var lum = _sonda.Ler(faixas);
+        if (lum is double l)
+        {
+            bool ligar = _bordaLigada ? l < 0.30 : l < 0.22;
+            if (ligar != _bordaLigada)
+            {
+                _bordaLigada = ligar;
+                AnimarEscalar(_borda, "Opacity", ligar ? 1 : 0, 260, true);
+            }
+        }
+        if (Environment.TickCount64 - _ultimoLogDaSonda > 60_000)
+        {
+            _ultimoLogDaSonda = Environment.TickCount64;
+            var (n, ms) = _sonda.Custo();
+            if (n > 0) Log.Escrever($"borda: {n} leituras no último minuto, {ms:F2} ms cada (média)");
+        }
+    }
+
+    /// <summary>
     /// Camada do tamanho da janela recortada no formato atual da pílula (ou da bolha): o conteúdo que entra e
     /// sai nunca aparece fora dela, nem no meio da mola. A geometria do recorte copia a da forma por expressão.
     /// </summary>
@@ -445,7 +595,9 @@ internal sealed class Ilha : IDisposable
     {
         bool forma = cfg.Colada != _cfg.Colada || MathF.Abs(cfg.DistanciaDoTopo - _cfg.DistanciaDoTopo) > 0.01f || cfg.Sombra != _cfg.Sombra || MathF.Abs(cfg.Tamanho - _cfg.Tamanho) > 0.001f
                      || cfg.DeslocamentoX != _cfg.DeslocamentoX || cfg.DeslocamentoY != _cfg.DeslocamentoY;
+        forma |= cfg.BordaAdaptativa != _cfg.BordaAdaptativa;
         _cfg = cfg;
+        _relogioSaida.Interval = Math.Max(1, cfg.AtrasoRecolherMs);
         if (forma) Reposicionar(forcar: true);
         else Aplicar();
     }
@@ -482,7 +634,8 @@ internal sealed class Ilha : IDisposable
         }
         _jaMostrou = true;
         if (sim) ReafirmarTopo();
-        else _sobre = false;
+        else { _sobre = false; _vigiaSobre.Stop(); }
+        LigarSonda();
     }
 
     // ------------------------------------------------------------------ atividades e contexto
@@ -578,6 +731,7 @@ internal sealed class Ilha : IDisposable
         if (trocouFrente && _expandida && _porAtalho) _expandida = false;
         ReafirmarTopo();
         Aplicar();
+        LigarSonda();
     }
 
     private bool Permitida(Atividade a) => !_ctx.Competitivo || a.PermitidaNoCompetitivo;
@@ -646,8 +800,14 @@ internal sealed class Ilha : IDisposable
 
     private void Entrou()
     {
+        // a região cresceu embaixo de um cursor parado: o Windows manda um movimento sem o mouse ter mexido. Isso não é
+        // "entrar" (senão um alerta que nasce embaixo do cursor nunca mais some)
+        Nativo.GetCursorPos(out var cur);
+        if (!_sobre && !_relogioSaida.Enabled && _cursorNaMudanca is { } m && m.X == cur.X && m.Y == cur.Y) return;
+        _cursorNaMudanca = null;
         _relogioSaida.Stop();
         if (_sobre) return;
+        _vigiaSobre.Start();
         _sobre = true;
         if (_expandida) _porAtalho = false;
         if (_estado == Estado.Compacta && !_expandida && Visiveis().FirstOrDefault() is { Tipo: "privacidade" } priv)
@@ -662,9 +822,70 @@ internal sealed class Ilha : IDisposable
 
     private void Saiu()
     {
+        _vigiaSobre.Stop();
+        if (!_sobre) return;
         _sobre = false;
         if (_expandida && !_porAtalho) _relogioSaida.Start();
         else if (_estado is Estado.Compacta or Estado.Ociosa) Aplicar();
+    }
+
+    /// <summary>
+    /// Reserva do aviso de saída (ele pode se perder: captura do mouse, arrastar para outro app, região que encolheu):
+    /// enquanto a ilha acha que o mouse está em cima, confere se a janela embaixo do cursor ainda é a dela.
+    /// </summary>
+    private void VigiarSobre()
+    {
+        if (!_sobre) { _vigiaSobre.Stop(); return; }
+        if (_toque.Apertado) return;
+        Nativo.GetCursorPos(out var c);
+        if (Nativo.WindowFromPoint(c) == _toque.Handle) return;
+        _toque.EsquecerRastreio();
+        Saiu();
+    }
+
+    private void VigiarArraste()
+    {
+        bool pode = _receptor != null && !_cfg.Pausada && !_ctx.Competitivo && !_ctx.TelaCheia && !_ctx.D3DExclusivo;
+        // com o cartão aberto pelo atalho quem lê o botão é o vigia do clique fora (ler aqui comeria o "apertou" dele)
+        if (!pode || _vigiaClique.Enabled)
+        {
+            if (_zonaDeSoltar) { _zonaDeSoltar = false; Aplicar(); }
+            _apertadoDesde = 0;
+            return;
+        }
+        bool apertado = (Nativo.GetAsyncKeyState(0x01) & 0x8000) != 0;
+        if (!apertado)
+        {
+            _apertadoDesde = 0;
+            if (_zonaDeSoltar && _alvoDeSoltar?.EmCima != true) { _zonaDeSoltar = false; Aplicar(); }
+            return;
+        }
+        if (_zonaDeSoltar || _estado != Estado.Oculta) return;
+        long agora = Environment.TickCount64;
+        Nativo.GetCursorPos(out var c);
+        if (_apertadoDesde == 0) { _apertadoDesde = agora; _inicioDoAperto = c; return; }
+        if (agora - _apertadoDesde < 200 || !NaZona(c) || NaZona(_inicioDoAperto)) return;
+        // só um arraste de arquivo de verdade: o DoDragDrop do OLE prende o mouse numa janela "CLIPBRDWNDCLASS"; janela
+        // sendo movida (barra de título, Snap) e aba de navegador não abrem a pílula
+        var gti = new Nativo.GUITHREADINFO { cbSize = System.Runtime.InteropServices.Marshal.SizeOf<Nativo.GUITHREADINFO>() };
+        if (!Nativo.GetGUIThreadInfo(0, ref gti) || (gti.flags & 0x2) != 0 || gti.hwndCapture == IntPtr.Zero) return;
+        string classe = Nativo.Classe(gti.hwndCapture);
+        if (classe != "CLIPBRDWNDCLASS")
+        {
+            if (classe != _ultimaClasseDeCaptura) { _ultimaClasseDeCaptura = classe; Log.Escrever("zona de soltar: captura com " + classe + " (não é arraste de arquivo)"); }
+            return;
+        }
+        _zonaDeSoltar = true;
+        Aplicar();
+    }
+
+    private Nativo.POINT _inicioDoAperto;
+    private string _ultimaClasseDeCaptura = "";
+
+    private bool NaZona(Nativo.POINT c)
+    {
+        float cx = _janX + _janL / 2f, dy = c.Y - _janY;
+        return dy >= 0 && dy < _p.Px(140) && MathF.Abs(c.X - cx) < _p.Px(300);
     }
 
     private Action<float, float, bool>? _arraste;
@@ -690,15 +911,23 @@ internal sealed class Ilha : IDisposable
         _cenaApertada = _vagaCorpo.Atual == null ? null : SemVersao(_vagaCorpo.Chave);
         if (_vagaCorpo.Atual == null) return;
         var l = Local(_vagaCorpo, x, y);
-        foreach (var b in _vagaCorpo.Atual.Cena.Botoes)
-            if (b.Arrastar != null && b.Area.Contains(l.X, l.Y))
+        foreach (var (b, d) in BotoesDe(_vagaCorpo.Atual.Cena))
+            if (b.Arrastar is { } arrastar && b.Area.Contains(l.X - d.X, l.Y - d.Y))
             {
-                _arraste = b.Arrastar;
+                _arraste = (ax, ay, soltou) => arrastar(ax - d.X, ay - d.Y, soltou);
                 _inicioArraste = l;
                 _arrastou = false;
                 _arraste(l.X, l.Y, false);
                 return;
             }
+    }
+
+    /// <summary>Os botões da cena e, se ela embrulha outra (o "&lt;" do menu), os da de dentro com o deslocamento dela.</summary>
+    private static IEnumerable<(Botao b, Vector2 desl)> BotoesDe(Cena c)
+    {
+        foreach (var b in c.Botoes.ToArray()) yield return (b, Vector2.Zero);
+        if (c.Interna is { } i)
+            foreach (var (b, d) in BotoesDe(i)) yield return (b, d + c.DeslocamentoInterno);
     }
 
     private void Rolou(int delta)
@@ -729,7 +958,14 @@ internal sealed class Ilha : IDisposable
         }
         if (_estado == Estado.Expandida)
         {
-            if (mesmaCena) ClicarBotao(_vagaCorpo, x, y);
+            _clicada = true;
+            var frenteAntes = Nativo.GetForegroundWindow();
+            _noClique = true;
+            try { if (mesmaCena) ClicarBotao(_vagaCorpo, x, y); }
+            finally { _noClique = false; }
+            // clicou na ilha: ela pega o teclado (só para o Esc), se o botão não fechou o cartão, não abriu um campo e
+            // não trouxe outra janela para a frente (as configurações)
+            if (_expandida && Nativo.GetForegroundWindow() == frenteAntes) FocarTeclado();
             return;
         }
         var vis = Visiveis();
@@ -743,7 +979,9 @@ internal sealed class Ilha : IDisposable
         if (_foco == null || !_foco.TemExpandida) return;
         _expandida = true;
         _porAtalho = false;
+        _clicada = true;
         Aplicar();
+        FocarTeclado();
     }
 
     private bool ClicarBotao(Vaga v, int x, int y)
@@ -752,9 +990,45 @@ internal sealed class Ilha : IDisposable
         var o = v.Atual.Sprite.Offset;
         var host = v.Host.Offset;
         float lx = (x - host.X - o.X) / _g.Escala, ly = (y - host.Y - o.Y) / _g.Escala;
-        foreach (var b in v.Atual.Cena.Botoes)
-            if (b.Area.Contains(lx, ly)) { b.Acao(); return true; }
+        foreach (var (b, d) in BotoesDe(v.Atual.Cena))
+            if (b.Area.Contains(lx - d.X, ly - d.Y)) { b.Acao(); return true; }
         return false;
+    }
+
+    private void FocarTeclado()
+    {
+        if (Entrada == null || Entrada.Aberta || _ctx.Competitivo) return;
+        try { Entrada.Focar(); } catch (Exception e) { Log.Escrever("foco: " + e.Message); }
+    }
+
+    /// <summary>
+    /// O Esc com a ilha focada: numa tela interna volta para o menu (e a ilha segue com o teclado); no menu, recolhe e
+    /// o foco volta para onde estava. Num alerta, fecha o alerta.
+    /// </summary>
+    public bool VoltarPeloEsc()
+    {
+        if (_estado == Estado.Alerta && _alerta != null) { _relogioAlerta.Stop(); ProximoAlerta(); return _expandida; }
+        if (_estado != Estado.Expandida) return false;
+        if (_clicada && _foco != null && _foco != _painel && _painel != null && !_ctx.Competitivo) { AbrirMenu(); return true; }
+        Recolher();
+        return false;
+    }
+
+    /// <summary>O "&lt;" e o Esc: volta para o menu principal.</summary>
+    public void AbrirMenu()
+    {
+        if (_painel == null || _cfg.Pausada) return;
+        // o "fechou" do módulo pode chamar Recolher (que zera estas marcas): sem o mouse em cima, o menu segue no modo do
+        // atalho (o clique fora e a troca de janela recolhem)
+        bool porAtalho = _porAtalho || !_sobre, clicada = _clicada;
+        // o campo do módulo fecha (ele recebe o "fechou"), mas a ilha segue ouvindo o Esc
+        if (Entrada is { Aberta: true, SoTeclas: false }) Entrada.ModoTeclado();
+        if (_alerta != null) { _relogioAlerta.Stop(); _alerta = null; }
+        _foco = _painel;
+        _expandida = true;
+        _porAtalho = porAtalho;
+        _clicada = clicada;
+        Aplicar();
     }
 
     /// <summary>Atalho global: abre a atividade principal (ou o painel) expandida; de novo, recolhe.</summary>
@@ -765,6 +1039,7 @@ internal sealed class Ilha : IDisposable
         // o clique no ícone da bandeja já recolheu a ilha pelo "clique fora": não reabrir no mesmo clique
         if (Environment.TickCount64 - _recolheuPorCliqueFora < 400) return;
         if (_alerta != null) { _relogioAlerta.Stop(); _fila.Clear(); _alerta = null; }
+        _clicada = false;
         var vis = Visiveis();
         _foco = vis.FirstOrDefault(a => a.TemExpandida) ?? (_ctx.Competitivo ? null : _painel);
         if (_foco == null) return;
@@ -821,6 +1096,8 @@ internal sealed class Ilha : IDisposable
         if (_cfg.Pausada) return;
         if (a != _painel && !_atividades.Contains(a)) return;
         if (_alerta != null) { _relogioAlerta.Stop(); _fila.Clear(); _alerta = null; }
+        // um bloco do menu clicado abre a ferramenta por aqui: continua valendo como clique
+        if (!_noClique) _clicada = false;
         _foco = a;
         _expandida = true;
         _porAtalho = true;
@@ -835,15 +1112,33 @@ internal sealed class Ilha : IDisposable
         if (!_expandida) return;
         _expandida = false;
         _porAtalho = false;
+        _clicada = false;
         _foco = null;
         Aplicar();
+        // recolheu por baixo de um alerta: o plano pode não mudar (o Aplicar sai cedo); o teclado volta agora
+        if (Entrada?.Aberta == true)
+            Programa.NaInterface(() => { if (!_expandida && _estado != Estado.Expandida) Entrada?.Fechar(); });
     }
 
     private long _recolheuPorCliqueFora;
+    private bool _arrasteDeFora;
+    // a ilha foi clicada desde que abriu (só aí o Esc volta para o menu; aberta pelo atalho, o Esc fecha e devolve o foco)
+    private bool _clicada, _noClique;
 
     private void VigiarCliqueFora()
     {
         if (!_expandida || _sobre) return;
+        // o botão segurado de um arraste de arquivo (de outro app) não é clique fora, nem quando o arquivo sai do cartão
+        // com o botão ainda apertado (quem decide fechar é o módulo que recebe)
+        if (_alvoDeSoltar is { } a)
+        {
+            if (a.EmCima || Environment.TickCount64 - a.Fim < 400) { _arrasteDeFora = true; return; }
+            if (_arrasteDeFora)
+            {
+                if ((Nativo.GetAsyncKeyState(0x01) & 0x8000) == 0) _arrasteDeFora = false;
+                return;
+            }
+        }
         // 0x8001: apertado agora ou desde a última consulta (um clique rápido entre duas leituras também conta)
         bool apertou = (Nativo.GetAsyncKeyState(0x01) & 0x8001) != 0 || (Nativo.GetAsyncKeyState(0x02) & 0x8001) != 0;
         if (!apertou) return;
@@ -879,15 +1174,19 @@ internal sealed class Ilha : IDisposable
         if (_expandida && _foco != null && (_foco.Ativa || avulsa) && (Permitida(_foco) || avulsa && !_ctx.Competitivo))
         {
             var f = _foco;
-            return Cartao(Estado.Expandida, $"exp:{f.GetHashCode()}:{f.Versao}", () => f.Criar(_p, Forma.Expandida), RAIO_EXPANDIDA);
+            bool voltar = f != _painel && _painel != null && !_ctx.Competitivo;
+            return Cartao(Estado.Expandida, $"exp:{f.GetHashCode()}:{(voltar ? 1 : 0)}:{f.Versao}",
+                voltar ? () => ComVoltar(f.Criar(_p, Forma.Expandida)) : () => f.Criar(_p, Forma.Expandida), RAIO_EXPANDIDA);
         }
         _expandida = false;
 
         if (vis.Count > 0)
         {
             var a = vis[0];
-            string ch = $"cmp:{a.GetHashCode()}:{a.Versao}";
-            var tam = TamanhoDaCena(_vagaCorpo, ch, () => a.Criar(_p, Forma.Compacta), out var criar);
+            var meio = _cfg.Relogio && !_ctx.Desktop ? a.MeioLivreCompacta : null;
+            bool relogio = meio is { } mv && mv.Ate - mv.De >= LarguraDoRelogio() + 10;
+            string ch = $"cmp:{a.GetHashCode()}:{(relogio ? 1 : 0)}:{a.Versao}";
+            var tam = TamanhoDaCena(_vagaCorpo, ch, relogio ? () => ComRelogio(a.Criar(_p, Forma.Compacta), meio!.Value) : () => a.Criar(_p, Forma.Compacta), out var criar);
             float l = MathF.Max(a.LarguraCompactaMinima ?? COMPACTA_MIN, tam.X + COMPACTA_FOLGA * 2), h = COMPACTA_A;
             // com as bolinhas de privacidade na pílula, ela alarga para elas não cobrirem o conteúdo
             _extraPontos = PontosDevemAparecer(Estado.Compacta, a) ? LarguraPontos() + 8 : 0;
@@ -906,7 +1205,7 @@ internal sealed class Ilha : IDisposable
             return new Plano(Estado.Compacta, new Vector2(l, h), h / 2, ch, criar, bolha, cb, fb);
         }
 
-        if (_ctx.Desktop && !_ctx.Competitivo && _cfg.OciosaNaAreaDeTrabalho)
+        if (_zonaDeSoltar || _ctx.Desktop && !_ctx.Competitivo && _cfg.OciosaNaAreaDeTrabalho)
         {
             float l = OCIOSA_L, h = OCIOSA_A;
             if (_sobre) { l += PREVIA_L * 0.6f; h += PREVIA_A * 0.6f; }
@@ -914,6 +1213,49 @@ internal sealed class Ilha : IDisposable
         }
 
         return new Plano(Estado.Oculta, Vector2.Zero, 0, null, null, false, null, null);
+    }
+
+    private const float FAIXA_VOLTAR = 28;
+
+    /// <summary>Embrulha o cartão com uma faixa em cima e o "&lt;" que volta para o menu.</summary>
+    private Cena ComVoltar(Cena interna)
+    {
+        var c = _p.NovaCena(new Vector2(MathF.Max(interna.Tamanho.X, 120), interna.Tamanho.Y + FAIXA_VOLTAR));
+        interna.Raiz.Offset = new Vector3(0, _p.Px(FAIXA_VOLTAR), 0);
+        c.Raiz.Children.InsertAtTop(interna.Raiz);
+        c.Interna = interna;
+        c.DeslocamentoInterno = new Vector2(0, FAIXA_VOLTAR);
+        c.AoSoltar += () => { c.Raiz.Children.Remove(interna.Raiz); interna.Soltar(); };
+        _p.Desenho(c, Vector2.Zero, new Vector2(80, 22), (dc, t) =>
+        {
+            var f = _p.G.Fabrica;
+            Icone.Linha(dc, new Vector2(8, 4), new Vector2(2, 11), 2.2f, Cor.Secundario, f);
+            Icone.Linha(dc, new Vector2(2, 11), new Vector2(8, 18), 2.2f, Cor.Secundario, f);
+            _p.Texto.Desenhar(dc, "Menu", new Vector2(15, 1), 13, Cor.Secundario, Vortice.DirectWrite.FontWeight.Medium);
+        });
+        // área maior que o desenho, entrando na folga do cartão (mais fácil de acertar)
+        c.Botoes.Add(new Botao { Area = new System.Drawing.RectangleF(-8, -8, 84, 34), Acao = AbrirMenu });
+        return c;
+    }
+
+    private float LarguraDoRelogio() => _p.Texto.Medir("00:00", 13, Vortice.DirectWrite.FontWeight.Medium, tabular: true).X;
+
+    /// <summary>Põe a hora no trecho vazio do meio da cena compacta (fonte sem serifa, discreta).</summary>
+    private Cena ComRelogio(Cena cena, (float De, float Ate) meio)
+    {
+        var tam = new Vector2(meio.Ate - meio.De, cena.Tamanho.Y);
+        var s = _p.Desenho(cena, new Vector2(meio.De, 0), tam, (dc, t) =>
+        {
+            var agora = DateTime.Now;
+            _minutoDesenhado = agora.Minute;
+            string h = agora.ToString("HH:mm");
+            var m = _p.Texto.Medir(h, 13, Vortice.DirectWrite.FontWeight.Medium, tabular: true);
+            _p.Texto.Desenhar(dc, h, new Vector2((t.X - m.X) / 2, (t.Y - m.Y) / 2), 13, Cor.Secundario, Vortice.DirectWrite.FontWeight.Medium, tabular: true);
+        });
+        _relogios.Add(s);
+        cena.AoSoltar += () => _relogios.Remove(s);
+        if (!_minutoRelogio.Enabled) _minutoRelogio.Start();
+        return cena;
     }
 
     private Plano Cartao(Estado e, string chave, Func<Cena> fabrica, float raio)
@@ -948,6 +1290,9 @@ internal sealed class Ilha : IDisposable
         var anterior = _estado;
         _estado = pl.Estado;
         AvisarCartao(_estado == Estado.Expandida ? _foco : null);
+        // recolheu: o teclado volta para a janela de antes (o campo do módulo fecha junto)
+        if (_estado is Estado.Compacta or Estado.Ociosa or Estado.Oculta && Entrada?.Aberta == true)
+            Programa.NaInterface(() => { if (_estado is not (Estado.Expandida or Estado.Alerta)) Entrada?.Fechar(); });
         int geracao = ++_geracao;
         var c = _g.Compositor;
         var mola = _cfg.Mola;
@@ -966,6 +1311,10 @@ internal sealed class Ilha : IDisposable
             lote.End();
             lote.Completed += (_, _) => { if (geracao == _geracao && _estado == Estado.Oculta) MostrarJanelas(false); };
             Nativo.SetWindowRgn(_toque.Handle, Nativo.CreateRoundRectRgn(0, 0, 0, 0, 0, 0), false);
+            _regiaoAplicada = default;
+            _regiaoPendente = null;
+            _relogioRegiao.Stop();
+            LigarSonda();
             if (anterior != Estado.Oculta) EstadoMudou?.Invoke(_estado);
             return;
         }
@@ -1018,33 +1367,49 @@ internal sealed class Ilha : IDisposable
         PosicionarPontos(pl.Estado, corpoPx, topo, cx, animar);
         TrocarCena(_vagaBolha, pl.Bolha ? pl.ChaveBolha : null, pl.CenaBolha, bolhaPx, animar);
         lote2.End();
+
+        // região de toque: o formato final da pílula (e da bolha). Encolhendo, vale na hora; crescendo, só quando a mola
+        // assentar: antes disso a região maior que o desenho segurava o mouse (e o clique) em cima de outro app
+        _rCorpo = new System.Drawing.RectangleF(cx - corpoPx.X / 2, topo, corpoPx.X, corpoPx.Y);
+        _temBolha = pl.Bolha;
+        _rBolha = new System.Drawing.RectangleF(cx + corpoPx.X / 2 + _p.Px(VAO), topo, bolhaPx, bolhaPx);
+        var final = System.Drawing.Rectangle.Round(_rCorpo);
+        bool cresce = !_sobre && !_regiaoAplicada.IsEmpty && (final.Width > _regiaoAplicada.Width || final.Height > _regiaoAplicada.Height);
+        var regiao = (rc: _rCorpo, rb: _rBolha, bolha: pl.Bolha, raio: raioPx, bolhaPx, topo, colada);
+        Action aplicar = () => AplicarRegiao(regiao.rc, regiao.rb, regiao.bolha, regiao.raio, regiao.bolhaPx, regiao.topo, regiao.colada);
+        _relogioRegiao.Stop();
+        if (cresce) { _regiaoPendente = aplicar; _relogioRegiao.Start(); }
+        else { _regiaoPendente = null; aplicar(); }
         lote2.Completed += (_, _) =>
         {
             if (geracao != _geracao) return;
             int justa = (int)MathF.Ceiling(topo + _alturaAlvoPx * 1.12f + _p.Px(SOMBRA));
             if (justa < _janA) { _janA = justa; AjustarJanelas(); }
         };
-
-        // região de toque: o formato final da pílula (e da bolha)
-        _rCorpo = new System.Drawing.RectangleF(cx - corpoPx.X / 2, topo, corpoPx.X, corpoPx.Y);
-        _temBolha = pl.Bolha;
-        _rBolha = new System.Drawing.RectangleF(cx + corpoPx.X / 2 + _p.Px(VAO), topo, bolhaPx, bolhaPx);
-        int r2 = (int)(raioPx * 2);
-        var rgn = Nativo.CreateRoundRectRgn((int)_rCorpo.Left, (int)(topo - (colada ? raioPx : 0)), (int)_rCorpo.Right + 1, (int)_rCorpo.Bottom + 1, r2, r2);
-        if (pl.Bolha)
-        {
-            int b2 = (int)bolhaPx;
-            var rb = Nativo.CreateRoundRectRgn((int)_rBolha.Left, (int)(topo - (colada ? bolhaPx / 2 : 0)), (int)_rBolha.Right + 1, (int)_rBolha.Bottom + 1, b2, b2);
-            Nativo.CombineRgn(rgn, rgn, rb, Nativo.RGN_OR);
-            Nativo.DeleteObject(rb);
-        }
-        Nativo.SetWindowRgn(_toque.Handle, rgn, false);
+        LigarSonda();
 
         if (_expandida && _porAtalho) LigarVigia(); else _vigiaClique.Stop();
         if (anterior != _estado) EstadoMudou?.Invoke(_estado);
     }
 
     private (Estado, Vector2, float, string?, bool, string?, bool, bool, bool) _ultimoPlano;
+
+    private void AplicarRegiao(System.Drawing.RectangleF rc, System.Drawing.RectangleF rb, bool bolha, float raioPx, float bolhaPx, float topo, bool colada)
+    {
+        int r2 = (int)(raioPx * 2);
+        var rgn = Nativo.CreateRoundRectRgn((int)rc.Left, (int)(topo - (colada ? raioPx : 0)), (int)rc.Right + 1, (int)rc.Bottom + 1, r2, r2);
+        if (bolha)
+        {
+            int b2 = (int)bolhaPx;
+            var r = Nativo.CreateRoundRectRgn((int)rb.Left, (int)(topo - (colada ? bolhaPx / 2 : 0)), (int)rb.Right + 1, (int)rb.Bottom + 1, b2, b2);
+            Nativo.CombineRgn(rgn, rgn, r, Nativo.RGN_OR);
+            Nativo.DeleteObject(r);
+        }
+        // movimento que o Windows manda por causa desta troca, com o cursor parado, não conta como entrar
+        if (Nativo.GetCursorPos(out var cur)) _cursorNaMudanca = cur;
+        Nativo.SetWindowRgn(_toque.Handle, rgn, false);
+        _regiaoAplicada = System.Drawing.Rectangle.Round(rc);
+    }
 
     /// <summary>Quem vai para a bolha: a segunda da fila, menos a privacidade (as bolinhas dela já ficam na pílula).</summary>
     private static Atividade? DaBolha(List<Atividade> vis) => vis.Skip(1).FirstOrDefault(a => a.Tipo != "privacidade");
@@ -1100,6 +1465,7 @@ internal sealed class Ilha : IDisposable
     private void LigarVigia()
     {
         if (_vigiaClique.Enabled) return;
+        _arrasteDeFora = false;
         // zera o "apertado desde a última consulta": o clique que abriu a ilha (no ícone da bandeja) não pode fechá-la
         Nativo.GetAsyncKeyState(0x01);
         Nativo.GetAsyncKeyState(0x02);
@@ -1269,6 +1635,13 @@ internal sealed class Ilha : IDisposable
         _relogioAlerta.Dispose();
         _relogioSaida.Dispose();
         _vigiaClique.Dispose();
+        _relogioSonda.Dispose();
+        _minutoRelogio.Dispose();
+        _vigiaSobre.Dispose();
+        _vigiaArraste.Dispose();
+        _relogioRegiao.Dispose();
+        _sonda.Dispose();
+        if (_alvoDeSoltar != null) AlvoDeSoltar.Revogar(_toque.Handle);
         Desmontar();
         _alvo?.Dispose();
         _desfoque?.Dispose();

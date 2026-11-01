@@ -39,7 +39,6 @@ internal sealed class ModuloClaude : Modulo
     protected override void Iniciar(JsonObject cfg)
     {
         _cfg = Ler<ConfigClaude>(cfg);
-        _m.JanelaDepoisDeTerminar = Math.Clamp(_cfg.SegundosDepoisDeTerminar, 5, 3600);
         _ponte = new PonteClaudeApp();
         _atv = new AtividadeClaude(S, _m, _ponte, Agora, () => _cfg) { Decidir = Decidir };
         S.Ilha.Adicionar(_atv);
@@ -81,7 +80,6 @@ internal sealed class ModuloClaude : Modulo
         var novo = Ler<ConfigClaude>(cfg);
         bool refazer = novo.ArquivoEventos != _cfg.ArquivoEventos || novo.PastaSessoes != _cfg.PastaSessoes || novo.AprovarPermissoes != _cfg.AprovarPermissoes;
         _cfg = novo;
-        _m.JanelaDepoisDeTerminar = Math.Clamp(_cfg.SegundosDepoisDeTerminar, 5, 3600);
         if (refazer) { Desligar(); Ligar(); }
         Processar(_m.Tique(Agora()));
     }
@@ -305,8 +303,6 @@ public sealed class ConfigClaude
     [JsonPropertyName("esperaSegundos")] public int EsperaSegundos { get; set; } = 45;
     /// <summary>Quanto o alerta de permissão fica na tela (depois, os botões continuam no cartão).</summary>
     [JsonPropertyName("alertaPermissaoSegundos")] public float AlertaPermissaoSegundos { get; set; } = 20;
-    /// <summary>Quanto a sessão que terminou continua na pílula.</summary>
-    [JsonPropertyName("segundosDepoisDeTerminar")] public int SegundosDepoisDeTerminar { get; set; } = 90;
     [JsonPropertyName("alertarAoTerminar")] public bool AlertarAoTerminar { get; set; } = true;
     /// <summary>Os modelos da lista (o menu do app acrescenta os que tiver a mais).</summary>
     [JsonPropertyName("modelos")] public List<string> Modelos { get; set; } = new() { "Opus 5.5", "Fable 5.1", "Sonnet 5.5", "Haiku 5.5" };

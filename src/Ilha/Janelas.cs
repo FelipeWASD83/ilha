@@ -70,6 +70,8 @@ internal sealed class JanelaToque : NativeWindow
     [System.Runtime.InteropServices.DllImport("user32.dll")] private static extern IntPtr SetCapture(IntPtr h);
     [System.Runtime.InteropServices.DllImport("user32.dll")] private static extern bool ReleaseCapture();
     private bool _apertado;
+    // o botão desceu nesta janela (um botão solto que veio de um aperto em outro lugar não é clique)
+    private bool _desceuAqui;
 
     /// <summary>Solta o mouse (o OLE do arrastar para outro app engole o botão solto).</summary>
     public void SoltarCaptura()
@@ -80,6 +82,12 @@ internal sealed class JanelaToque : NativeWindow
     }
 
     private bool _rastreando;
+
+    /// <summary>Botão apertado em cima dela (o mouse está capturado para um arraste).</summary>
+    public bool Apertado => _apertado;
+
+    /// <summary>A ilha concluiu por conta própria que o mouse saiu: o próximo movimento volta a pedir o aviso de saída.</summary>
+    public void EsquecerRastreio() => _rastreando = false;
 
     public JanelaToque()
     {
@@ -122,6 +130,7 @@ internal sealed class JanelaToque : NativeWindow
             {
                 // captura o mouse para o arraste continuar mesmo saindo da pílula
                 _apertado = true;
+                _desceuAqui = true;
                 SetCapture(Handle);
                 var (x, y) = Ponto(m.LParam);
                 Apertou?.Invoke(x, y);
@@ -133,9 +142,11 @@ internal sealed class JanelaToque : NativeWindow
                 break;
             case Nativo.WM_LBUTTONUP:
             {
+                bool valeu = _desceuAqui;
+                _desceuAqui = false;
                 if (_apertado) { _apertado = false; ReleaseCapture(); }
                 var (x, y) = Ponto(m.LParam);
-                Clicou?.Invoke(x, y);
+                if (valeu) Clicou?.Invoke(x, y);
                 break;
             }
             case Nativo.WM_RBUTTONUP:
@@ -144,6 +155,9 @@ internal sealed class JanelaToque : NativeWindow
                 CliqueDireito?.Invoke(x, y);
                 break;
             }
+            case 0x0215: // WM_CAPTURECHANGED: outra janela levou a captura (um arrastar para outro app)
+                if (m.LParam != Handle) _apertado = false;
+                break;
             case Nativo.WM_MOUSEWHEEL:
                 Rolou?.Invoke((short)((m.WParam.ToInt64() >> 16) & 0xFFFF));
                 break;

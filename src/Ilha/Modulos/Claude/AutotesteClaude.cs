@@ -161,7 +161,7 @@ internal static class AutotesteClaude
 
     private static void Maquina()
     {
-        var m = new Sessoes { JanelaDepoisDeTerminar = 90 };
+        var m = new Sessoes();
         Ok(m.Aplicar(Ev(100, "ouvindo"), false).Terminaram.Count == 0, "ouvindo não termina nada");
         var s = m.Pegar("s")!;
         Ok(s.Fase == Fase.Pensando && s.Inicio == 100, "ouvindo: pensando, com a hora do pedido");
@@ -174,10 +174,10 @@ internal static class AutotesteClaude
         Ok(s.Fase == Fase.Trabalhando, "comando longo continua rodando sem evento");
         var ef = m.Aplicar(Ev(220, "terminou"), false);
         Ok(ef.Terminaram.Count == 1 && Math.Abs(ef.Terminaram[0].Duracao - 120) < 0.01 && s.Fase == Fase.Terminou, "terminou: alerta com a duração calculada pelo pedido (120 s)");
-        Ok(m.Principal(250) == s && m.Visivel(s, 250), "terminou há pouco: continua na ilha");
-        Ok(m.ProximoPrazo() is double pz && Math.Abs(pz - 310) < 0.01, "o próximo prazo é o fim da janela de 90 s");
-        m.Tique(311);
-        Ok(m.Principal(311) == null, "depois da janela: sai da ilha");
+        Ok(m.Principal() == null && !Sessoes.Visivel(s), "terminou: sai da ilha na hora (o fim fica só no alerta)");
+        Ok(m.ProximoPrazo() is double pz && Math.Abs(pz - (220 + Sessoes.GUARDA_DO_FIM)) < 0.01, "o próximo prazo é o fim da guarda da fase terminou");
+        m.Tique(220 + Sessoes.GUARDA_DO_FIM + 1);
+        Ok(m.Pegar("s") == null, "depois da guarda, sem arquivo de sessão: esquecida");
 
         // a duração que vem no evento manda
         var m2 = new Sessoes();
@@ -218,18 +218,18 @@ internal static class AutotesteClaude
         var m7 = new Sessoes();
         m7.Aplicar(Ev(100, "ouvindo", "a"), false);
         m7.Aplicar(Ev(105, "ouvindo", "b"), false);
-        Ok(m7.Principal(106)!.Id == "b", "a mais recente em andamento aparece");
+        Ok(m7.Principal()!.Id == "b", "a mais recente em andamento aparece");
         m7.Aplicar(Ev(107, "terminou", "b"), false);
-        Ok(m7.Principal(108)!.Id == "a", "em andamento vale mais que a que terminou");
+        Ok(m7.Principal()!.Id == "a" && m7.Ordenadas().Count == 1, "a que terminou some; a em andamento fica");
         m7.Aplicar(Ev(109, "notificacao", "b", aviso: "permission_prompt"), false);
         m7.PedidoChegou(new PedidoPermissao { Sessao = "b", Ferramenta = "Bash", Chegou = 110 });
-        Ok(m7.Principal(111)!.Id == "b" && m7.Ordenadas(111).Count == 2, "a que pede permissão vem primeiro");
+        Ok(m7.Principal()!.Id == "b" && m7.Ordenadas().Count == 2, "a que pede permissão vem primeiro");
         Ok(m7.Aplicar(Ev(120, "fim", "a"), false).Mudou && m7.Pegar("a") == null, "fim: a sessão sai");
         // sessão esquecida (morreu sem fim e sem arquivo)
         var m8 = new Sessoes();
         m8.Aplicar(Ev(100, "rodando"), false);
         m8.Tique(100 + Sessoes.ESQUECIDO + 1);
-        Ok(m8.Principal(100 + Sessoes.ESQUECIDO + 1) == null, "trabalhando 15 min sem sinal nenhum: esquecida");
+        Ok(m8.Principal() == null, "trabalhando 15 min sem sinal nenhum: esquecida");
         // privacidade dentro da máquina
         var m9 = new Sessoes();
         m9.Aplicar(Evento.Ler(L3)!, false);
@@ -241,9 +241,30 @@ internal static class AutotesteClaude
         m10.Aplicar(Ev(2, "terminou", pergunta: true), false);
         m10.Aplicar(Ev(62, "notificacao", aviso: "idle_prompt"), false);
         Ok(m10.Pegar("s")!.Fase == Fase.Terminou && m10.Pegar("s")!.Texto == "Fez uma pergunta", "terminou com pergunta; o aviso de idle não muda");
+        m10.Tique(2 + Sessoes.GUARDA_DO_FIM + 1);
+        m10.Aplicar(Ev(200, "notificacao", aviso: "idle_prompt"), false);
+        Ok(m10.Principal() == null, "aviso de idle depois da guarda do fim: continua fora da ilha");
+
+        // só trabalhando ou pedindo atenção aparece
+        var m11 = new Sessoes();
+        m11.Aplicar(Ev(1, "ouvindo"), false);
+        Ok(m11.Principal() != null, "pensando: aparece");
+        m11.Aplicar(Ev(2, "notificacao", aviso: "elicitation_dialog"), false);
+        Ok(m11.Principal()?.Fase == Fase.Esperando, "precisa de você: aparece");
+        m11.AplicarArquivo(new ArquivoDeSessao { SessaoId = "s", Status = "waiting", StatusEm = 3 }, 3);
+        Ok(m11.Principal()?.Texto == "Esperando você", "waiting no arquivo (pergunta): aparece esperando");
+        m11.AplicarArquivo(new ArquivoDeSessao { SessaoId = "s", Status = "idle", StatusEm = 10 }, 10);
+        m11.Tique(14);
+        Ok(m11.Pegar("s")!.Fase == Fase.Parada && m11.Principal() == null, "parou (Esc ou erro): sai da ilha na hora");
+        var m12 = new Sessoes();
+        m12.Aplicar(Ev(1, "ouvindo"), false);
+        m12.Aplicar(Ev(5, "notificacao", aviso: "idle_prompt"), false);
+        Ok(m12.Principal()?.Texto == "Esperando você", "aviso de idle com o Stop perdido (ainda trabalhando): esperando você");
+        var semConstrutor = (AtividadeClaude)System.Runtime.CompilerServices.RuntimeHelpers.GetUninitializedObject(typeof(AtividadeClaude));
+        Ok(!semConstrutor.AnunciaChegada, "a atividade não abre o cartão sozinha ao ligar");
 
         // o relógio nunca fica preso: depois de cada Tique no prazo, o próximo prazo é futuro (ou não existe)
-        var mx = new Sessoes { JanelaDepoisDeTerminar = 30 };
+        var mx = new Sessoes();
         mx.Aplicar(Ev(10, "ouvindo", "a"), false);
         mx.Aplicar(Ev(11, "digitando", "a", "Editando a.cs"), false);
         mx.AplicarArquivo(new ArquivoDeSessao { SessaoId = "a", Status = "idle", StatusEm = 12 }, 12);

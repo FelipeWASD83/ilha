@@ -26,6 +26,8 @@ internal sealed class AtividadeTempo : Atividade
     private const float L = 360f, CAMPO_A = 34f, TOPO = 44f, LINHA = 46f, VOLTA_A = 17f, MAX_A = 300f, DICA_A = 26f;
     private const float R_BOTAO = 15f, B1 = L - 26f, B2 = L - 62f, B3 = L - 98f;
     private const int VOLTAS_MOSTRADAS = 3;
+    // pílula: anel na ponta esquerda (centro 12, raio 9, traço 3), tempo encostado na direita
+    internal const float COMPACTA_L = 150f, FIM_DO_ANEL = 12 + 9 + 1.5f, FOLGA_MEIO = 6f, VAO_MAIS = 8f;
 
     private readonly Servicos _s;
     private readonly ConfigTempo _cfg;
@@ -36,6 +38,9 @@ internal sealed class AtividadeTempo : Atividade
     // dispara no horário do próximo fim (timer ou fase do pomodoro), apareça a ilha ou não
     private readonly System.Windows.Forms.Timer _alarme = new();
     private int _cenas;
+    private int _compactas;
+    // o vão da hora foi medido com este texto; se o tempo crescer (cronômetro passando de 9:59 ou de 59:59), refaz
+    private int _caracteresDoMeio;
     private long _assinatura;
     private bool _campo;
     private string? _erro;
@@ -52,6 +57,40 @@ internal sealed class AtividadeTempo : Atividade
         _salvar = salvar;
         _tique.Tick += (_, _) => Tique();
         _alarme.Tick += (_, _) => { _alarme.Stop(); Verificar(); };
+    }
+
+    /// <summary>
+    /// O vão entre o anel e o tempo (com o "+N" dos outros), medido no texto que está na tela. A hora fica no meio
+    /// desse vão, não no centro da pílula: o tempo à direita tem largura variável.
+    /// </summary>
+    public override (float De, float Ate)? MeioLivreCompacta
+    {
+        get
+        {
+            // o palco dos serviços (o núcleo pergunta antes da primeira cena; um palco guardado no Montar ainda seria null)
+            if (_encerrada || _s.Palco is not { } p) return null;
+            long agora = Agora;
+            if (_r.Principal(agora) is not { } item) return null;
+            string texto = Resumo(item, agora).Texto;
+            int outros = _r.Quantos - 1;
+            string mais = outros > 0 ? "+" + outros : "";
+            _caracteresDoMeio = texto.Length + mais.Length;
+            try
+            {
+                float lt = p.Texto.Medir(texto, 15, FontWeight.SemiBold, tabular: true).X;
+                float lm = mais.Length > 0 ? p.Texto.Medir(mais, 12, FontWeight.Normal).X : 0;
+                return MeioLivre(lt, lm);
+            }
+            catch (Exception e) { Log.Escrever("timer, medir o meio livre: " + e.Message); return null; }
+        }
+    }
+
+    /// <summary>Lógica pura do vão: null quando o tempo encosta no anel.</summary>
+    internal static (float De, float Ate)? MeioLivre(float larguraTempo, float larguraMais)
+    {
+        float reservado = larguraTempo + (larguraMais > 0 ? VAO_MAIS + larguraMais : 0);
+        float de = FIM_DO_ANEL + FOLGA_MEIO, ate = COMPACTA_L - reservado - FOLGA_MEIO;
+        return ate > de ? (de, ate) : null;
     }
 
     // ------------------------------------------------------------------ ciclo de vida
@@ -122,7 +161,17 @@ internal sealed class AtividadeTempo : Atividade
         long a = _r.Assinatura(agora);
         if (a == _assinatura) return;
         _assinatura = a;
+        // o tempo ganhou um dígito com a hora na pílula: refaz a cena para o vão ser medido de novo. Zera a base antes:
+        // o núcleo só remede quando a hora pode aparecer, e sem isso cada segundo seguinte refaria a cena
+        if (_compactas > 0 && _caracteresDoMeio > 0 && CaracteresAgora(agora) > _caracteresDoMeio) { _caracteresDoMeio = 0; MudouTamanho(); return; }
         Redesenhar();
+    }
+
+    private int CaracteresAgora(long agora)
+    {
+        if (_r.Principal(agora) is not { } item) return 0;
+        int outros = _r.Quantos - 1;
+        return Resumo(item, agora).Texto.Length + (outros > 0 ? 1 + outros.ToString(System.Globalization.CultureInfo.InvariantCulture).Length : 0);
     }
 
     private void Verificar()
@@ -308,9 +357,11 @@ internal sealed class AtividadeTempo : Atividade
             _ => Expandida(p),
         };
         _cenas++;
+        if (f == Forma.Compacta) _compactas++;
         c.AoSoltar += () =>
         {
             _cenas--;
+            if (f == Forma.Compacta) _compactas--;
             AtualizarTique();
             // a ilha recolheu (clique fora, atalho principal, outra atividade): o campo não fica pegando o teclado à toa
             if (f is Forma.Expandida or Forma.Alerta && _campo && _s.Entrada.Aberta && _s.Ilha.Expandida != this)
@@ -352,7 +403,7 @@ internal sealed class AtividadeTempo : Atividade
 
     private Cena Compacta(Palco p)
     {
-        var c = p.NovaCena(new Vector2(150, 24));
+        var c = p.NovaCena(new Vector2(COMPACTA_L, 24));
         p.Desenho(c, Vector2.Zero, c.Tamanho, (dc, t) =>
         {
             long agora = Agora;

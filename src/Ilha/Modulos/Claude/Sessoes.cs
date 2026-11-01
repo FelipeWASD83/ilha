@@ -134,8 +134,11 @@ internal sealed class Sessoes
 {
     private readonly Dictionary<string, Sessao> _s = new();
 
-    /// <summary>Por quanto tempo uma sessão que terminou (ou parou) continua na ilha.</summary>
-    public double JanelaDepoisDeTerminar = 90;
+    /// <summary>
+    /// Por quanto tempo a fase "terminou" (ou "parou") fica guardada depois do fim. Ela não aparece na ilha (só o alerta
+    /// do fim); serve para a sessão sem arquivo ser esquecida depois e o resumo do fim continuar à mão nesse meio tempo.
+    /// </summary>
+    public const double GUARDA_DO_FIM = 90;
     /// <summary>Idle sem "terminou" depois disto = parou por Esc ou erro (o Stop não roda nesses casos).</summary>
     public const double ESPERA_DO_IDLE = 3;
     /// <summary>Editar e ler são rápidos: sem evento novo por este tempo, ele voltou a pensar.</summary>
@@ -225,8 +228,9 @@ internal sealed class Sessoes
                 }
                 else if (ev.Aviso == "idle_prompt")
                 {
-                    // aviso de 1 minuto parado depois de terminar: já está mostrando "terminou"
-                    if (s.Fase is not (Fase.Terminou or Fase.Parada)) Mudar(s, Fase.Esperando, "Esperando você", ev.T);
+                    // aviso de 1 minuto parado depois de terminar: o fim já teve o alerta dele, e ficar "esperando" para
+                    // sempre depois de cada resposta seria a ilha ocupada o tempo todo
+                    if (s.Trabalhando) Mudar(s, Fase.Esperando, "Esperando você", ev.T);
                 }
                 else Mudar(s, Fase.Esperando, "Precisa de você", ev.T);
                 break;
@@ -385,8 +389,8 @@ internal sealed class Sessoes
     private static double? PrazoDeEsquecer(Sessao s) =>
         s.Trabalhando && s.Status != "busy" ? Math.Max(s.UltimoEvento, s.FaseDesde) + ESQUECIDO : null;
 
-    private double? PrazoDaJanela(Sessao s) =>
-        s.Fase is Fase.Terminou or Fase.Parada ? s.FaseDesde + JanelaDepoisDeTerminar : null;
+    private static double? PrazoDaJanela(Sessao s) =>
+        s.Fase is Fase.Terminou or Fase.Parada ? s.FaseDesde + GUARDA_DO_FIM : null;
 
     /// <summary>A próxima hora em que o <see cref="Tique"/> pode mudar alguma coisa (null = nada pendente).</summary>
     public double? ProximoPrazo()
@@ -403,20 +407,15 @@ internal sealed class Sessoes
         return min;
     }
 
-    /// <summary>Visível na ilha: em andamento, ou terminou há pouco.</summary>
-    public bool Visivel(Sessao s, double agora) =>
-        s.EmAndamento || (s.Fase is Fase.Terminou or Fase.Parada && agora - s.FaseDesde < JanelaDepoisDeTerminar);
+    /// <summary>Visível na ilha: só trabalhando ou pedindo atenção (permissão, pergunta, esperando por ele).</summary>
+    public static bool Visivel(Sessao s) => s.EmAndamento;
 
-    /// <summary>
-    /// A sessão que a ilha mostra: a que pede permissão primeiro (é a que precisa dele), depois a mais recente em
-    /// andamento, depois a que terminou por último.
-    /// </summary>
-    public Sessao? Principal(double agora) => Ordenadas(agora).FirstOrDefault();
+    /// <summary>A sessão que a ilha mostra: a que pede permissão primeiro (é a que precisa dele), depois a mais recente.</summary>
+    public Sessao? Principal() => Ordenadas().FirstOrDefault();
 
-    public List<Sessao> Ordenadas(double agora) => _s.Values
-        .Where(s => Visivel(s, agora))
+    public List<Sessao> Ordenadas() => _s.Values
+        .Where(Visivel)
         .OrderByDescending(s => s.Pedidos.Count > 0)
-        .ThenByDescending(s => s.EmAndamento)
         .ThenByDescending(s => Math.Max(s.UltimoEvento, s.FaseDesde))
         .ToList();
 }

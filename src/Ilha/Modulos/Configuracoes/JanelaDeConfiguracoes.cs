@@ -101,8 +101,8 @@ internal sealed class JanelaDeConfiguracoes : Form
     private Windows.Media.Playback.MediaPlayer? _teste;
 
     // Geral
-    private CheckBox _colada = null!, _sombra = null!, _dividir = null!, _ociosa = null!, _naoPerturbe = null!, _iniciar = null!;
-    private NumericUpDown _distancia = null!, _tamanho = null!, _deslX = null!, _deslY = null!, _alerta = null!;
+    private CheckBox _colada = null!, _sombra = null!, _borda = null!, _dividir = null!, _relogio = null!, _ociosa = null!, _naoPerturbe = null!, _iniciar = null!;
+    private NumericUpDown _distancia = null!, _tamanho = null!, _deslX = null!, _deslY = null!, _alerta = null!, _atrasoRecolher = null!;
     // Sons
     private CheckBox _sonsLigados = null!;
     private TrackBar _volume = null!;
@@ -335,10 +335,16 @@ internal sealed class JanelaDeConfiguracoes : Form
         _deslX = Numero(col, "Deslocamento horizontal (pontos)", c.DeslocamentoX, -4000, 4000, 0, 1);
         _deslY = Numero(col, "Deslocamento vertical (pontos)", c.DeslocamentoY, -2000, 2000, 0, 1, "Para tirar a ilha do centro de cima da tela.");
         _sombra = Marcar(col, "Sombra em volta da ilha", c.Sombra);
+        _borda = Marcar(col, "Borda clara com fundo escuro", c.BordaAdaptativa,
+            "Uma borda fina aparece em volta da ilha quando o que está atrás dela é escuro. Não existe no modo colado.");
         _dividir = Marcar(col, "Dividir quando tem duas coisas acontecendo", c.Dividir, "A segunda vira uma bolinha ao lado da pílula.");
+        _relogio = Marcar(col, "Hora no meio da pílula", c.Relogio,
+            "Quando o que está na pílula deixa o meio vazio (mídia, timer). Nunca na área de trabalho.");
         _ociosa = Marcar(col, "Mostrar a ilha vazia na área de trabalho", c.OciosaNaAreaDeTrabalho);
         _naoPerturbe = Marcar(col, "Respeitar o Não Incomodar do Windows", c.RespeitarNaoPerturbe, "Sem chegada nem alerta, menos o alarme do timer.");
         _alerta = Numero(col, "Tempo de um alerta na tela (segundos)", (decimal)c.AlertaSegundos, 1, 60, 1, 0.5m);
+        _atrasoRecolher = Numero(col, "Esperar antes de recolher (ms)", c.AtrasoRecolherMs, 0, 5000, 0, 50,
+            "Depois que o mouse sai do cartão aberto. Se o mouse voltar antes, ele não fecha. Padrão 600.");
         _iniciar = Marcar(col, "Iniciar com o Windows", c.IniciarComWindows, "Só vale na ilha instalada (Menu Iniciar), não na cópia de desenvolvimento.");
         return s;
     }
@@ -580,10 +586,13 @@ internal sealed class JanelaDeConfiguracoes : Form
         c.DeslocamentoX = (int)_deslX.Value;
         c.DeslocamentoY = (int)_deslY.Value;
         c.Sombra = _sombra.Checked;
+        c.BordaAdaptativa = _borda.Checked;
         c.Dividir = _dividir.Checked;
+        c.Relogio = _relogio.Checked;
         c.OciosaNaAreaDeTrabalho = _ociosa.Checked;
         c.RespeitarNaoPerturbe = _naoPerturbe.Checked;
         c.AlertaSegundos = (float)_alerta.Value;
+        c.AtrasoRecolherMs = (int)_atrasoRecolher.Value;
         c.IniciarComWindows = _iniciar.Checked;
 
         c.Sons.Ligados = _sonsLigados.Checked;
@@ -681,6 +690,27 @@ internal sealed class JanelaDeConfiguracoes : Form
         if (e.Control && e.KeyCode == Keys.S) { e.SuppressKeyPress = true; Salvar(); }
     }
 
+    // Esc fecha a janela (perguntando antes se tem mudança sem salvar). A caixa de atalho com foco trata o Esc dela
+    // (desfazer) no próprio ProcessCmdKey e não chega aqui; lista aberta de um ComboBox fecha só a lista.
+    protected override bool ProcessCmdKey(ref Message msg, Keys keyData)
+    {
+        if (keyData == Keys.Escape && EscFecha(Focado(this)))
+        {
+            Close();
+            return true;
+        }
+        return base.ProcessCmdKey(ref msg, keyData);
+    }
+
+    internal static bool EscFecha(Control? focado) => focado is not CaixaDeAtalho and not ComboBox { DroppedDown: true };
+
+    private static Control? Focado(ContainerControl c)
+    {
+        var a = c.ActiveControl;
+        while (a is ContainerControl cc && cc.ActiveControl != null) a = cc.ActiveControl;
+        return a;
+    }
+
     protected override void Dispose(bool disposing)
     {
         if (disposing)
@@ -734,6 +764,9 @@ internal sealed class JanelaDeConfiguracoes : Form
 
     internal NumericUpDown CampoTamanho => _tamanho;
     internal CheckBox CampoColada => _colada;
+    internal NumericUpDown CampoAtrasoRecolher => _atrasoRecolher;
+    internal CheckBox CampoBorda => _borda;
+    internal CheckBox CampoRelogio => _relogio;
     internal List<string> ListaDePrioridades => _listaPrioridades;
     internal ListBox ListaDeJogos => _jogos;
     internal IEnumerable<(string Id, CheckBox Ligado, List<CampoGerado> Campos)> ModulosNaTela => _modulos.Select(m => (m.Id, m.Ligado, m.Campos));

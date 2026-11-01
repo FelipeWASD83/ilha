@@ -127,6 +127,12 @@ internal sealed class ModuloConfiguracoes : Modulo
             Conferir("Backspace deixa sem atalho", r3 == CaixaDeAtalho.Resultado.Atalho && a3.Tecla == 0 && Teclas.Nome(a3) == "nenhum");
             Conferir("Esc desfaz", CaixaDeAtalho.DeTecla(Keys.Escape, false, false, false, false).Resultado == CaixaDeAtalho.Resultado.Cancelar);
 
+            // Esc fecha a janela, menos na caixa de atalho (lá ele desfaz)
+            using (var caixa = new CaixaDeAtalho())
+            using (var campo = new TextBox())
+                Conferir("Esc fecha a janela fora da caixa de atalho",
+                    JanelaDeConfiguracoes.EscFecha(null) && JanelaDeConfiguracoes.EscFecha(campo) && !JanelaDeConfiguracoes.EscFecha(caixa));
+
             // prioridades
             var l = new List<string> { "a", "b", "c" };
             Conferir("subir e descer", JanelaDeConfiguracoes.Mover(l, 2, -1) && l.SequenceEqual(new[] { "a", "c", "b" }) && !JanelaDeConfiguracoes.Mover(l, 0, -1) && !JanelaDeConfiguracoes.Mover(l, 2, 1));
@@ -174,7 +180,16 @@ internal sealed class ModuloConfiguracoes : Modulo
                 j.ListaDeJogos.Items.Add("jogo-novo.exe");
                 j.ModulosNaTela.First(m => m.Id == "atualizador").Ligado.Checked = true;
                 j.CaixasDeAtalho.First(a => a.Nome == "timer").Caixa.Valor = padroes["timer"];
+                Conferir("opções novas abrem com o valor da config",
+                    j.CampoAtrasoRecolher.Value == cfg.AtrasoRecolherMs && j.CampoBorda.Checked == cfg.BordaAdaptativa && j.CampoRelogio.Checked == cfg.Relogio
+                    && j.CampoAtrasoRecolher.Minimum == 0 && j.CampoAtrasoRecolher.Maximum == 5000);
+                j.CampoAtrasoRecolher.Value = 1200;
+                j.CampoBorda.Checked = !cfg.BordaAdaptativa;
+                j.CampoRelogio.Checked = !cfg.Relogio;
                 var com = j.Coletar();
+                Conferir("mexendo, coletar leva o atraso de recolher, a borda e a hora",
+                    com.AtrasoRecolherMs == 1200 && com.BordaAdaptativa != cfg.BordaAdaptativa && com.Relogio != cfg.Relogio,
+                    $"{com.AtrasoRecolherMs} {com.BordaAdaptativa} {com.Relogio}");
                 Conferir("mexendo, coletar leva tamanho, colada, prioridade, jogo e módulo",
                     Math.Abs(com.Tamanho - 1.25f) < 1e-5 && com.Colada && com.Prioridades[0] == cfg.Prioridades[1]
                     && com.JogosCompetitivos.Last() == "jogo-novo.exe" && com.Modulos["atualizador"]?["ligado"]?.GetValue<bool>() == true);

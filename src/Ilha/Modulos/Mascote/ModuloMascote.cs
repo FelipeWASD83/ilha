@@ -1,304 +1,374 @@
 using System;
-using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
-using System.Runtime.InteropServices;
 using System.Text.Json.Nodes;
 using System.Text.Json.Serialization;
-using System.Threading.Tasks;
-using Windows.Media.Control;
+using System.Threading;
 
 namespace Ilha.Mascote;
 
 /// <summary>
-/// O mascote (pixel art exportada do Aseprite) morando dentro da ilha. Fica na pílula quando a área de trabalho está
-/// na frente e não tem mais nada, dorme depois de um tempo sem mexer no mouse e no teclado, dança com música tocando
-/// (qualquer player que fale com o Windows, pelo SMTC) e trabalha quando o Claude Code está trabalhando (pela fila de
-/// eventos dos hooks, só leitura). Tudo por evento: SMTC, FileSystemWatcher e troca de janela; o único relógio é o do
-/// sono, e só roda com ele aparecendo sozinho na área de trabalho.
+/// O mascote morando na ilha. O mascote é um app à parte (o acompanhante), dono do desenho, do fundo, do comportamento
+/// e da config dele; a ilha é só o palco: serve o pipe \\.\pipe\ilha-acompanhante, mostra os quadros que chegam, diz
+/// ao app onde a pílula está e passa o arrastar para fora. Ele entra arrastando a janela dele para cima da pílula, ou
+/// pela entrada "Mascote" do menu (que abre o app, se ele estiver fechado, pelo comando da config). Nada roda sem o
+/// app conectado: sem relógio, sem leitura de arquivo.
 /// </summary>
 [Modulo("mascote", "Mascote", LigadoPorPadrao = false)]
 internal sealed partial class ModuloMascote : Modulo
 {
+    private const string ID_MENU = "mascote";
+    private const int ARRASTO_MIN_MS = 12;
+
     private ConfigMascote _cfg = new();
     private AtividadeMascote? _atv;
-    private Biblioteca? _bib;
-    private Contexto _ctx = new();
-    private bool _parou;
-
-    // Claude Code
-    private readonly SessoesDoClaude _claude = new();
-    private readonly LeitorDeLinhas _leitor = new();
-    private FileSystemWatcher? _vigiaEventos;
-    private string _arquivoVigiado = "";
-    private System.Windows.Forms.Timer? _esperaEventos, _vencimento;
-
-    // folhas
-    private FileSystemWatcher? _vigiaFolhas;
-    private string _pastaVigiada = "";
-    private System.Windows.Forms.Timer? _esperaFolhas;
-
-    // música
-    private GlobalSystemMediaTransportControlsSessionManager? _gerente;
-    private readonly List<GlobalSystemMediaTransportControlsSession> _sessoes = new();
-    private bool _tocando;
-
-    // sono
-    private System.Windows.Forms.Timer? _relogioSono;
+    private ServidorAcompanhante? _srv;
+    private bool _parou, _conectado, _noMenu;
+    private string _palcoMandado = "";
+    private long _lancouEm = long.MinValue / 2, _expandirAoEntrarAte, _ultimoArrasto;
+    // só o quadro mais novo espera a interface: chegando mais rápido que ela desenha, os do meio são pulados
+    private sealed record Pendente(byte[] Px, int L, int A, bool Pixelado);
+    private Pendente? _quadroPendente;
+    private int _quadroAgendado;
 
     public override Type? TipoConfig => typeof(ConfigMascote);
 
     protected override void Iniciar(JsonObject cfg)
     {
         _cfg = Ler<ConfigMascote>(cfg);
-        _ctx = S.ContextoAtual();
-        _atv = new AtividadeMascote();
+        _atv = new AtividadeMascote
+        {
+            SaiuArrastando = AoSairArrastando,
+            Arrastou = () => MandarCursor("arrasto", forcar: false),
+            Soltou = () => MandarCursor("soltou", forcar: true),
+            PedirSair = () => { _srv?.Enviar(ProtocoloAcompanhante.Simples("pedir_sair")); S.Ilha.Recolher(); },
+        };
         S.Ilha.Adicionar(_atv);
-        _esperaEventos = UmaVez(40, LerEventos);
-        _esperaFolhas = UmaVez(600, CarregarFolhas);
-        _vencimento = UmaVez(1000, Reavaliar);
-        _relogioSono = UmaVez(30000, Reavaliar);
-        CarregarFolhas();
-        VigiarEventos();
-        LigarMidia();
-        Reavaliar();
-    }
-
-    private static System.Windows.Forms.Timer UmaVez(int ms, Action acao)
-    {
-        var t = new System.Windows.Forms.Timer { Interval = ms };
-        t.Tick += (_, _) => { t.Stop(); acao(); };
-        return t;
-    }
-
-    private void Rearmar(System.Windows.Forms.Timer? t, double ms)
-    {
-        // evento do sistema que chegou depois do Parar: os relógios já foram descartados
-        if (t == null || _parou) return;
-        t.Stop();
-        t.Interval = (int)Math.Clamp(ms, 1, int.MaxValue);
-        t.Start();
+        S.Ilha.EstadoMudou += AoMudarEstado;
+        _srv = new ServidorAcompanhante(ProtocoloAcompanhante.PIPE,
+            () => S.NaInterface(AoConectar),
+            AoChegar,
+            () => S.NaInterface(AoCair));
+        AtualizarMenu();
     }
 
     public override void ConfigMudou(JsonObject cfg)
     {
         _cfg = Ler<ConfigMascote>(cfg);
-        if (Normal(_cfg.PastaFolhas) != _pastaVigiada) CarregarFolhas();
-        if (Normal(_cfg.ArquivoEventos) != _arquivoVigiado) VigiarEventos();
-        Reavaliar();
+        AtualizarMenu();
     }
 
-    public override void Contexto(Contexto ctx)
-    {
-        _ctx = ctx;
-        // os eventos do SMTC às vezes não chegam: a troca de janela é uma ressincronização barata
-        ConferirTocando(avisar: false);
-        Reavaliar();
-    }
+    public override void Contexto(Contexto ctx) => MandarPalco();
 
     public override void Parar()
     {
         _parou = true;
-        foreach (var t in new[] { _esperaEventos, _esperaFolhas, _vencimento, _relogioSono }) { t?.Stop(); t?.Dispose(); }
-        _vigiaEventos?.Dispose();
-        _vigiaEventos = null;
-        _vigiaFolhas?.Dispose();
-        _vigiaFolhas = null;
-        SoltarMidia();
+        try { S.Ilha.EstadoMudou -= AoMudarEstado; } catch (Exception) { }
+        if (_noMenu)
+        {
+            try { S.Menu.Remover(ID_MENU); } catch (Exception) { }
+            _noMenu = false;
+        }
+        _conectado = false;
+        _srv?.Dispose();
+        _srv = null;
         _atv?.Parar();
     }
 
-    private static string Normal(string? caminho) =>
-        string.IsNullOrWhiteSpace(caminho) ? "" : Environment.ExpandEnvironmentVariables(caminho.Trim().Trim('"'));
+    private void AoMudarEstado(Estado e) => MandarPalco();
 
-    // ------------------------------------------------------------------ estado
+    // ------------------------------------------------------------------ conexão
 
-    private void Reavaliar()
-    {
-        if (_parou || _atv == null) return;
-        double agora = SessoesDoClaude.Agora();
-        bool claude = _arquivoVigiado.Length > 0 && _claude.Trabalhando(agora);
-        bool musica = _tocando;
-        bool temFolhas = _bib is { Quantas: > 0 };
-        bool areaDeTrabalho = _ctx.Desktop && !_ctx.Competitivo;
-        bool aparece = Escolha.Aparece(temFolhas, claude, musica, areaDeTrabalho) && !_ctx.Competitivo;
-
-        // o sono só importa com ele parado na área de trabalho; fora disso o relógio nem roda
-        var dormir = TimeSpan.FromMinutes(Math.Max(0, _cfg.DormirDepoisMinutos));
-        bool vigiarSono = aparece && areaDeTrabalho && !claude && !musica && dormir > TimeSpan.Zero;
-        var ocioso = vigiarSono ? Ocioso() : TimeSpan.Zero;
-        var estado = Escolha.Estado(claude, musica, ocioso, dormir);
-        _atv.Atualizar(estado, aparece);
-
-        if (vigiarSono)
-            // acordado: confere quando o sono chegaria (no mínimo a cada 30 s); dormindo: a cada 5 s, para acordar logo
-            Rearmar(_relogioSono, estado == EstadoMascote.Dormindo ? 5000 : Math.Max(30000, (dormir - ocioso).TotalMilliseconds + 500));
-        else _relogioSono?.Stop();
-
-        if (claude && _claude.Vencimento(agora) is double venc) Rearmar(_vencimento, (venc - agora) * 1000 + 500);
-        else _vencimento?.Stop();
-    }
-
-    [StructLayout(LayoutKind.Sequential)]
-    private struct LASTINPUTINFO { public uint cbSize, dwTime; }
-
-    [DllImport("user32.dll")] private static extern bool GetLastInputInfo(ref LASTINPUTINFO plii);
-    [DllImport("kernel32.dll")] private static extern uint GetTickCount();
-
-    /// <summary>Quanto tempo sem mouse e sem teclado (o contador do Windows, de 32 bits, dá a volta em 49 dias).</summary>
-    internal static TimeSpan Ocioso()
-    {
-        var li = new LASTINPUTINFO { cbSize = (uint)Marshal.SizeOf<LASTINPUTINFO>() };
-        if (!GetLastInputInfo(ref li)) return TimeSpan.Zero;
-        return TimeSpan.FromMilliseconds(unchecked(GetTickCount() - li.dwTime));
-    }
-
-    // ------------------------------------------------------------------ folhas
-
-    private void CarregarFolhas()
+    private void AoConectar()
     {
         if (_parou) return;
-        string pasta = Normal(_cfg.PastaFolhas);
-        if (pasta != _pastaVigiada)
+        _conectado = true;
+        MandarPalco(forcar: true);
+        AtualizarMenu();
+    }
+
+    private void AoCair()
+    {
+        if (_parou) return;
+        _conectado = false;
+        _palcoMandado = "";
+        _quadroPendente = null;
+        _atv?.Desconectou();
+        AtualizarMenu();
+    }
+
+    /// <summary>Thread do pipe: o PNG do quadro é decodificado aqui; o resto vai para a interface.</summary>
+    private void AoChegar(ProtocoloAcompanhante.Recebida m)
+    {
+        if (m.Tipo == "quadro")
         {
-            _vigiaFolhas?.Dispose();
-            _vigiaFolhas = null;
-            _pastaVigiada = pasta;
-            if (pasta.Length > 0 && Directory.Exists(pasta))
-            {
-                try
+            var px = ProtocoloAcompanhante.Pixels(m.Png!, out int l, out int a);
+            if (px == null) return;
+            Volatile.Write(ref _quadroPendente, new Pendente(px, l, a, m.Pixelado));
+            if (Interlocked.Exchange(ref _quadroAgendado, 1) == 0)
+                S.NaInterface(() =>
                 {
-                    // reexportou do Aseprite: recarrega sozinho (espera a rajada de arquivos acabar)
-                    _vigiaFolhas = new FileSystemWatcher(pasta) { IncludeSubdirectories = false, NotifyFilter = NotifyFilters.FileName | NotifyFilters.LastWrite | NotifyFilters.Size };
-                    FileSystemEventHandler h = (_, _) => S.NaInterface(() => Rearmar(_esperaFolhas, 600));
-                    _vigiaFolhas.Changed += h;
-                    _vigiaFolhas.Created += h;
-                    _vigiaFolhas.Deleted += h;
-                    _vigiaFolhas.Renamed += (_, _) => S.NaInterface(() => Rearmar(_esperaFolhas, 600));
-                    _vigiaFolhas.EnableRaisingEvents = true;
-                }
-                catch (Exception e) when (e is ArgumentException or IOException) { Log.Escrever("mascote: não deu para vigiar a pasta das folhas: " + e.Message); }
-            }
+                    Interlocked.Exchange(ref _quadroAgendado, 0);
+                    if (_parou || !_conectado || Interlocked.Exchange(ref _quadroPendente, null) is not { } q) return;
+                    _atv?.NovoQuadro(q.Px, q.L, q.A, q.Pixelado);
+                    TalvezExpandir();
+                });
+            return;
         }
-        try { _bib = pasta.Length > 0 ? Biblioteca.Carregar(pasta) : null; }
-        catch (Exception e) when (e is IOException or UnauthorizedAccessException)
-        {
-            Log.Escrever("mascote: a pasta das folhas não abriu: " + e.Message);
-            _bib = null;
-        }
-        if (pasta.Length > 0) Log.Escrever($"mascote: {_bib?.Quantas ?? 0} animações ({string.Join(", ", _bib?.Nomes ?? Array.Empty<string>())})");
-        _atv?.Folhas(_bib);
-        Reavaliar();
+        S.NaInterface(() => { if (!_parou) Tratar(m); });
     }
 
-    // ------------------------------------------------------------------ Claude Code
-
-    private void VigiarEventos()
+    private void Tratar(ProtocoloAcompanhante.Recebida m)
     {
-        _vigiaEventos?.Dispose();
-        _vigiaEventos = null;
-        _arquivoVigiado = Normal(_cfg.ArquivoEventos);
-        _leitor.Recomecar();
-        if (_arquivoVigiado.Length == 0) { Reavaliar(); return; }
-        string? pasta = Path.GetDirectoryName(_arquivoVigiado);
-        if (pasta != null && Directory.Exists(pasta))
+        if (_atv == null || !_conectado) return;
+        switch (m.Tipo)
         {
-            try
+            case "ola":
+                if (m.Versao > ProtocoloAcompanhante.VERSAO) Log.Escrever($"mascote: o app fala a versão {m.Versao} do protocolo (a ilha, a {ProtocoloAcompanhante.VERSAO})");
+                _atv.DefinirNome(m.Nome);
+                MandarPalco(forcar: true);
+                S.Menu.Redesenhar();
+                break;
+            case "entrar":
+                _atv.Morar(true);
+                MandarPalco();
+                S.Menu.Redesenhar();
+                break;
+            case "sair":
+                _atv.Morar(false);
+                MandarPalco();
+                S.Menu.Redesenhar();
+                break;
+            case "pairando":
+                _atv.Pairando(m.Sim);
+                // o mascote manda "pairando" ao começar a arrastar: a ilha confere o palco nessa hora
+                MandarPalco();
+                break;
+            case "visivel":
+                _atv.Visivel(m.Sim);
+                break;
+            case "recusou":
+                S.Avisar(string.IsNullOrWhiteSpace(m.Motivo) ? "O mascote não quis entrar na ilha agora." : m.Motivo!);
+                break;
+        }
+        TalvezExpandir();
+    }
+
+    /// <summary>Pedido pelo menu: abre o cartão quando ele entrar (a atividade só liga com o primeiro quadro).</summary>
+    private void TalvezExpandir()
+    {
+        if (_atv is not { Ativa: true, Morando: true } || Environment.TickCount64 >= _expandirAoEntrarAte) return;
+        // abrir o cartão apagaria o alerta na tela e a fila: tenta de novo no próximo quadro
+        if (S.Ilha.EstadoAtual == Estado.Alerta) return;
+        _expandirAoEntrarAte = 0;
+        S.Ilha.Expandir(_atv);
+    }
+
+    // ------------------------------------------------------------------ palco
+
+    /// <summary>Onde soltar: a pílula como está (ou, escondida, onde ela aparece), em pixels da tela.</summary>
+    private System.Drawing.Rectangle RetanguloDoPalco()
+    {
+        var ilha = S.Ilha;
+        if (ilha.EstadoAtual != Estado.Oculta)
+        {
+            var c = ilha.CorpoNaTela;
+            return System.Drawing.Rectangle.Round(c);
+        }
+        Nativo.GetWindowRect(ilha.JanelaVisual, out var r);
+        return Palcos.Escondida(r.Left, r.Top, r.Right - r.Left, ilha.Escala);
+    }
+
+    private bool PodeMostrar()
+    {
+        var ctx = S.ContextoAtual();
+        return !S.Config().Pausada && !ctx.Competitivo && !ctx.TelaCheia;
+    }
+
+    private void MandarPalco(bool forcar = false)
+    {
+        if (_parou || !_conectado || _srv == null) return;
+        string linha;
+        try { linha = ProtocoloAcompanhante.Palco(RetanguloDoPalco(), PodeMostrar()); }
+        catch (Exception e) { Log.Escrever("mascote: palco: " + e.Message); return; }
+        if (!forcar && linha == _palcoMandado) return;
+        _palcoMandado = linha;
+        _srv.Enviar(linha);
+    }
+
+    // ------------------------------------------------------------------ arrastar para fora
+
+    private void AoSairArrastando()
+    {
+        if (_srv == null || !_conectado) return;
+        MandarCursor("arrasto_saida", forcar: true);
+        // a cena do botão some: depois do arrastar que está rodando, não no meio dele
+        S.NaInterface(() =>
+        {
+            if (_parou || _atv == null) return;
+            _atv.Morar(false);
+            MandarPalco();
+            S.Menu.Redesenhar();
+        });
+    }
+
+    private void MandarCursor(string tipo, bool forcar)
+    {
+        if (_srv == null || !_conectado) return;
+        long agora = Environment.TickCount64;
+        // o mouse manda centenas de movimentos por segundo; o soltar sempre vai
+        if (!forcar && agora - _ultimoArrasto < ARRASTO_MIN_MS) return;
+        _ultimoArrasto = agora;
+        Nativo.GetCursorPos(out var c);
+        _srv.Enviar(ProtocoloAcompanhante.Ponto(tipo, c.X, c.Y));
+    }
+
+    // ------------------------------------------------------------------ menu
+
+    private void AtualizarMenu()
+    {
+        if (_parou) return;
+        bool deve = _conectado || !string.IsNullOrWhiteSpace(_cfg.ComandoAbrir);
+        if (deve && !_noMenu)
+        {
+            S.Menu.Adicionar(new ItemDoMenu
             {
-                _vigiaEventos = new FileSystemWatcher(pasta, Path.GetFileName(_arquivoVigiado))
-                {
-                    NotifyFilter = NotifyFilters.FileName | NotifyFilters.LastWrite | NotifyFilters.Size,
-                    InternalBufferSize = 16384,
-                };
-                FileSystemEventHandler h = (_, _) => S.NaInterface(() => Rearmar(_esperaEventos, 40));
-                _vigiaEventos.Changed += h;
-                _vigiaEventos.Created += h;
-                _vigiaEventos.Renamed += (_, _) => S.NaInterface(() => Rearmar(_esperaEventos, 40));
-                _vigiaEventos.Error += (_, _) => S.NaInterface(() => Rearmar(_esperaEventos, 40));
-                _vigiaEventos.EnableRaisingEvents = true;
-            }
-            catch (Exception e) when (e is ArgumentException or IOException) { Log.Escrever("mascote: não deu para vigiar a fila de eventos: " + e.Message); }
-        }
-        else Log.Escrever("mascote: a pasta da fila de eventos não existe: " + pasta);
-        LerEventos();
-    }
-
-    private void LerEventos()
-    {
-        if (_parou || _arquivoVigiado.Length == 0) return;
-        foreach (var l in _leitor.Novas(_arquivoVigiado)) _claude.Receber(l);
-        Reavaliar();
-    }
-
-    // ------------------------------------------------------------------ música (SMTC)
-
-    private async void LigarMidia()
-    {
-        try
-        {
-            var g = await GlobalSystemMediaTransportControlsSessionManager.RequestAsync().AsTask().ConfigureAwait(false);
-            S.NaInterface(() =>
-            {
-                if (_parou) return;
-                _gerente = g;
-                _gerente.SessionsChanged += AoMudarSessoes;
-                RefazerSessoes();
+                Id = ID_MENU,
+                // a entrada pode nascer depois do Iniciar (quando o app conecta), fora da marca do núcleo
+                Dono = Id,
+                Nome = "Mascote",
+                Ordem = 60,
+                Abrir = AbrirPeloMenu,
+                Icone = DesenharIcone,
+                Detalhe = () => !_conectado ? null : _atv?.Morando == true ? "Na ilha" : "Fora da ilha",
             });
+            _noMenu = true;
         }
-        catch (Exception e) { Log.Escrever("mascote: SMTC indisponível: " + e.Message); }
+        else if (!deve && _noMenu)
+        {
+            S.Menu.Remover(ID_MENU);
+            _noMenu = false;
+        }
+        else if (_noMenu) S.Menu.Redesenhar();
     }
 
-    private void AoMudarSessoes(GlobalSystemMediaTransportControlsSessionManager s, SessionsChangedEventArgs a) => S.NaInterface(RefazerSessoes);
-
-    private void AoMudarTocando(GlobalSystemMediaTransportControlsSession s, PlaybackInfoChangedEventArgs a) => S.NaInterface(() => ConferirTocando(avisar: true));
-
-    private void RefazerSessoes()
+    private void AbrirPeloMenu()
     {
-        if (_parou || _gerente == null) return;
-        foreach (var s in _sessoes) s.PlaybackInfoChanged -= AoMudarTocando;
-        _sessoes.Clear();
+        if (_parou) return;
+        if (_conectado && _srv != null)
+        {
+            if (_atv?.Morando == true)
+            {
+                _srv.Enviar(ProtocoloAcompanhante.Simples("pedir_sair"));
+                S.Ilha.Recolher();
+            }
+            else
+            {
+                _expandirAoEntrarAte = Environment.TickCount64 + 15_000;
+                _srv.Enviar(ProtocoloAcompanhante.Simples("pedir_entrar"));
+            }
+            return;
+        }
+        Abrir();
+    }
+
+    /// <summary>Abre o app do mascote pedindo para ele já nascer dentro da ilha.</summary>
+    private void Abrir()
+    {
+        var cmd = Comando.Dividir(_cfg.ComandoAbrir);
+        if (cmd == null)
+        {
+            S.Avisar("Para abrir o mascote pela ilha, ponha o comando dele em \"comandoAbrir\" (modulos.mascote na config).");
+            return;
+        }
+        long agora = Environment.TickCount64;
+        // o app leva uns segundos para abrir e conectar: um segundo clique não abre outro
+        if (agora - _lancouEm < 10_000) return;
+        _lancouEm = agora;
+        _expandirAoEntrarAte = agora + 20_000;
         try
         {
-            // guardar as sessões: coletadas, os eventos param de chegar calados
-            foreach (var s in _gerente.GetSessions())
+            var (exe, args) = cmd.Value;
+            string extra = (_cfg.ArgumentoNaIlha ?? "").Trim();
+            var psi = new ProcessStartInfo(exe)
             {
-                s.PlaybackInfoChanged += AoMudarTocando;
-                _sessoes.Add(s);
-            }
+                Arguments = extra.Length == 0 ? args : (args.Length == 0 ? extra : args + " " + extra),
+                UseShellExecute = false,
+                CreateNoWindow = true,
+            };
+            if (Path.IsPathRooted(exe) && Path.GetDirectoryName(exe) is { Length: > 0 } pasta && Directory.Exists(pasta)) psi.WorkingDirectory = pasta;
+            using var p = Process.Start(psi);
+            Log.Escrever("mascote: app do mascote aberto pelo menu");
         }
-        catch (Exception e) { Log.Escrever("mascote: sessões do SMTC: " + e.Message); }
-        ConferirTocando(avisar: true);
-    }
-
-    private void ConferirTocando(bool avisar)
-    {
-        if (_gerente == null) return;
-        bool tocando = false;
-        foreach (var s in _sessoes)
+        catch (Exception e)
         {
-            try { if (s.GetPlaybackInfo()?.PlaybackStatus == GlobalSystemMediaTransportControlsSessionPlaybackStatus.Playing) { tocando = true; break; } }
-            catch (Exception) { /* sessão que fechou no meio da conta */ }
+            _lancouEm = long.MinValue / 2;
+            Log.Escrever("mascote: o app não abriu: " + e.Message);
+            S.Avisar("O mascote não abriu. Confira o \"comandoAbrir\" do mascote na config.");
         }
-        if (tocando == _tocando) return;
-        _tocando = tocando;
-        if (avisar) Reavaliar();
     }
 
-    private void SoltarMidia()
+    /// <summary>Um bichinho de pixel: corpo, olhos e quatro patas, tudo em quadradinhos.</summary>
+    private static void DesenharIcone(Vortice.Direct2D1.ID2D1DeviceContext dc, Palco p, System.Drawing.RectangleF r)
     {
-        foreach (var s in _sessoes) { try { s.PlaybackInfoChanged -= AoMudarTocando; } catch (Exception) { } }
-        _sessoes.Clear();
-        if (_gerente != null) { try { _gerente.SessionsChanged -= AoMudarSessoes; } catch (Exception) { } }
-        _gerente = null;
-        _tocando = false;
+        float u = r.Width / 12f, x = r.X, y = r.Y + u;
+        var corpo = Cor.Coral;
+        var olho = new Vortice.Mathematics.Color4(0.08f, 0.06f, 0.05f, 1f);
+        Icone.Retangulo(dc, x + 2 * u, y + 2 * u, 8 * u, 5 * u, 0, corpo);
+        Icone.Retangulo(dc, x + 1 * u, y + 4 * u, 10 * u, 2 * u, 0, corpo);
+        Icone.Retangulo(dc, x + 4 * u, y + 3 * u, u, u, 0, olho);
+        Icone.Retangulo(dc, x + 7 * u, y + 3 * u, u, u, 0, olho);
+        foreach (float px in new[] { 2.5f, 4.5f, 6.5f, 8.5f })
+            Icone.Retangulo(dc, x + px * u, y + 7 * u, u, 2 * u, 0, corpo);
+    }
+}
+
+/// <summary>Contas do palco sem janela (testadas no autoteste).</summary>
+internal static class Palcos
+{
+    public const float ESCONDIDA_L = 220, ESCONDIDA_A = 56;
+
+    /// <summary>A ilha escondida não tem pílula: o alvo é o topo do meio da janela dela, onde a pílula nasce.</summary>
+    public static System.Drawing.Rectangle Escondida(int janX, int janY, int janL, float escala)
+    {
+        int l = (int)MathF.Round(ESCONDIDA_L * escala), a = (int)MathF.Round(ESCONDIDA_A * escala);
+        return new System.Drawing.Rectangle(janX + (janL - l) / 2, janY, l, a);
+    }
+}
+
+/// <summary>Separa o comando da config em programa e argumentos (o programa pode vir entre aspas).</summary>
+internal static class Comando
+{
+    public static (string Exe, string Args)? Dividir(string? linha)
+    {
+        var s = (linha ?? "").Trim();
+        if (s.Length == 0) return null;
+        string exe, resto;
+        if (s[0] == '"')
+        {
+            int fim = s.IndexOf('"', 1);
+            if (fim < 0) return null;
+            exe = s[1..fim];
+            resto = s[(fim + 1)..];
+        }
+        else
+        {
+            int esp = s.IndexOf(' ');
+            exe = esp < 0 ? s : s[..esp];
+            resto = esp < 0 ? "" : s[esp..];
+        }
+        exe = Environment.ExpandEnvironmentVariables(exe.Trim());
+        return exe.Length == 0 ? null : (exe, Environment.ExpandEnvironmentVariables(resto.Trim()));
     }
 }
 
 public sealed class ConfigMascote
 {
-    /// <summary>A pasta das folhas do personagem (PNG + JSON do Aseprite, ou PNG em tira com animacoes.json). Vazia = não aparece.</summary>
-    [JsonPropertyName("pastaFolhas")] public string PastaFolhas { get; set; } = "";
-    /// <summary>A fila de eventos dos hooks do Claude Code (um JSON por linha). Vazia = sem o "trabalhando".</summary>
-    [JsonPropertyName("arquivoEventos")] public string ArquivoEventos { get; set; } = "";
-    /// <summary>Minutos sem mouse e teclado até ele dormir na área de trabalho (0 = nunca dorme).</summary>
-    [JsonPropertyName("dormirDepoisMinutos")] public double DormirDepoisMinutos { get; set; } = 20;
+    /// <summary>
+    /// Como abrir o app do mascote quando ele está fechado (programa e argumentos, por exemplo um pythonw com o
+    /// script dele; aceita %VARIAVEIS%). Vazio = a entrada do menu só aparece com o app já aberto.
+    /// </summary>
+    [JsonPropertyName("comandoAbrir")] public string ComandoAbrir { get; set; } = "";
+    /// <summary>O argumento que a ilha acrescenta ao abrir o app pelo menu, para ele já começar dentro dela.</summary>
+    [JsonPropertyName("argumentoNaIlha")] public string ArgumentoNaIlha { get; set; } = "--na-ilha";
 }

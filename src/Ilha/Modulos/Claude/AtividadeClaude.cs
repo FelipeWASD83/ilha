@@ -19,6 +19,8 @@ internal sealed class AtividadeClaude : Atividade
 {
     public override string Tipo => "claude";
     public override string Nome => "Claude Code";
+    // aparece e some a cada pedido: abrir o cartão toda vez seria barulho (permissão e fim já têm alerta próprio)
+    public override bool AnunciaChegada => false;
 
     private enum Modo { Normal, Modelos, Esforcos, Mensagem }
     private enum Logo { Nada, Loop, Bola, Pulso }
@@ -78,10 +80,9 @@ internal sealed class AtividadeClaude : Atividade
     {
         get
         {
-            double agora = _agora();
-            if (_escolhida != null && _m.Pegar(_escolhida) is { } e && _m.Visivel(e, agora)) return e;
+            if (_escolhida != null && _m.Pegar(_escolhida) is { } e && Sessoes.Visivel(e)) return e;
             _escolhida = null;
-            return _m.Principal(agora);
+            return _m.Principal();
         }
     }
 
@@ -114,7 +115,7 @@ internal sealed class AtividadeClaude : Atividade
         return $"{_modo}|{s?.Id}|{PedidoDe(s)?.Numero ?? 0}|{outras}|{_aviso != null}|{_opcoesDoApp.Count}";
     }
 
-    private List<Sessao> Outras(Sessao? s) => _m.Ordenadas(_agora()).Where(x => x != s && x.EmAndamento).Take(3).ToList();
+    private List<Sessao> Outras(Sessao? s) => _m.Ordenadas().Where(x => x != s).Take(3).ToList();
 
     private string Status(Sessao s)
     {
@@ -274,7 +275,7 @@ internal sealed class AtividadeClaude : Atividade
             var sm = Mostrada;
             string cab = sm == null ? "Claude Code" : "Claude Code · " + Projeto(sm);
             p.Texto.Desenhar(dc, cab, new Vector2(32, 1), 13, Cor.Secundario, largura: L - 32 - 70);
-            int n = _m.Ordenadas(_agora()).Count;
+            int n = _m.Ordenadas().Count;
             if (n > 1)
             {
                 string q = $"{n} sessões";

@@ -31,6 +31,9 @@ internal sealed class Cena
     public List<Botao> Botoes { get; } = new();
     internal readonly List<Superficie> Superficies = new();
     internal Action? AoSoltar;
+    /// <summary>Cena de dentro, quando o núcleo embrulha a da atividade (o "&lt;" do menu em cima do cartão).</summary>
+    internal Cena? Interna;
+    internal Vector2 DeslocamentoInterno;
 
     public void Soltar()
     {
@@ -140,6 +143,11 @@ internal abstract class Atividade
     public virtual bool AnunciaChegada => TemExpandida;
     /// <summary>Rodinha do mouse em cima da ilha com esta atividade na frente (delta 120 por dente; true = tratou).</summary>
     public virtual bool Rolar(int delta) => false;
+    /// <summary>
+    /// Trecho do meio da cena compacta que fica vazio (em DIP, do começo ao fim): o núcleo põe a hora ali quando cabe.
+    /// null = a atividade usa o meio.
+    /// </summary>
+    public virtual (float De, float Ate)? MeioLivreCompacta => null;
     /// <summary>O cartão expandido desta atividade abriu (true) ou fechou (false).</summary>
     public virtual void ExpandidaMudou(bool aberta) { }
     public bool Ativa { get; private set; }

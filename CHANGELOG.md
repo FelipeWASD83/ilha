@@ -1,5 +1,42 @@
 # Changelog
 
+## 0.4.0 (01/11/2026)
+
+**Novo**
+- Menu principal: o atalho da ilha (ou o clique sem nada em andamento) abre a hora, a data e uma grade com as
+  ferramentas (calculadora, IA, tradutor, timer, uso do PC, ar com a temperatura da sala, som, conta-gotas,
+  prateleira, nota, mascote, limite do Claude e configurações).
+- Botão "< Menu" em todo cartão aberto, e o Esc volta para o menu. A ilha só pega o teclado quando você clica nela, e
+  devolve o foco para a janela de antes quando recolhe.
+- Borda fina e clara em volta da ilha, que aparece só com fundo escuro atrás (não existe no modo colado).
+- A hora no meio da pílula compacta, quando a atividade deixa o meio livre (nunca na área de trabalho).
+- Conta-gotas (Ctrl + Alt + P): lupa embaixo do cursor, a cor exata do pixel em hex (já copiado), RGB e HSL, e as
+  últimas cores para copiar de novo.
+- Prateleira: arraste arquivos e pastas para a ilha e arraste de volta para qualquer programa depois. Guarda só o
+  caminho; o que sumir fica marcado como indisponível.
+- Nota rápida (Ctrl + Alt + N): uma linha com data e hora na caixa de entrada do cofre do Obsidian.
+- Mixer: volume e mudo de cada app que está tocando, no cartão do som.
+- Gravando: bolinha vermelha e o tempo quando o OBS grava (com pausar e parar pela ilha) ou quando um app captura
+  a tela (Ferramenta de Captura e outros, mostrado como "capturando a tela").
+- Limite do Claude: quanto do limite da sessão e da semana já foi usado e quando volta, com aviso aos 80% e 95%
+  (lido da status line do Claude Code).
+- O mascote mora na ilha só quando você quer: arraste a janela dele para dentro da ilha e de volta para fora, ou use
+  "Mascote" no menu. O app do mascote continua sendo o dono dos personagens e dos fundos.
+
+**Mudou**
+- O ar-condicionado saiu da pílula: fica no menu e só aparece sozinho, por alguns segundos, quando o ar liga,
+  desliga, muda de modo ou de temperatura (inclusive pelo controle remoto). Temperatura da sala sozinha não avisa.
+- O indicador do Claude Code aparece só enquanto ele trabalha ou pede atenção, sem abrir o cartão sozinho.
+- O mascote não aparece mais por padrão e não depende do Claude Code.
+- Depois que o mouse sai, a ilha espera 600 ms para recolher (ajustável nas configurações).
+- Esc fecha a tela de configurações.
+
+**Corrigido**
+- Um alerta que nascia embaixo do cursor parado ficava preso na tela até o mouse sair dele.
+- A área clicável crescia antes do desenho e segurava o clique em cima de outros programas por um instante.
+- O aviso de que o mouse saiu podia se perder e deixar a ilha aberta.
+- Mídia e volume brigavam pelo mesmo objeto de áudio do Windows e o visualizador podia travar.
+
 ## 0.3.0 (01/11/2026)
 
 **Novo**

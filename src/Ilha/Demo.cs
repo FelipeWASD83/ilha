@@ -617,41 +617,6 @@ internal sealed class UsoDeMentira : DeMentira
     }
 }
 
-/// <summary>O que o atalho abre quando não há nada em andamento: hora e data (as ferramentas chegam na fase 5).</summary>
-internal sealed class Painel : Atividade
-{
-    public override string Tipo => "painel";
-    public override string Nome => "Painel";
-    private readonly System.Windows.Forms.Timer _minuto = new() { Interval = 5_000 };
-    private int _desenhado = -1;
-
-    public Painel()
-    {
-        // só roda enquanto o painel está na tela, e só redesenha quando o minuto vira
-        _minuto.Tick += (_, _) =>
-        {
-            if (!TemCenaViva) { _minuto.Stop(); return; }
-            if (DateTime.Now.Minute != _desenhado) Redesenhar();
-        };
-    }
-
-    protected override Cena Montar(Palco p, Forma f)
-    {
-        _minuto.Start();
-        var c = p.NovaCena(new Vector2(320, 70));
-        p.Desenho(c, Vector2.Zero, c.Tamanho, (dc, t) =>
-        {
-            var agora = DateTime.Now;
-            _desenhado = agora.Minute;
-            var cultura = new System.Globalization.CultureInfo("pt-BR");
-            p.Texto.Desenhar(dc, agora.ToString("HH:mm", cultura), new Vector2(-1, -4), 42, Cor.Branco, FontWeight.Medium, tabular: true);
-            p.Texto.Desenhar(dc, agora.ToString("dddd, d 'de' MMMM", cultura), new Vector2(124, 10), 14, Cor.Branco, largura: 196);
-            p.Texto.Desenhar(dc, "Calculadora, tradutor e IA chegam na fase 5", new Vector2(124, 32), 12, Cor.Secundario, FontWeight.Normal, largura: 196);
-        });
-        return c;
-    }
-}
-
 internal sealed class Demonstracao
 {
     private readonly Ilha _ilha;
