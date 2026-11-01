@@ -40,7 +40,18 @@ public sealed class Config
     [JsonPropertyName("deslocamentoY")] public int DeslocamentoY { get; set; }
     [JsonPropertyName("sombra")] public bool Sombra { get; set; } = true;
     [JsonPropertyName("atalho")] public Atalho Atalho { get; set; } = new();
-    [JsonPropertyName("ociosaNaAreaDeTrabalho")] public bool OciosaNaAreaDeTrabalho { get; set; } = true;
+    // a pílula vazia quando não tem nada para mostrar, em qualquer janela que não seja conteúdo em tela cheia
+    [JsonPropertyName("pilulaVazia")] public bool PilulaVazia { get; set; } = true;
+    // nome antigo (só valia na área de trabalho): lido uma vez e passado para pilulaVazia
+    [JsonPropertyName("ociosaNaAreaDeTrabalho"), JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public bool? OciosaAntiga { get; set; }
+    // programas cuja tela cheia é conteúdo (vídeo, navegador, apresentação): escondem a ilha. Jogo não está aqui e não
+    // esconde (jogo competitivo esconde pela outra lista); tela cheia exclusiva (Direct3D) conta sempre como jogo
+    [JsonPropertyName("appsDeConteudo")] public List<string> AppsDeConteudo { get; set; } = new()
+    {
+        "brave.exe", "chrome.exe", "msedge.exe", "firefox.exe", "opera.exe", "vivaldi.exe", "vlc.exe", "mpv.exe",
+        "mpc-hc64.exe", "mpc-be64.exe", "PotPlayerMini64.exe", "Microsoft.Media.Player.exe", "Video.UI.exe",
+        "POWERPNT.EXE", "Netflix.exe", "stremio.exe",
+    };
     [JsonPropertyName("dividir")] public bool Dividir { get; set; } = true;
     // com o Não Incomodar (ou uma sessão de Foco) ligado: sem chegada nem alerta, menos alarme de timer
     [JsonPropertyName("respeitarNaoPerturbe")] public bool RespeitarNaoPerturbe { get; set; } = true;
@@ -90,6 +101,8 @@ public sealed class Config
             c.Mola ??= new();
             c.Prioridades ??= new();
             c.JogosCompetitivos ??= new();
+            c.AppsDeConteudo ??= new();
+            if (c.OciosaAntiga is bool antiga) { c.PilulaVazia = antiga; c.OciosaAntiga = null; }
             c.Sons ??= new();
             c.Sons.Volume = double.IsFinite(c.Sons.Volume) ? Math.Clamp(c.Sons.Volume, 0, 1) : 0.6;
             c.AtalhosModulos ??= new();

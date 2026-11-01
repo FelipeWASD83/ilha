@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.4.1 (01/11/2026)
+
+**Mudou**
+- A pílula vazia fica em qualquer janela normal (Brave, Explorer, editor), não só na área de trabalho. A ilha só
+  some em jogo competitivo e em vídeo ou outro conteúdo em tela cheia; jogo comum em tela cheia continua com ela.
+- Com a ilha escondida por um vídeo em tela cheia, encostar o mouse na borda de cima, perto do meio, traz ela de
+  volta, e ela fica enquanto o mouse estiver por perto.
+- Vídeo que entra em tela cheia é percebido em até 3 segundos (antes, até 10).
+
 ## 0.4.0 (01/11/2026)
 
 **Novo**

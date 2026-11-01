@@ -340,7 +340,8 @@ internal sealed class JanelaDeConfiguracoes : Form
         _dividir = Marcar(col, "Dividir quando tem duas coisas acontecendo", c.Dividir, "A segunda vira uma bolinha ao lado da pílula.");
         _relogio = Marcar(col, "Hora no meio da pílula", c.Relogio,
             "Quando o que está na pílula deixa o meio vazio (mídia, timer). Nunca na área de trabalho.");
-        _ociosa = Marcar(col, "Mostrar a ilha vazia na área de trabalho", c.OciosaNaAreaDeTrabalho);
+        _ociosa = Marcar(col, "Mostrar a pílula vazia quando não tem nada", c.PilulaVazia,
+            "Em qualquer janela. Some só em jogo competitivo e em vídeo ou outro conteúdo em tela cheia (o mouse no topo traz de volta).");
         _naoPerturbe = Marcar(col, "Respeitar o Não Incomodar do Windows", c.RespeitarNaoPerturbe, "Sem chegada nem alerta, menos o alarme do timer.");
         _alerta = Numero(col, "Tempo de um alerta na tela (segundos)", (decimal)c.AlertaSegundos, 1, 60, 1, 0.5m);
         _atrasoRecolher = Numero(col, "Esperar antes de recolher (ms)", c.AtrasoRecolherMs, 0, 5000, 0, 50,
@@ -589,7 +590,7 @@ internal sealed class JanelaDeConfiguracoes : Form
         c.BordaAdaptativa = _borda.Checked;
         c.Dividir = _dividir.Checked;
         c.Relogio = _relogio.Checked;
-        c.OciosaNaAreaDeTrabalho = _ociosa.Checked;
+        c.PilulaVazia = _ociosa.Checked;
         c.RespeitarNaoPerturbe = _naoPerturbe.Checked;
         c.AlertaSegundos = (float)_alerta.Value;
         c.AtrasoRecolherMs = (int)_atrasoRecolher.Value;

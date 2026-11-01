@@ -32,7 +32,10 @@ Claude, mascote que entra e sai da ilha, e o ar só avisando quando muda.
 
 ## O que ela faz
 
-- **Some** quando não tem nada para mostrar. Na área de trabalho, fica como uma pílula pequena vazia.
+- **Sem nada para mostrar**, fica como uma pílula pequena vazia, em qualquer janela.
+- **Some** só em jogo competitivo e em vídeo ou outro conteúdo em tela cheia (os programas de `appsDeConteudo`:
+  navegadores, players, PowerPoint). Jogo comum em tela cheia continua com a ilha. Escondida por um vídeo, encostar o
+  mouse na borda de cima, perto do meio, traz ela de volta.
 - **Algo novo aparece expandindo** por uns segundos e depois vira a pílula compacta.
 - **Duas coisas ao mesmo tempo:** a mais importante na pílula, a outra numa bolha ao lado.
 - **Alertas** (um fone conectou, o timer acabou, o Claude terminou) abrem a ilha por alguns segundos.
@@ -117,7 +120,8 @@ digitação, a ilha avisa e continua com a anterior.
 | `jogosCompetitivos` | lista de `.exe` do modo competitivo |
 | `prioridades` | ordem entre as atividades (alerta sempre passa por cima) |
 | `dividir` | mostrar a segunda atividade na bolha |
-| `ociosaNaAreaDeTrabalho` | a pílula vazia na área de trabalho |
+| `pilulaVazia` | a pílula vazia quando não tem nada para mostrar, em qualquer janela (antes `ociosaNaAreaDeTrabalho`) |
+| `appsDeConteudo` | `.exe` cuja tela cheia é conteúdo (vídeo, navegador, apresentação) e esconde a ilha |
 | `respeitarNaoPerturbe` | obedecer o Não Incomodar e a sessão de Foco |
 | `alertaSegundos` | quanto tempo um alerta fica aberto |
 | `atrasoRecolherMs` | quanto esperar depois que o mouse sai antes de recolher (padrão 600) |

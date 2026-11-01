@@ -16,12 +16,14 @@ internal sealed record Contexto
     public bool TelaCheia { get; init; }
     // o jogo pediu tela cheia exclusiva (pode ser exclusiva de verdade ou convertida pelo Windows)
     public bool D3DExclusivo { get; init; }
+    /// <summary>Tela cheia de vídeo, navegador ou apresentação (não jogo): a ilha some, e o mouse no topo traz de volta.</summary>
+    public bool ConteudoEmTelaCheia { get; init; }
     public bool NaoPerturbe { get; init; }
     public bool? NaoPerturbeLido { get; init; }
     public bool Foco { get; init; }
 
     public override string ToString() =>
-        $"frente={Processo} desktop={Desktop} competitivo={Competitivo} telaCheia={TelaCheia} d3dExclusivo={D3DExclusivo} " +
+        $"frente={Processo} desktop={Desktop} competitivo={Competitivo} telaCheia={TelaCheia} conteudo={ConteudoEmTelaCheia} d3dExclusivo={D3DExclusivo} " +
         $"naoPerturbe={(NaoPerturbeLido == null ? "?" : NaoPerturbeLido.ToString())} foco={Foco}";
 }
 
@@ -34,13 +36,14 @@ internal sealed class Visibilidade : IDisposable
     private readonly Nativo.WinEventProc _proc;
     private readonly IntPtr _gancho, _ganchoMin;
     private readonly System.Windows.Forms.Timer _espera = new() { Interval = 120 };
-    private readonly System.Windows.Forms.Timer _lento = new() { Interval = 10_000 };
+    private readonly System.Windows.Forms.Timer _lento = new() { Interval = 3_000 };
     private readonly Dictionary<uint, string> _nomes = new();
     private uint _ultimoPid;
     private readonly uint _meuPid = (uint)Environment.ProcessId;
     private Windows.UI.Shell.FocusSessionManager? _foco;
     private Config _cfg;
     private HashSet<string> _competitivos = new(StringComparer.OrdinalIgnoreCase);
+    private HashSet<string> _conteudo = new(StringComparer.OrdinalIgnoreCase);
 
     public Contexto Atual { get; private set; } = new();
     public event Action<Contexto>? Mudou;
@@ -55,7 +58,8 @@ internal sealed class Visibilidade : IDisposable
         // minimizar a última janela leva para a área de trabalho sem trocar a janela da frente na hora
         _ganchoMin = Nativo.SetWinEventHook(0x0016, Nativo.EVENT_SYSTEM_MINIMIZEEND, IntPtr.Zero, _proc, 0, 0, f);
         _espera.Tick += (_, _) => { _espera.Stop(); Avaliar(); };
-        // o Não Incomodar não tem evento público: lido a cada 10 s e a cada troca de janela
+        // o Não Incomodar não tem evento público, e o vídeo que entra em tela cheia não troca a janela da frente: lido a
+        // cada 3 s e a cada troca de janela
         _lento.Tick += (_, _) => Avaliar();
         _lento.Start();
         try
@@ -74,6 +78,7 @@ internal sealed class Visibilidade : IDisposable
     {
         _cfg = cfg;
         _competitivos = new HashSet<string>(cfg.JogosCompetitivos.Select(Normalizar), StringComparer.OrdinalIgnoreCase);
+        _conteudo = new HashSet<string>(cfg.AppsDeConteudo.Select(Normalizar), StringComparer.OrdinalIgnoreCase);
     }
 
     private static string Normalizar(string n)
@@ -106,6 +111,7 @@ internal sealed class Visibilidade : IDisposable
         bool foco = false;
         try { foco = _foco?.IsFocusActive ?? false; } catch { }
 
+        bool telaCheia = quns is 2 or 3 or 4 || (!desktop && !Nativo.IsZoomed(janela) && CobreOMonitor(janela));
         var novo = new Contexto
         {
             Janela = janela,
@@ -113,8 +119,10 @@ internal sealed class Visibilidade : IDisposable
             Desktop = desktop,
             Competitivo = !desktop && _competitivos.Contains(proc),
             // janela maximizada passa uns pixels da borda do monitor: não é tela cheia
-            TelaCheia = quns is 2 or 3 or 4 || (!desktop && !Nativo.IsZoomed(janela) && CobreOMonitor(janela)),
+            TelaCheia = telaCheia,
             D3DExclusivo = quns == 3,
+            // apresentação (quns 4) ou programa de conteúdo na lista; tela cheia exclusiva é jogo
+            ConteudoEmTelaCheia = telaCheia && !desktop && quns != 3 && (quns == 4 || _conteudo.Contains(proc)),
             NaoPerturbe = np == true || foco,
             NaoPerturbeLido = np,
             Foco = foco,

@@ -102,6 +102,10 @@ internal sealed class Ilha : IDisposable
     // zona de soltar: com a ilha escondida não existe pílula para receber o arquivo. Com o botão segurado perto do topo
     // do meio da tela, a pílula vazia aparece para o arraste cair nela (só enquanto o botão estiver apertado)
     private readonly System.Windows.Forms.Timer _vigiaArraste = new() { Interval = 125 };
+    // conteúdo em tela cheia esconde a ilha; o mouse na borda de cima, perto do meio, traz de volta enquanto estiver perto
+    private readonly System.Windows.Forms.Timer _vigiaTopo = new() { Interval = 150 };
+    private bool _revelada;
+    private long _longeDesde;
     private bool _zonaDeSoltar;
     private long _apertadoDesde;
 
@@ -195,6 +199,7 @@ internal sealed class Ilha : IDisposable
         _vigiaSobre.Tick += (_, _) => VigiarSobre();
         _relogioRegiao.Tick += (_, _) => { _relogioRegiao.Stop(); var r = _regiaoPendente; _regiaoPendente = null; r?.Invoke(); };
         _vigiaArraste.Tick += (_, _) => VigiarArraste();
+        _vigiaTopo.Tick += (_, _) => VigiarTopo();
         _alvoDeSoltar = AlvoDeSoltar.Registrar(_toque.Handle, () => Receptor);
 
         Reposicionar(forcar: true);
@@ -728,6 +733,8 @@ internal sealed class Ilha : IDisposable
     {
         bool trocouFrente = ctx.Janela != _ctx.Janela;
         _ctx = ctx;
+        if (ctx.ConteudoEmTelaCheia && !ctx.Competitivo) { if (!_vigiaTopo.Enabled) _vigiaTopo.Start(); }
+        else { _vigiaTopo.Stop(); _revelada = false; }
         if (trocouFrente && _expandida && _porAtalho) _expandida = false;
         ReafirmarTopo();
         Aplicar();
@@ -772,7 +779,8 @@ internal sealed class Ilha : IDisposable
     public bool PodeMostrarAlerta(Alerta a) => PodeMostrar(a);
 
     private bool PodeMostrar(Alerta a) =>
-        !_cfg.Pausada && (!_ctx.Competitivo || a.PermitidoNoCompetitivo) && !(_ctx.NaoPerturbe && _cfg.RespeitarNaoPerturbe && !a.Importante);
+        !_cfg.Pausada && (!_ctx.Competitivo || a.PermitidoNoCompetitivo) && !(_ctx.NaoPerturbe && _cfg.RespeitarNaoPerturbe && !a.Importante)
+        && !(_ctx.ConteudoEmTelaCheia && !_revelada && !a.Importante);
 
     private void ProximoAlerta()
     {
@@ -886,6 +894,29 @@ internal sealed class Ilha : IDisposable
     {
         float cx = _janX + _janL / 2f, dy = c.Y - _janY;
         return dy >= 0 && dy < _p.Px(140) && MathF.Abs(c.X - cx) < _p.Px(300);
+    }
+
+    private void VigiarTopo()
+    {
+        if (!_ctx.ConteudoEmTelaCheia || _ctx.Competitivo || _cfg.Pausada) { _vigiaTopo.Stop(); _revelada = false; return; }
+        Nativo.GetCursorPos(out var c);
+        float cx = _janX + _janL / 2f, dy = c.Y - _janY;
+        bool noMeio = MathF.Abs(c.X - cx) < _p.Px(420);
+        if (!_revelada)
+        {
+            // encostou na borda de cima
+            if (noMeio && dy >= 0 && dy <= _p.Px(4)) { _revelada = true; _longeDesde = 0; Aplicar(); }
+            return;
+        }
+        // fica enquanto o mouse estiver em cima ou perto (a faixa de cima até um pouco abaixo da ilha), ou com o cartão aberto
+        float alcance = (_rCorpo.Height > 0 ? _rCorpo.Bottom : _p.Px(60)) + _p.Px(48);
+        bool perto = _sobre || _expandida || noMeio && dy >= 0 && dy <= alcance;
+        if (perto) { _longeDesde = 0; return; }
+        long agora = Environment.TickCount64;
+        if (_longeDesde == 0) { _longeDesde = agora; return; }
+        if (agora - _longeDesde < 900) return;
+        _revelada = false;
+        Aplicar();
     }
 
     private Action<float, float, bool>? _arraste;
@@ -1180,6 +1211,9 @@ internal sealed class Ilha : IDisposable
         }
         _expandida = false;
 
+        if (_ctx.ConteudoEmTelaCheia && !_revelada && !_zonaDeSoltar)
+            return new Plano(Estado.Oculta, Vector2.Zero, 0, null, null, false, null, null);
+
         if (vis.Count > 0)
         {
             var a = vis[0];
@@ -1205,7 +1239,7 @@ internal sealed class Ilha : IDisposable
             return new Plano(Estado.Compacta, new Vector2(l, h), h / 2, ch, criar, bolha, cb, fb);
         }
 
-        if (_zonaDeSoltar || _ctx.Desktop && !_ctx.Competitivo && _cfg.OciosaNaAreaDeTrabalho)
+        if (_zonaDeSoltar || !_ctx.Competitivo && _cfg.PilulaVazia)
         {
             float l = OCIOSA_L, h = OCIOSA_A;
             if (_sobre) { l += PREVIA_L * 0.6f; h += PREVIA_A * 0.6f; }
@@ -1639,6 +1673,7 @@ internal sealed class Ilha : IDisposable
         _minutoRelogio.Dispose();
         _vigiaSobre.Dispose();
         _vigiaArraste.Dispose();
+        _vigiaTopo.Dispose();
         _relogioRegiao.Dispose();
         _sonda.Dispose();
         if (_alvoDeSoltar != null) AlvoDeSoltar.Revogar(_toque.Handle);

@@ -118,6 +118,12 @@ antes do plano; o resumo está no plano aprovado na conversa de 01/11/2026 e os 
   na hora e segurava clique em cima de outro app), menos quando foi o próprio mouse que abriu. Botão solto que não
   desceu na janela de toque não é clique.
 - **Atraso para recolher:** `atrasoRecolherMs` (600).
+- **Quando ela some (0.4.1, decisão dele):** só em jogo competitivo e em conteúdo em tela cheia
+  (`Contexto.ConteudoEmTelaCheia`: tela cheia de um `.exe` de `appsDeConteudo`, ou modo apresentação; tela cheia
+  exclusiva do Direct3D é sempre jogo). Sem nada para mostrar, a pílula vazia fica em qualquer janela (`pilulaVazia`,
+  que substituiu `ociosaNaAreaDeTrabalho`). Escondida por conteúdo, o mouse na borda de cima, perto do meio, revela
+  (`_revelada`, vigia de 150 ms só nesse estado) até ele ficar ~0,9 s longe. A `Visibilidade` reavalia a cada 3 s
+  porque vídeo entrando em tela cheia não troca a janela da frente.
 - **Borda adaptativa** (`SondaDeFundo.cs`): traço de 1 px por fora da pílula e da bolha, aceso só com fundo escuro.
   A sonda faz um BitBlt das faixas logo fora da pílula e da sombra (atrás dela a própria ilha cobre), 2 vezes por
   segundo, só com a ilha visível e nunca com tela cheia na frente; histerese 0,22/0,30. Medido em 01/11/2026: cada
