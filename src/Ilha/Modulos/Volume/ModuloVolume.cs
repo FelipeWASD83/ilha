@@ -202,7 +202,14 @@ internal sealed class ModuloVolume : Modulo
         fila.Clear();
         audioTeste.ChegouVolume(0.5f, true, Guid.Empty);
         foreach (var a in fila) a();
+        fila.Clear();
         Conferir(vistos.Count == 2 && !vistos[0] && vistos[1] && audioTeste.Escala == 0.5f && audioTeste.Mudo, "eco da ilha não abre; mudança de fora abre; rajada vira um despacho só");
+        audioTeste.ChegouVolume(0.52f, false, global::Ilha.Midia.VolumeDoSistema.Contexto);
+        foreach (var a in fila) a();
+        fila.Clear();
+        Conferir(vistos.Count == 3 && !vistos[2] && audioTeste.Escala == 0.52f, "rodinha em cima da mídia também é eco da ilha (não abre o volume)");
+        Conferir(Audio.ErroDeInterface(unchecked((int)0x80004002)) && Audio.ErroDeInterface(unchecked((int)0x80004001)), "E_NOINTERFACE e E_NOTIMPL desligam a troca de saída");
+        Conferir(!Audio.ErroDeInterface(unchecked((int)0x80070490)) && !Audio.ErroDeInterface(unchecked((int)0x88890004)) && !Audio.ErroDeInterface(0), "aparelho sumido ou inválido não desliga a troca (só falha aquela vez)");
 
         // janela do pop-up nativo
         uint pid = 100;
@@ -225,7 +232,7 @@ internal sealed class ModuloVolume : Modulo
     private static void Sonda(StringBuilder r, Action<bool, string> conferir)
     {
         IMMDeviceEnumerator en;
-        try { en = (IMMDeviceEnumerator)new MMDeviceEnumeratorCom(); }
+        try { en = (IMMDeviceEnumerator)ComDeAudio.NovoEnumerador(); }
         catch (Exception e) { conferir(false, "sonda: MMDeviceEnumerator não abriu: " + e.Message); return; }
         try
         {

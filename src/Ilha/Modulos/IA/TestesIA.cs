@@ -66,6 +66,7 @@ internal static class TestesIA
         Bloco("google", () => Task.Run(GoogleTeste).GetAwaiter().GetResult());
         Bloco("textos", Textos);
         Bloco("imagem", ImagemTeste);
+        Bloco("reserva do Ctrl+C", ReservaDoCtrlC);
         Bloco("sondas do Windows", Sondas);
         return _rel.ToString().TrimEnd();
     }
@@ -598,6 +599,25 @@ internal static class TestesIA
             new JsonObject { ["type"] = "input_text", ["text"] = "o que é isso?" }, new JsonObject { ["type"] = "input_image", ["image_url"] = img.DataUrl } } } });
         Ok("o provedor manda a imagem colada como bloco do Claude", Json.Str(m[0]!["content"]![1]!["source"]!["media_type"]) == "image/png"
             && Json.Str(m[0]!["content"]![1]!["source"]!["data"]).Length == img.DataUrl.Length - "data:image/png;base64,".Length);
+    }
+
+    // só DataObject em memória: a área de transferência de verdade não é tocada
+    private static void ReservaDoCtrlC()
+    {
+        byte[] quadros = { 7, 0, 255, 42, 9 };
+        var fluxo = new MemoryStream(quadros) { Position = 3 };
+        var origem = new System.Windows.Forms.DataObject();
+        origem.SetData("After Effects Keyframes", false, fluxo);
+        origem.SetData(System.Windows.Forms.DataFormats.UnicodeText, false, "oi");
+        var c = Selecao.Copiar(origem);
+        var copia = c == null ? null : ((System.Windows.Forms.IDataObject)c).GetData("After Effects Keyframes", false) as MemoryStream;
+        Ok("guarda formato próprio inteiro, em cópia própria", copia != null && !ReferenceEquals(copia, fluxo) && copia.Position == 0
+            && copia.ToArray().SequenceEqual(quadros));
+        Ok("guarda o texto junto", c != null && c.ContainsText() && c.GetText() == "oi");
+        var corrida = Selecao.Copiar(origem, prazoMs: 0);
+        Ok("passado o prazo, guarda só o básico", corrida != null && corrida.ContainsText() && corrida.GetText() == "oi"
+            && !((System.Windows.Forms.IDataObject)corrida).GetDataPresent("After Effects Keyframes", false));
+        Ok("nada para guardar vira null", Selecao.Copiar(new System.Windows.Forms.DataObject()) == null && Selecao.Copiar(null) == null);
     }
 
     private static void Sondas()

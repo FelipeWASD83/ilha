@@ -127,6 +127,13 @@ internal sealed class AtividadeChat : Atividade
         }
     }
 
+    // outra ferramenta abriu no lugar (Expandida para Expandida): o EstadoMudou não vem. O aviso chega atrasado
+    // (Programa.NaInterface): se o cartão já reabriu, é velho e não mata a resposta nova.
+    public override void ExpandidaMudou(bool aberta)
+    {
+        if (!aberta && S.Ilha.Expandida != this) Interromper(fecharCampo: true);
+    }
+
     private void FecharCampo()
     {
         if (!_entradaNossa || !S.Entrada.Aberta) { _entradaNossa = false; return; }

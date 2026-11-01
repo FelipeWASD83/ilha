@@ -41,7 +41,8 @@ estática `Ilha.Modulos` e o namespace com o mesmo nome dá CS0101.
 - **Seleção:** UI Automation primeiro (IUIAutomation2 com timeouts de ~450 ms, thread MTA próprio, prazo total de
   600 ms; vtable conferida no `UIAutomationClient.h` do SDK 26100 e pela sonda do autoteste). Reserva: Ctrl+C por
   SendInput depois de soltar as teclas do atalho, espera o número de sequência mudar (300 ms) e devolve o que
-  estava lá (texto, imagem ou arquivos). **Nunca com jogo competitivo na frente; nunca Ctrl+C em terminal**
+  estava lá: todos os formatos que deram para ler, copiados antes do Ctrl+C (inclusive os próprios, como o do After
+  Effects, HTML e RTF); se isso falhar, texto, imagem e arquivos. **Nunca com jogo competitivo na frente; nunca Ctrl+C em terminal**
   (Ctrl+C sem seleção mataria o programa rodando).
 
 ## Não testado (só dá para conferir no PC, com as chaves de verdade)
@@ -52,5 +53,6 @@ estática `Ilha.Modulos` e o namespace com o mesmo nome dá CS0101.
 - A leitura da seleção em apps reais (Brave, Word, VS Code, Discord, Bloco de Notas). No VS Code, Ctrl+C sem seleção
   copia a linha inteira; no terminal integrado dele (que a ilha não reconhece como terminal) interrompe o programa.
 - O Google Tradutor de verdade.
-- O Ctrl+C entra no histórico da área de transferência do Windows (Win+V); formatos que não são texto, imagem ou
-  arquivo (HTML, RTF) não são devolvidos.
+- O Ctrl+C entra no histórico da área de transferência do Windows (Win+V). A devolução de todos os formatos só tem
+  autoteste com DataObject em memória: com o After Effects, o Office e o Photoshop de verdade, não foi conferida. Formato que não
+  vem em HGLOBAL (IStorage, metarquivo) continua ficando de fora.

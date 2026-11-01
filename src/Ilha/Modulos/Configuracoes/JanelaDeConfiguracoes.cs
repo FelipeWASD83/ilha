@@ -47,7 +47,7 @@ internal sealed class JanelaDeConfiguracoes : Form
     public static List<(string id, string nome, Type? tipoConfig, bool ligado)> ModulosDaConfig(Config c)
     {
         var r = new List<(string, string, Type?, bool)>();
-        foreach (var m in Modulos.Descobrir())
+        foreach (var m in CatalogoDeModulos.Descobrir())
         {
             Type? tipo = null;
             try
@@ -123,6 +123,8 @@ internal sealed class JanelaDeConfiguracoes : Form
         public Type? Tipo;
         public object? Instancia;
         public List<CampoGerado> Campos = new();
+        /// <summary>O valor de cada campo quando a tela abriu ou no último salvar: no salvar só vai o que saiu dele.</summary>
+        public List<object?> Iniciais = new();
     }
 
     private JanelaDeConfiguracoes(Func<Config> atual, Action<Config> salvar,
@@ -508,7 +510,9 @@ internal sealed class JanelaDeConfiguracoes : Form
                 using var p = new Pen(Linha);
                 e.Graphics.DrawRectangle(p, 0, 0, cartao.Width - 1, cartao.Height - 1);
             };
-            var cb = new CheckBox { Text = nome, Checked = ligado, AutoSize = true, Font = _fonteForte, UseMnemonic = false, Margin = new Padding(0, 0, 0, 0) };
+            // "fones": [] escrito à mão: o Coletar deixa a seção como está, então nem o ligado dá para mudar daqui
+            var naoObjeto = _inicio.Modulos[id] is { } and not JsonObject;
+            var cb = new CheckBox { Text = nome, Checked = ligado, AutoSize = true, Font = _fonteForte, UseMnemonic = false, Margin = new Padding(0, 0, 0, 0), Enabled = !naoObjeto };
             cartao.Controls.Add(cb);
             cartao.Controls.Add(new Label { Text = id, AutoSize = true, ForeColor = Secundario, Font = _fontePequena, Margin = new Padding(20, 0, 0, 4), UseMnemonic = false });
             var m = new ModuloNaTela { Id = id, Ligado = cb, Tipo = tipo };
@@ -516,8 +520,10 @@ internal sealed class JanelaDeConfiguracoes : Form
             {
                 try
                 {
+                    if (naoObjeto) throw new InvalidOperationException("a seção não é um objeto JSON");
                     m.Instancia = Formulario.Instanciar(tipo, _inicio.Modulos[id] as JsonObject);
                     m.Campos = Formulario.Gerar(tipo, m.Instancia, _fonte);
+                    m.Iniciais = Formulario.Valores(m.Campos);
                     foreach (var campo in m.Campos)
                     {
                         if (campo.Editor is CheckBox cbc)
@@ -546,8 +552,13 @@ internal sealed class JanelaDeConfiguracoes : Form
                 {
                     Log.Escrever($"configurações: campos do módulo {id}: {e.Message}");
                     m.Campos.Clear();
+                    m.Iniciais.Clear();
                     m.Instancia = null;
-                    cartao.Controls.Add(new Label { Text = "Não deu para montar os campos deste módulo; edite no config.json.", AutoSize = true, ForeColor = Secundario, Font = _fontePequena, Margin = new Padding(20, 4, 0, 2) });
+                    cartao.Controls.Add(new Label
+                    {
+                        Text = "Não deu para montar os campos deste módulo (" + e.Message + "). A tela não mexe na seção dele: corrija no config.json.",
+                        AutoSize = true, MaximumSize = new Size(560, 0), ForeColor = Secundario, Font = _fontePequena, Margin = new Padding(20, 4, 0, 2), UseMnemonic = false,
+                    });
                 }
             }
             _modulos.Add(m);
@@ -591,18 +602,29 @@ internal sealed class JanelaDeConfiguracoes : Form
 
         foreach (var m in _modulos)
         {
+            // seção que não é objeto (agora ou quando a tela abriu, com o ligado travado) fica como está
+            if (c.Modulos[m.Id] is { } and not JsonObject || _inicio.Modulos[m.Id] is { } and not JsonObject) continue;
             var original = c.Modulos[m.Id] as JsonObject;
-            if (m.Tipo != null && m.Instancia != null) Formulario.Aplicar(m.Campos, m.Instancia);
-            c.Modulos[m.Id] = Formulario.Mesclar(original, m.Instancia == null ? null : m.Tipo, m.Instancia, m.Ligado.Checked);
+            object? inst = null;
+            if (m.Tipo != null && m.Instancia != null)
+            {
+                // parte da seção de agora, não da abertura da tela: o módulo pode ter gravado o estado dele nesse meio-tempo
+                try { inst = Formulario.Instanciar(m.Tipo, original); }
+                catch (Exception e) { Log.Escrever($"configurações: módulo {m.Id} fica como está no config.json: {e.Message}"); }
+                if (inst != null) Formulario.AplicarMudados(m.Campos, m.Iniciais, inst);
+            }
+            c.Modulos[m.Id] = Formulario.Mesclar(original, inst == null ? null : m.Tipo, inst, m.Ligado.Checked);
         }
         return c;
     }
 
-    private void Salvar()
+    internal void Salvar()
     {
         try
         {
             _salvar(Coletar());
+            // a janela fica aberta: o próximo salvar compara com o que acabou de ir, senão desfazer uma mudança não grava
+            foreach (var m in _modulos) m.Iniciais = Formulario.Valores(m.Campos);
             _sujo = false;
             MostrarStatus("Salvo. A ilha já está usando.");
         }
@@ -678,7 +700,7 @@ internal sealed class JanelaDeConfiguracoes : Form
 
     /// <summary>Monta a janela sem mostrar (o autoteste do módulo de configurações usa).</summary>
     internal static JanelaDeConfiguracoes ParaTeste(Func<Config> atual, IReadOnlyList<(string id, string nome, Type? tipoConfig, bool ligado)> modulos,
-        IReadOnlyDictionary<string, Atalho>? atalhos) => new(atual, _ => { }, modulos, atalhos);
+        IReadOnlyDictionary<string, Atalho>? atalhos, Action<Config>? salvar = null) => new(atual, salvar ?? (_ => { }), modulos, atalhos);
 
     /// <summary>Foto de cada aba sem mostrar a janela na tela (para conferir o visual no desenvolvimento).</summary>
     internal List<string> Fotografar(string pasta)

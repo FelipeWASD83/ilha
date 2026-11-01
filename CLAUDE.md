@@ -5,12 +5,12 @@ que está acontecendo (mídia, timer, Claude Code, alertas). Criada em 01/11/202
 aprovado em 7 fases. Repositório **público** (`FelipeWASD83/ilha`, MIT), escolha dele ao criar. O README
 explica o uso; aqui ficam as decisões e as armadilhas.
 
-**Fase atual: 1 (núcleo) entregue para ele testar, com atividades de mentira; 0.2.0 trouxe as animações das logos
-e das bolinhas, o instalador, o atalho no Menu Iniciar e o iniciar com o Windows (pedido dele, adiantado da fase
-7).** Fases seguintes: 2 mídia,
-volume, câmera/mic e sons; 3 timer e uso do PC; 4 Claude Code e mascote; 5 calculadora, tradutor, IA e ar;
-6 extras (Bluetooth e bateria, print, notificações, render do AE); 7 atualizador, Menu Iniciar e iniciar com o
-Windows. A pesquisa de viabilidade de cada feature (API, o que é frágil, o que exige algo especial) foi feita
+**Fases 1 a 7 entregues (0.3.0, 01/11/2026).** 0.1.0 foi o núcleo; 0.2.0 as animações das logos e das
+bolinhas, o instalador, o Menu Iniciar e o iniciar com o Windows; 0.3.0 todos os módulos (mídia, volume,
+câmera/mic, sons, timer, uso do PC, Claude Code, mascote, calculadora, IA, tradutor, ar, fones, print, render,
+notificações), a tela de configurações e o atualizador. Os módulos foram escritos em paralelo por agentes, cada um
+num worktree, sem abrir a ilha (regra deles); a integração e o teste na tela vieram depois. O que cada módulo
+deixou sem testar está em "Testado e não testado". A pesquisa de viabilidade de cada feature (API, o que é frágil, o que exige algo especial) foi feita
 antes do plano; o resumo está no plano aprovado na conversa de 01/11/2026 e os pontos que importam estão aqui.
 
 ## Arquitetura (não desfazer sem medir)
@@ -70,6 +70,57 @@ antes do plano; o resumo está no plano aprovado na conversa de 01/11/2026 e os 
   animando, a ilha gasta 0,026% do processador. As de uma vez emendam na seguinte pelo `Completed` do lote; a
   cena que some para o encadeamento (`LogoAnimada.Soltar`).
 
+## Módulos (0.3.0)
+
+- **Sistema**: `src/Ilha/Modulos/<Nome>/`, classe com `[Modulo(id, nome)]`, achada por reflexão
+  (`CatalogoDeModulos`, em `Modulo.cs`). Guia de como escrever um: `src/Ilha/Modulos/LEIA.md`. Namespace
+  `Ilha.<Nome>`, nunca `Ilha.Modulos.<Nome>` (colidia com a classe que hoje é `CatalogoDeModulos`). Dentro do
+  namespace `Ilha`, `Ilha.X` resolve para a **classe** `Ilha`: para chegar num namespace use `global::Ilha.X`.
+- Cada módulo tem a seção dele em `config.json` → `modulos` → id (com `ligado`), conversa com o resto só pelos
+  `Servicos` e tem autoteste sem janela (`Ilha.exe --testar [id]`, relatório em `~/.ilha/testes.txt`; linha com
+  `FALHOU` = falha; 884 ok em 01/11/2026).
+- **Desligar um módulo** solta os atalhos e as atividades dele: o núcleo marca o dono (`Atalhos.Dono`,
+  `Ilha.DonoAtual`) enquanto o `Iniciar` roda.
+- APIs do núcleo que os módulos pediram: `Ilha.FecharAlerta`, `Ilha.Remover`, `Ilha.Ativas`, `Ilha.SoltarArraste`
+  (depois do `DoDragDrop`, que engole o botão solto), `Ilha.PodeMostrarAlerta`, `Atividade.ExpandidaMudou`,
+  `Atalhos.Padroes`/`Remover`, `Entrada.Tecla`/`Trocar`. Ferramenta (`EhFerramenta`) redesenhando com o cartão
+  aberto não fecha mais o cartão; a privacidade nunca vai para a bolha (as bolinhas já ficam na pílula); apertar
+  num botão arrastável e soltar sem mexer vale como clique.
+- **Chaves** (IA, ar): só no Gerenciador de Credenciais (`Ilha/openai`, `Ilha/anthropic`, `Ilha/ar-do-quarto`),
+  digitadas por ele na ilha. Nunca em arquivo nem em log.
+- **Ar**: só `GET /api/estado` com o cartão aberto (cada GET faz o servidor ler a LG), `GET /api/historico` de 15 em
+  15 min, `POST /api/comando` um por vez; `/api/atualizar` nunca sai da ilha. O autoteste ao vivo usa o simulador
+  em `127.0.0.1:8089`, **nunca o servidor da casa**.
+- **Notificações**: lê o `wpndatabase.db` (a API oficial exige identidade de pacote); esquema não documentado,
+  desligado por padrão e com lista de apps vazia.
+- **Config local do Felipe** (fora do git, em `~/.ilha/config.json`): `claude.arquivoEventos`,
+  `mascote.arquivoEventos`, `mascote.pastaFolhas` e `ar.endereco` apontam para coisas do PC dele (a fila de eventos
+  que os hooks do mascote já escrevem, as folhas do Clawd e o mini PC). Os caminhos ficam só lá: nada de caminho
+  pessoal nem nome de projeto privado no repositório (é público).
+
+## Aprovar permissão do Claude Code pela ilha
+
+- `ferramentas/hook_permissao.py` é o hook `PermissionRequest`, instalado em 01/11/2026 no `~/.claude/settings.json`
+  dele (cópia de antes em `settings.json.antes-ilha`). Conversa com a ilha pelo pipe `\\.\pipe\ilha-permissao`
+  (confere que quem serve é o `Ilha.exe`). Sem ilha, sem resposta ou sem decisão: sai sem saída e o diálogo normal
+  segue. Nunca permite por tempo esgotado. Subagente, `AskUserQuestion` e `ExitPlanMode` ficam de fora.
+- **Não confirmado:** se o diálogo do Claude Code aparece junto com o hook ou só depois que ele sai (a documentação
+  não diz; o teste no terminal falhou porque o login do CLI de lá tinha expirado). Por isso a espera é curta
+  (`esperaSegundos` 45) e, com a ilha sem poder aparecer (pausada, jogo competitivo, Não Incomodar, tela cheia), o
+  pedido volta na hora para o diálogo normal, inclusive se isso mudar com o pedido esperando. Se ele disser que o
+  diálogo demora a aparecer, é isso.
+
+## Atualizador
+
+- `Modulos/Atualizador`: procura nas releases de `FelipeWASD83/ilha` (cache de 6 h), baixa, confere o SHA-256,
+  troca os arquivos por um executor (`Ilha.exe --instalar-atualizacao`, tratado na primeira linha do `Main`) e volta
+  para a anterior se a nova não sinalizar que abriu bem (`Atualizador.AbriuBem`, chamado pelo `Programa` com o
+  núcleo montado). Estado em `~/.ilha/atualizacao/`. Nunca apaga nada de `~/.ilha`.
+- Publicar: `ferramentas/publicar-versao.ps1` (recusa se o `.csproj` e o topo do `CHANGELOG.md` não baterem;
+  `-SoGerar` só monta o pacote). **Publicar release é decisão dele.** Ainda não existe release (01/11/2026).
+- O executável da release é compilado aqui e tem o hash desta compilação; o SAC pode barrar o `.exe` baixado
+  mesmo tendo aceitado o local. Testar o pacote antes de publicar.
+
 ## Instalação e início com o Windows
 
 - `ferramentas\instalar.ps1` publica pelo `compilar.ps1` (checagem do SAC), fecha a ilha aberta, copia para
@@ -113,11 +164,23 @@ questão. Release feita fora deste PC terá outro hash: testar o `.exe` do pacot
   Blender, Wallpaper Engine) ficou em ~188 fps, **igual** a uma referência mínima (um retângulo animado e nada
   mais) rodando na mesma hora: a ilha não perde quadro além do que a GPU ocupada já tira. Acima do mínimo de 60.
 - CPU parada: ~0,01% (compacta com timer redesenhando 1x/s) e ~0,02% escondida.
-- RAM: ~77 MB privados depois de abrir; ~79 MB com tudo aparecendo.
+- RAM: ~77 MB privados depois de abrir; ~79 MB com tudo aparecendo (0.2.0, sem módulos). **Com os 16 módulos
+  (0.3.0): ~125 MB privados**, 33 threads, ~1000 handles; CPU parada medida em 0,010% (média de 20 s, compacta com o
+  Claude Code e o timer na tela).
 - Primeira aparição depois de escondida: começa a animar na hora (o atraso de ~70 ms sumiu com o tamanho de
   partida pequeno e o aquecimento de fontes e janela ao abrir).
 
 ## Testado e não testado
+
+**0.3.0 (01/11/2026):** os autotestes de todos os módulos passam (`--testar`: 912 ok, 1 pulou porque o simulador do
+ar não estava aberto). Na tela, com a ilha de verdade e os atalhos globais: pílula com o Claude Code real (sessões
+desta máquina pela fila de eventos e pelos arquivos de sessão), cartão das duas sessões, calculadora, uso do PC
+(RTX 3060 pela NVML), tela de chaves da IA, ar pedindo a chave, e o timer de ponta a ponta (campo, "1m", bolha
+com o anel, alerta "Timer acabou"); o foco voltou para a janela de antes em todos. **Não visto na tela:** mídia com
+música tocando, volume e troca de saída (só o QueryInterface do IPolicyConfig foi testado; a troca mexe no áudio do
+sistema), bolinhas de câmera e mic, mascote, tradutor, chat de verdade (sem chave), ar de verdade (sem chave),
+fones conectando, print, render, notificações, tela de configurações, atualizador (não existe release), aprovar
+permissão pelo hook com o Claude Code chamando, hover e clique com o mouse de verdade.
 
 - Testado: autoteste das janelas; medição; fotos de todos os estados no escuro e no claro (flutuante e colada);
   modo competitivo (com o `claude.exe` posto na lista: só o timer fica, mídia e alerta somem); o Não Incomodar do
@@ -129,6 +192,14 @@ questão. Release feita fora deste PC terá outro hash: testar o `.exe` do pacot
 
 ## Armadilhas
 
+- **Uma classe `[ComImport]` por objeto COM do processo inteiro.** O `MMDeviceEnumerator` devolve o mesmo objeto
+  para o processo todo; com uma classe por módulo (mídia e volume tinham), o .NET embrulha com a primeira e o `new`
+  da outra falha no cast (o visualizador da mídia travava). Criar pelo `ComDeAudio.NovoEnumerador()` e converter
+  para a interface do módulo.
+
+- No PC dele, `Ctrl + Alt + M` e `Ctrl + Alt + L` são de outro programa: o timer usa `Ctrl + Alt + R`. Atalho
+  ocupado não quebra nada, o módulo só avisa pela bandeja; antes de escolher padrão novo, testar com
+  `RegisterHotKey` se está livre.
 - `Ctrl + Alt + Espaço` (atalho padrão) estava ocupado no PC dele; a ilha cai para `Ctrl + Shift + Espaço` e
   avisa pela bandeja. A config guarda o preferido, não o que ficou.
 - Testar janela na tela atrapalha quem está usando o PC: conferir a janela da frente antes de `--roteiro`,

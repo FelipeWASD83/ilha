@@ -48,12 +48,15 @@ internal static class Calculo
     /// <summary>Texto em fichas. Aceita os símbolos bonitos (× ÷ − π √ ∛) e os do teclado.</summary>
     private static List<Ficha> Fichas(string texto)
     {
-        var t = Regex.Replace(texto, @"\s+", "");
+        // espaço entre letra e dígito vira uma marca que separa fichas: sem ela "log 25" colava em "log25" e o
+        // nome levava o 2 (log2 de 5); "log2 16" continua igual porque ali o espaço vem depois de um dígito
+        var t = Regex.Replace(Regex.Replace(texto, @"(?<=[a-zA-Z])\s+(?=\d)", "\u0001"), @"\s+", "");
         var saida = new List<Ficha>();
         int i = 0;
         while (i < t.Length)
         {
             char c = t[i];
+            if (c == '\u0001') { i++; continue; }
             Match m;
             if ((m = MilharComDecimal.Match(t, i)).Success || (m = MilharSoPontos.Match(t, i)).Success)
             {

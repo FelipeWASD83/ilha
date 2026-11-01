@@ -17,9 +17,6 @@ internal struct ChavePropriedade
     public int Id;
 }
 
-[ComImport, Guid("BCDE0395-E52F-467C-8E3D-C4579291692E")]
-internal class EnumeradorDeDispositivos { }
-
 [ComImport, Guid("A95664D2-9614-4F35-A746-DE8DB63617E6"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
 internal interface IMMDeviceEnumerator
 {
@@ -156,7 +153,7 @@ internal static class VolumeDoSistema
         object? o = null;
         try
         {
-            en = (IMMDeviceEnumerator)new EnumeradorDeDispositivos();
+            en = (IMMDeviceEnumerator)ComDeAudio.NovoEnumerador();
             if (en.GetDefaultAudioEndpoint(FluxoAudio.Render, PapelAudio.Multimidia, out dev) != 0 || dev == null) return default;
             var iid = CoreAudio.IID_IAudioEndpointVolume;
             if (dev.Activate(ref iid, CoreAudio.CLSCTX_ALL, IntPtr.Zero, out o) != 0) return default;

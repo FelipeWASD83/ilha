@@ -137,10 +137,12 @@ internal sealed class Nucleo : IDisposable
         s["ligado"] is System.Text.Json.Nodes.JsonValue v && v.TryGetValue(out bool b) ? b : padrao;
 
     /// <summary>Liga os módulos marcados como ligados (e desliga os que foram desligados na config).</summary>
+    private readonly Dictionary<string, string> _falhou = new();
+
     private void LigarModulos()
     {
         bool novaSecao = false;
-        foreach (var m in Modulos.Descobrir())
+        foreach (var m in CatalogoDeModulos.Descobrir())
         {
             bool tinha = Config.Modulos.ContainsKey(m.Info.Id);
             var secao = SecaoDoModulo(m.Info.Id, m.Info.LigadoPorPadrao);
@@ -152,6 +154,9 @@ internal sealed class Nucleo : IDisposable
                 if (!quer)
                 {
                     try { vivo.Parar(); } catch (Exception e) { Log.Escrever($"módulo {vivo.Id} (parar): {e}"); }
+                    // o que o módulo pediu ao núcleo sai junto: atalhos e atividades
+                    _atalhos.RemoverDoDono(vivo.Id);
+                    Ilha.RemoverDoDono(vivo.Id);
                     _modulos.Remove(m.Info.Id);
                     Log.Escrever($"módulo {m.Info.Id} desligado");
                 }
@@ -162,17 +167,36 @@ internal sealed class Nucleo : IDisposable
                 _cfgModulos[m.Info.Id] = texto;
                 continue;
             }
-            if (!quer) continue;
+            if (!quer) { _falhou.Remove(m.Info.Id); continue; }
+            // falhou com esta mesma seção: só tenta de novo quando ela mudar (senão cada config salva religaria)
+            if (_falhou.GetValueOrDefault(m.Info.Id) == texto) continue;
+            Modulo? mod = null;
             try
             {
-                var mod = Modulos.Criar(m);
-                mod.Ligar(_servicos, secao);
+                mod = CatalogoDeModulos.Criar(m);
+                // marca de quem são os atalhos e as atividades pedidos durante o Iniciar
+                _atalhos.Dono = mod.Id;
+                Ilha.DonoAtual = mod.Id;
+                try { mod.Ligar(_servicos, secao); }
+                finally { _atalhos.Dono = null; Ilha.DonoAtual = null; }
                 mod.Contexto(_visib.Atual);
                 _modulos[mod.Id] = mod;
                 _cfgModulos[mod.Id] = texto;
+                _falhou.Remove(mod.Id);
                 Log.Escrever($"módulo {mod.Id} ligado");
             }
-            catch (Exception e) { Log.Escrever($"módulo {m.Info.Id} não ligou: {e}"); }
+            catch (Exception e)
+            {
+                Log.Escrever($"módulo {m.Info.Id} não ligou: {e}");
+                _falhou[m.Info.Id] = texto;
+                if (mod != null)
+                {
+                    // o que ele chegou a pedir antes de falhar não fica órfão
+                    try { mod.Parar(); } catch (Exception e2) { Log.Escrever($"módulo {m.Info.Id} (parar depois da falha): {e2}"); }
+                    _atalhos.RemoverDoDono(m.Info.Id);
+                    Ilha.RemoverDoDono(m.Info.Id);
+                }
+            }
         }
         if (novaSecao) Config.Salvar();
     }
@@ -190,7 +214,7 @@ internal sealed class Nucleo : IDisposable
 
     public void LigarModulo(string id, bool ligado)
     {
-        var m = Modulos.Descobrir().Find(x => x.Info.Id == id);
+        var m = CatalogoDeModulos.Descobrir().Find(x => x.Info.Id == id);
         if (m.Tipo == null) return;
         SecaoDoModulo(id, m.Info.LigadoPorPadrao)["ligado"] = ligado;
         Config.Salvar();

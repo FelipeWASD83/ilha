@@ -29,6 +29,7 @@ internal sealed class ModuloClaude : Modulo
     private readonly List<PedidoPermissao> _pedidos = new();
     // o alerta de permissão que está na tela agora (para fechar quando o pedido for respondido por outro caminho)
     private PedidoPermissao? _alertaNaTela;
+    private readonly Dictionary<PedidoPermissao, Alerta> _alertas = new();
     private bool _comecou;
 
     public override Type? TipoConfig => typeof(ConfigClaude);
@@ -131,12 +132,33 @@ internal sealed class ModuloClaude : Modulo
         p.Responder = d => { if (System.Threading.Interlocked.Exchange(ref respondido, 1) == 0) responder(d); };
         S.NaInterface(() =>
         {
+            // a ilha não vai aparecer (pausada, jogo competitivo, Não Incomodar, tela cheia): o hook sai na hora e o
+            // diálogo normal do Claude Code segue, em vez de esperar um clique que ninguém vai ver
+            if (_atv == null || !PodeAparecer(NovoAlerta(p)))
+            {
+                p.Responder(null);
+                return;
+            }
             _pedidos.Add(p);
             _m.PedidoChegou(p);
             AlertarPermissao(p);
             Processar(new Efeitos { Mudou = true });
         });
         return () => S.NaInterface(() => Encerrar(p, null));
+    }
+
+    private bool PodeAparecer(Alerta a)
+    {
+        var ctx = S.ContextoAtual();
+        return S.Ilha.PodeMostrarAlerta(a) && !ctx.TelaCheia && !ctx.D3DExclusivo;
+    }
+
+    /// <summary>Entrou num jogo, pausou ou ligou o Não Incomodar com pedido esperando: devolve ao diálogo normal.</summary>
+    public override void Contexto(Contexto ctx)
+    {
+        if (_pedidos.Count == 0) return;
+        foreach (var p in _pedidos.ToList())
+            if (_alertas.TryGetValue(p, out var a) && !PodeAparecer(a)) Encerrar(p, null);
     }
 
     private void Decidir(PedidoPermissao p, string decisao)
@@ -151,7 +173,8 @@ internal sealed class ModuloClaude : Modulo
         p.Responder(decisao);
         bool tinha = _pedidos.Remove(p);
         tinha |= _m.PedidoSaiu(p);
-        if (_alertaNaTela == p) FecharAlerta();
+        if (_alertas.Remove(p, out var a)) S.Ilha.FecharAlerta(a);
+        if (_alertaNaTela == p) _alertaNaTela = null;
         if (tinha && atualizar) Processar(new Efeitos { Mudou = true });
     }
 
@@ -226,7 +249,13 @@ internal sealed class ModuloClaude : Modulo
     private void AlertarPermissao(PedidoPermissao pedido)
     {
         if (_atv == null) return;
-        S.Ilha.Alertar(new Alerta
+        var a = NovoAlerta(pedido);
+        _alertas[pedido] = a;
+        S.Ilha.Alertar(a);
+    }
+
+    private Alerta NovoAlerta(PedidoPermissao pedido) =>
+        new Alerta
         {
             Tipo = "claude",
             Som = "alerta",
@@ -236,12 +265,7 @@ internal sealed class ModuloClaude : Modulo
             {
                 const float L = 340;
                 var c = p.NovaCena(new Vector2(L, 98));
-                if (!_pedidos.Contains(pedido))
-                {
-                    // respondido enquanto esperava na fila de alertas: some logo
-                    S.NaInterface(FecharAlerta);
-                    return c;
-                }
+                long nasceu = Environment.TickCount64;
                 _alertaNaTela = pedido;
                 c.AoSoltar += () => { if (_alertaNaTela == pedido) _alertaNaTela = null; };
                 p.Logo(c, new Vector2(-4, -5), 30).Tocar("claude-pulso");
@@ -258,26 +282,11 @@ internal sealed class ModuloClaude : Modulo
                         p.Texto.Desenhar(dc, texto, new Vector2(x + (164 - tam.X) / 2, 66 + (30 - tam.Y) / 2), 14, Cor.Branco);
                     }
                 });
-                c.Botoes.Add(new Botao { Area = new System.Drawing.RectangleF(0, 66, 164, 30), Acao = () => Decidir(pedido, "allow") });
+                c.Botoes.Add(new Botao { Area = new System.Drawing.RectangleF(0, 66, 164, 30), Acao = () => { if (PedidoPermissao.PassouCarencia(nasceu, Environment.TickCount64)) Decidir(pedido, "allow"); } });
                 c.Botoes.Add(new Botao { Area = new System.Drawing.RectangleF(176, 66, 164, 30), Acao = () => Decidir(pedido, "deny") });
                 return c;
             },
-        });
-    }
-
-    /// <summary>
-    /// Tira da tela o alerta de permissão já respondido. O núcleo não tem "dispensar alerta"; abrir e recolher a própria
-    /// atividade é o caminho que existe (descarta também a fila de alertas: pedido ao núcleo no relatório).
-    /// </summary>
-    private void FecharAlerta()
-    {
-        if (_atv == null) return;
-        _alertaNaTela = null;
-        // com o cartão da própria atividade aberto, ele continua aberto
-        bool cartao = S.Ilha.Expandida == _atv;
-        S.Ilha.Expandir(_atv);
-        if (!cartao) S.Ilha.Recolher();
-    }
+        };
 
     // ------------------------------------------------------------------ autoteste
 
@@ -293,7 +302,7 @@ public sealed class ConfigClaude
     /// <summary>Serve o pipe do hook PermissionRequest (ferramentas/hook_permissao.py).</summary>
     [JsonPropertyName("aprovarPermissoes")] public bool AprovarPermissoes { get; set; } = true;
     /// <summary>Quanto o hook espera o clique antes de cair no diálogo normal (o timeout do hook tem que ser maior).</summary>
-    [JsonPropertyName("esperaSegundos")] public int EsperaSegundos { get; set; } = 110;
+    [JsonPropertyName("esperaSegundos")] public int EsperaSegundos { get; set; } = 45;
     /// <summary>Quanto o alerta de permissão fica na tela (depois, os botões continuam no cartão).</summary>
     [JsonPropertyName("alertaPermissaoSegundos")] public float AlertaPermissaoSegundos { get; set; } = 20;
     /// <summary>Quanto a sessão que terminou continua na pílula.</summary>

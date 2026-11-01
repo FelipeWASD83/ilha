@@ -8,7 +8,7 @@ using System.Text.Json.Nodes;
 namespace Ilha.Tempo;
 
 /// <summary>
-/// Timers simultâneos, cronômetro com voltas e pomodoro. Ctrl + Alt + M abre o campo: "25m", "1h30", "90s", "1:30",
+/// Timers simultâneos, cronômetro com voltas e pomodoro. Ctrl + Alt + R abre o campo: "25m", "1h30", "90s", "1:30",
 /// "10" (minutos), "pomodoro", "cron". Aparece também no modo competitivo. O que está rodando fica salvo na config do
 /// módulo com o horário de fim absoluto, então fechar e abrir a ilha não perde nada.
 /// </summary>
@@ -28,7 +28,7 @@ internal sealed class ModuloTempo : Modulo
         _atv = new AtividadeTempo(S, _cfg, () => Salvar(_cfg));
         S.Ilha.Adicionar(_atv);
         _atv.Restaurar();
-        var padrao = new Atalho { Mods = Nativo.MOD_CONTROL | Nativo.MOD_ALT, Tecla = 0x4D }; // M
+        var padrao = new Atalho { Mods = Nativo.MOD_CONTROL | Nativo.MOD_ALT, Tecla = 0x52 }; // R de relógio (o Ctrl + Alt + M já era de outro programa no PC dele)
         bool desligado = S.Config().AtalhosModulos.TryGetValue(ATALHO, out var trocado) && trocado.Tecla == 0;
         if (S.Atalhos.Registrar(ATALHO, padrao, () => _atv?.Atalho()) == null && !desligado)
             S.Avisar("O atalho dos timers já é de outro programa. Troque em \"atalhosModulos\" → \"timer\" na configuração.");

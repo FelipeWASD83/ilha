@@ -4,9 +4,9 @@ A Dynamic Island do iPhone no Windows: uma pílula preta flutuando no topo do mo
 encolhe e muda de forma para mostrar o que está acontecendo. Roda o tempo todo, sem pesar (quase nada de
 processador e uns 77 MB de memória) e sem roubar o foco de nada.
 
-**Versão 0.2.0:** o motor da ilha pronto, testado com atividades de mentira, mais as animações das logos do
-Claude e do GPT e as bolinhas 3D. Mídia, volume, câmera, timer de verdade, Claude Code de verdade, calculadora,
-tradutor, IA e o resto chegam nas próximas fases.
+**Versão 0.3.0:** todos os módulos do plano estão lá (mídia, volume, câmera e microfone, timer, uso do PC,
+Claude Code, mascote, calculadora, chat com IA, tradutor, ar-condicionado, fones, print, render e notificações),
+mais a tela de configurações e a atualização pela própria ilha.
 
 ## Como usar
 
@@ -15,7 +15,8 @@ tradutor, IA e o resto chegam nas próximas fases.
   de novo atualiza; `-Desinstalar` tira tudo (a configuração fica).
 - Depois de aberta, aparece o ícone da ilha perto do relógio.
 - **Menu do ícone (botão direito):** pausar a ilha, colada na borda (estilo notch) ou flutuante, iniciar com o
-  Windows, demonstração, abrir a configuração, abrir a pasta dos logs e sair. Clique esquerdo no ícone abre e fecha a ilha.
+  Windows, demonstração, **Configurações...** (a tela com tudo), abrir o config.json, abrir a pasta dos logs,
+  procurar atualização e sair. Clique esquerdo no ícone abre e fecha a ilha.
 - **Demonstração:** no menu, liga e desliga um timer de 1 minuto, uma música, o Claude Code trabalhando, o uso do
   PC, o GPT respondendo e a galeria de animações (tudo de mentira), mostra um alerta, ou "Passear por todos os
   estados" faz um tour sozinho. Pela linha de comando: `Ilha.exe --demo claude` (ou `timer`, `midia`, `uso`, `ia`,
@@ -35,9 +36,55 @@ tradutor, IA e o resto chegam nas próximas fases.
   alerta dele. A detecção é só pelo nome do programa em foco, sem tocar no jogo (seguro para anticheat).
 - **Não Incomodar do Windows:** com ele ligado, a ilha não abre sozinha para alertas, só para o timer acabando.
 
+## Módulos
+
+Cada um liga e desliga na tela de configurações (ou em `config.json` → `modulos` → id → `ligado`).
+
+| Módulo | O que faz | Atalho |
+|---|---|---|
+| Mídia | o que está tocando, capa, visualizador, controles, arrastar para avançar, rodinha = volume | |
+| Volume | nível ao mudar; no cartão, troca a saída de áudio | |
+| Privacidade | bolinha verde (câmera) e laranja (microfone) com quem está usando | |
+| Timer | timer, cronômetro e pomodoro; digite `25m`, `1h30`, `90s` | `Ctrl + Alt + R` |
+| Uso do PC | aparece com processador, placa ou memória no talo; cartão com tudo | `Ctrl + Alt + U` |
+| Claude Code | sessões trabalhando, aviso ao terminar, aprovar ou negar permissão | |
+| Mascote | o mascote na ilha, reagindo ao Claude Code (desligado por padrão) | |
+| Calculadora | contas, unidades e câmbio ao vivo | `Ctrl + Alt + K` |
+| IA | chat com GPT e Claude | `Ctrl + Alt + J` |
+| Tradutor | traduz o texto selecionado em qualquer programa | `Ctrl + Alt + T` |
+| Ar | o ar-condicionado pelo servidor do `ar-do-quarto` | `Ctrl + Alt + A` |
+| Fones | foto e bateria do fone ao conectar | |
+| Print | miniatura do print, arrastável para outro programa | |
+| Render | aviso quando o After Effects ou o Media Encoder termina | |
+| Notificações | notificações do Windows na ilha (experimental, desligado) | |
+| Atualizador | procura versão nova nas releases do GitHub | |
+
+Os atalhos trocam na tela de configurações (`atalhosModulos` no JSON); ocupado por outro programa, a ilha avisa.
+
+**Chaves (IA e ar):** quem digita é você, na própria ilha (ou na tela de configurações). Elas vão para o
+Gerenciador de Credenciais do Windows (`Ilha/openai`, `Ilha/anthropic`, `Ilha/ar-do-quarto`) e nunca para arquivo.
+
+**Aprovar permissão do Claude Code pela ilha:** precisa do hook no `~/.claude/settings.json`, em `hooks`:
+
+```json
+"PermissionRequest": [ { "matcher": "*", "hooks": [ { "type": "command",
+  "command": "python \"<pasta da ilha>\\ferramentas\\hook_permissao.py\"", "timeout": 120 } ] } ]
+```
+
+Sem a ilha aberta, ou com ela escondida (pausada, jogo competitivo, Não Incomodar, tela cheia), o hook sai na hora
+e o diálogo normal do Claude Code segue. A ilha espera o clique por `esperaSegundos` (padrão 45).
+
+## Atualização
+
+"Procurar atualização" (ou sozinha, no máximo a cada 6 horas) olha as releases do repositório. Achou, a ilha mostra; clicou
+em instalar, ela baixa, confere o SHA-256, troca os arquivos e reabre. Se a versão nova não abrir direito, volta
+para a anterior sozinha. O que ela anota fica em `%USERPROFILE%\.ilha\atualizacao\` (`checagem.json`,
+`estado.json`, `resultado.json`, `atualizacao.log` e a cópia da versão anterior em `anterior\`). A configuração
+nunca é apagada.
+
 ## Configuração
 
-`%USERPROFILE%\.ilha\config.json` (menu do ícone, "Abrir a configuração"). Salvou, vale na hora. Se tiver erro de
+`%USERPROFILE%\.ilha\config.json` (menu do ícone, "Configurações..." ou "Abrir o config.json"). Salvou, vale na hora. Se tiver erro de
 digitação, a ilha avisa e continua com a anterior.
 
 | Chave | O que faz |
@@ -68,5 +115,8 @@ as bolinhas; a origem de cada foto de fone está em `src/Ilha/imagens/fones/FONT
 
 ## Para quem mexe no código
 
-Compilar sempre pelo `ferramentas\compilar.ps1` (ele confere se o Smart App Control aceitou o programa). Detalhes,
-decisões e medições no `CLAUDE.md`.
+Compilar sempre pelo `ferramentas\compilar.ps1` (ele confere se o Smart App Control aceitou o programa). Os
+autotestes de todos os módulos rodam sem janela: `Ilha.exe --testar` (ou `--testar <id>`). Como escrever um módulo:
+`src/Ilha/Modulos/LEIA.md`. Publicar uma versão: `ferramentas\publicar-versao.ps1` (gera o pacote com o SHA-256 e
+cria a release; confere que a versão do `.csproj` bate com o topo do `CHANGELOG.md`). Detalhes, decisões e medições
+no `CLAUDE.md`.

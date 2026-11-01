@@ -66,6 +66,18 @@ internal sealed class PedidoPermissao
     public bool ViuEsperando;
     /// <summary>Responde ao hook: "allow", "deny" ou null (sem decisão: o diálogo normal segue). Chamado uma vez só.</summary>
     public Action<string?> Responder = _ => { };
+
+    private static long _contador;
+    /// <summary>Identidade do pedido na assinatura do cartão (dois pedidos da mesma sessão nunca têm o mesmo número).</summary>
+    public readonly long Numero = System.Threading.Interlocked.Increment(ref _contador);
+
+    /// <summary>
+    /// Quanto o Permitir fica surdo depois de aparecer (no alerta e no cartão): um clique dado para outra coisa, no
+    /// instante em que o pedido tomou o lugar dela, não aprova um comando que ninguém leu. O Negar não tem carência.
+    /// </summary>
+    public const long CarenciaMs = 800;
+
+    public static bool PassouCarencia(long apareceuMs, long agoraMs) => agoraMs - apareceuMs >= CarenciaMs;
 }
 
 internal sealed class Sessao

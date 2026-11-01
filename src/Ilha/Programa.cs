@@ -18,6 +18,8 @@ public static class Programa
     [STAThread]
     public static void Main(string[] args)
     {
+        // o executor de uma atualização (troca os arquivos e volta atrás se a versão nova não abrir)
+        if (Atualizador.TratarArgumentos(args)) return;
         // o compilar.ps1 usa isto para saber se o Smart App Control deixou o Ilha.dll carregar
         if (Array.IndexOf(args, "--ping") >= 0) { Environment.Exit(0); return; }
 
@@ -41,7 +43,7 @@ public static class Programa
             var saida = new System.IO.StringWriter();
             var antes = Console.Out;
             Console.SetOut(saida);
-            int r = Modulos.Testar(iTeste + 1 < args.Length ? args[iTeste + 1] : null);
+            int r = CatalogoDeModulos.Testar(iTeste + 1 < args.Length ? args[iTeste + 1] : null);
             Console.SetOut(antes);
             System.IO.Directory.CreateDirectory(Config.Pasta);
             System.IO.File.WriteAllText(System.IO.Path.Combine(Config.Pasta, "testes.txt"), saida.ToString());
@@ -62,6 +64,8 @@ public static class Programa
 
         using var pedidoDeSair = new EventWaitHandle(false, EventResetMode.AutoReset, @"Local\Ilha.Sair");
         var nucleo = new Nucleo();
+        // a versão nova abriu bem: o atualizador não precisa voltar para a anterior
+        NaInterface(Atualizador.AbriuBem);
         ThreadPool.RegisterWaitForSingleObject(pedidoDeSair, (_, _) => NaInterface(nucleo.Sair), null, -1, true);
         if (Array.IndexOf(args, "--medir") >= 0) Medidor.Comecar(nucleo);
         else if (Array.IndexOf(args, "--roteiro") >= 0) nucleo.Demonstracao.Roteiro();

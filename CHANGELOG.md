@@ -1,5 +1,32 @@
 # Changelog
 
+## 0.3.0 (01/11/2026)
+
+**Novo**
+- Mídia: o que toca no Windows (Spotify, navegador, players) com capa, visualizador na cor da capa, tocar e pausar,
+  pular, arrastar a barra para avançar e a rodinha do mouse mudando o volume.
+- Volume: o nível aparece na ilha quando muda, e o cartão troca a saída de áudio (fone, caixa, monitor).
+- Câmera e microfone: bolinha verde (câmera) e laranja (microfone) na pílula, com o nome de quem está usando.
+- Timer, cronômetro e pomodoro, com criação rápida digitando "25m", "1h30" ou "10s" (Ctrl + Alt + R).
+- Uso do PC: aparece sozinho quando processador, placa de vídeo ou memória ficam no talo (Ctrl + Alt + U).
+- Claude Code de verdade: o que cada sessão está fazendo, aviso ao terminar ou perguntar, e aprovar ou negar pedido
+  de permissão direto da ilha.
+- Mascote morando na ilha, que reage ao Claude Code.
+- Calculadora com unidades e câmbio ao vivo (Ctrl + Alt + K).
+- Chat com GPT e Claude (Ctrl + Alt + J) e tradutor do texto selecionado (Ctrl + Alt + T); as chaves ficam no
+  Gerenciador de Credenciais do Windows.
+- Ar-condicionado do quarto pela ilha (Ctrl + Alt + A).
+- Fones: foto do fone e bateria ao conectar (AirPods, G733 e outros), print com miniatura que dá para arrastar
+  para outro programa, aviso de render terminado do After Effects e do Media Encoder, e notificações do Windows
+  (experimental, desligado por padrão).
+- Sons para alertas, timer e Claude Code (mudos no modo competitivo e no Não Incomodar).
+- Tela de configurações (menu do ícone, "Configurações..."), com cada módulo, os atalhos e as opções da ilha.
+- Atualização pela própria ilha: procura versão nova nas releases do GitHub, confere o arquivo e volta para a
+  anterior sozinha se a nova não abrir.
+
+**Mudou**
+- O menu do ícone ganhou "Configurações...", "Abrir o config.json" e "Procurar atualização".
+
 ## 0.2.0 (01/11/2026)
 
 **Novo**

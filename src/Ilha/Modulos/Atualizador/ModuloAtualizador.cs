@@ -100,6 +100,9 @@ internal sealed partial class ModuloAtualizador : Modulo
         _atv?.Fechar();
         if (Atualizador.Principal == _at) Atualizador.Principal = null;
         if (_vivo == this) _vivo = null;
+        // uma procura ou instalação que ainda estava esperando a rede volta e sai pelos guardas de nulo
+        _at = null;
+        _atv = null;
     }
 
     /// <summary>"Procurar atualização" do menu da bandeja. False se o módulo estiver desligado.</summary>
@@ -126,6 +129,24 @@ internal sealed partial class ModuloAtualizador : Modulo
             File.WriteAllText(ArquivoDeEstado, JsonSerializer.Serialize(e, Config.Json));
         }
         catch (Exception ex) { Log.Escrever("atualizador: não gravou o estado: " + ex.Message); }
+    }
+
+    private static void MarcarFalha()
+    {
+        var e = LerEstado();
+        e.UltimaAutomatica = UltimaDepoisDeFalha(DateTime.UtcNow);
+        GravarEstado(e);
+    }
+
+    /// <summary>Falha (sem rede, sem release, rate limit) conta como procura feita há 18 h: tenta de novo em ~6 h, não a cada 3 min.</summary>
+    internal static DateTime UltimaDepoisDeFalha(DateTime agora) => agora.AddHours(-18);
+
+    internal static TimeSpan Espera(DateTime? ultimaAutomatica, DateTime agora)
+    {
+        var ultima = ultimaAutomatica ?? DateTime.MinValue;
+        var espera = ultima == DateTime.MinValue ? TimeSpan.Zero : ultima.AddHours(24) - agora;
+        // nunca logo ao abrir: a ilha sobe com o Windows junto de tudo o mais
+        return espera < TimeSpan.FromMinutes(3) ? TimeSpan.FromMinutes(3) : espera;
     }
 
     private void LerResultado()
@@ -161,10 +182,7 @@ internal sealed partial class ModuloAtualizador : Modulo
     {
         _relogio.Stop();
         if (!_cfg.ProcurarSozinha || !Inicio.Instalada) return;
-        var ultima = LerEstado().UltimaAutomatica ?? DateTime.MinValue;
-        var espera = ultima == DateTime.MinValue ? TimeSpan.Zero : ultima.AddHours(24) - DateTime.UtcNow;
-        // nunca logo ao abrir: a ilha sobe com o Windows junto de tudo o mais
-        if (espera < TimeSpan.FromMinutes(3)) espera = TimeSpan.FromMinutes(3);
+        var espera = Espera(LerEstado().UltimaAutomatica, DateTime.UtcNow);
         _relogio.Interval = (int)Math.Min(int.MaxValue, espera.TotalMilliseconds);
         _relogio.Start();
     }
@@ -186,12 +204,13 @@ internal sealed partial class ModuloAtualizador : Modulo
             else if (!S.ContextoAtual().Competitivo) Mostrar(v);
             else _pendente = true;
         }
-        catch (ErroDeAtualizacao ex) { Log.Escrever("atualizador: " + ex.Message); }
-        catch (Exception ex) { Log.Escrever("atualizador: erro ao procurar: " + ex); }
+        catch (ErroDeAtualizacao ex) { Log.Escrever("atualizador: " + ex.Message); MarcarFalha(); }
+        catch (Exception ex) { Log.Escrever("atualizador: erro ao procurar: " + ex); MarcarFalha(); }
         finally
         {
             _procurando = false;
-            Agendar();
+            // desligado no meio da procura: o relógio já foi descartado
+            if (_vivo == this) Agendar();
         }
     }
 
@@ -221,21 +240,24 @@ internal sealed partial class ModuloAtualizador : Modulo
 
     private async void Atualizar()
     {
-        if (_at == null || _atv == null || _at.Instalando) return;
-        _atv.Baixando(0);
+        // locais: o Parar zera os campos e a instalação pode voltar depois dele
+        var at = _at;
+        var atv = _atv;
+        if (at == null || atv == null || at.Instalando) return;
+        atv.Baixando(0);
         try
         {
-            await _at.Instalar();
+            await at.Instalar();
         }
         catch (ErroDeAtualizacao ex)
         {
             Log.Escrever("atualizador: " + ex.Message);
-            _atv.Erro(ex.Message);
+            atv.Erro(ex.Message);
         }
         catch (Exception ex)
         {
             Log.Escrever("atualizador: erro ao instalar: " + ex);
-            _atv.Erro("Erro inesperado (detalhes no ilha.log).");
+            atv.Erro("Erro inesperado (detalhes no ilha.log).");
         }
     }
 }

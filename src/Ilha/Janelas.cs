@@ -71,6 +71,14 @@ internal sealed class JanelaToque : NativeWindow
     [System.Runtime.InteropServices.DllImport("user32.dll")] private static extern bool ReleaseCapture();
     private bool _apertado;
 
+    /// <summary>Solta o mouse (o OLE do arrastar para outro app engole o botão solto).</summary>
+    public void SoltarCaptura()
+    {
+        if (!_apertado) return;
+        _apertado = false;
+        ReleaseCapture();
+    }
+
     private bool _rastreando;
 
     public JanelaToque()

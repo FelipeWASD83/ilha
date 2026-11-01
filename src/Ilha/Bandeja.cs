@@ -48,13 +48,21 @@ internal sealed class Bandeja : IDisposable
         var colada = new ToolStripMenuItem("Colada na borda (estilo notch)");
         colada.Click += (_, _) => n.AlternarColada();
         menu.Opening += (_, _) => colada.Checked = n.Config.Colada;
-        var config = new ToolStripMenuItem("Abrir a configuração");
-        config.Click += (_, _) => Abrir("notepad.exe", Config.Arquivo);
+        var config = new ToolStripMenuItem("Configurações...") { Font = new Font(SystemFonts.MenuFont ?? Control.DefaultFont, FontStyle.Bold) };
+        config.Click += (_, _) => JanelaDeConfiguracoes.Mostrar(() => n.Config, c => c.Salvar(), JanelaDeConfiguracoes.ModulosDaConfig(n.Config), n.Servicos.Atalhos.Padroes);
+        var json = new ToolStripMenuItem("Abrir o config.json");
+        json.Click += (_, _) => Abrir("notepad.exe", Config.Arquivo);
+        var atualizar = new ToolStripMenuItem("Procurar atualização");
+        atualizar.Click += (_, _) =>
+        {
+            if (!global::Ilha.Atualizacoes.ModuloAtualizador.ProcurarAgora())
+                Avisar("O atualizador está desligado nas configurações (módulos).");
+        };
         var logs = new ToolStripMenuItem("Abrir a pasta da ilha (logs e medições)");
         logs.Click += (_, _) => Abrir("explorer.exe", Config.Pasta);
         var sair = new ToolStripMenuItem("Sair");
         sair.Click += (_, _) => n.Sair();
-        menu.Items.AddRange(new ToolStripItem[] { titulo, new ToolStripSeparator(), _pausar, colada, inicio, _demo, new ToolStripSeparator(), config, logs, new ToolStripSeparator(), sair });
+        menu.Items.AddRange(new ToolStripItem[] { titulo, new ToolStripSeparator(), _pausar, colada, inicio, _demo, new ToolStripSeparator(), config, json, logs, atualizar, new ToolStripSeparator(), sair });
 
         _icone = new NotifyIcon
         {

@@ -290,6 +290,21 @@ internal static class AutotesteClaude
         var m3 = new Sessoes();
         m3.Aplicar(Ev(1, "ouvindo"), false);
         Ok(m3.Aplicar(Ev(7, "notificacao", aviso: "permission_prompt"), false).PediuPermissaoSemPonte.Count == 1, "sem o hook da ilha: a notificação vira alerta sem botões");
+
+        // dois pedidos da mesma sessão: quando o primeiro sai, o cartão vê outro número e refaz os botões
+        var m4 = new Sessoes();
+        var pa = new PedidoPermissao { Sessao = "s", Ferramenta = "Bash", Chegou = 400 };
+        var pb = new PedidoPermissao { Sessao = "s", Ferramenta = "Bash", Chegou = 401 };
+        m4.PedidoChegou(pa);
+        m4.PedidoChegou(pb);
+        long antes = m4.Pegar("s")!.Pedidos.FirstOrDefault()?.Numero ?? 0;
+        m4.PedidoSaiu(pa);
+        long depois = m4.Pegar("s")!.Pedidos.FirstOrDefault()?.Numero ?? 0;
+        Ok(antes == pa.Numero && depois == pb.Numero && antes != depois && depois != 0, "o primeiro pedido saiu: a identidade do pedido mostrado muda");
+
+        Ok(!PedidoPermissao.PassouCarencia(1000, 1000) && !PedidoPermissao.PassouCarencia(1000, 1000 + PedidoPermissao.CarenciaMs - 1)
+            && PedidoPermissao.PassouCarencia(1000, 1000 + PedidoPermissao.CarenciaMs) && PedidoPermissao.PassouCarencia(1000, 60_000),
+            $"Permitir surdo nos primeiros {PedidoPermissao.CarenciaMs} ms depois de aparecer, livre depois");
     }
 
     private static void ArquivoSessao()

@@ -54,7 +54,7 @@ internal sealed class Audio : IDisposable
     /// <summary>Liga tudo (thread da interface). Falha em pedaço opcional (IPolicyConfig) não impede o resto.</summary>
     public void Iniciar()
     {
-        _enum = (IMMDeviceEnumerator)new MMDeviceEnumeratorCom();
+        _enum = (IMMDeviceEnumerator)ComDeAudio.NovoEnumerador();
         try
         {
             _politica = (IPolicyConfig)new PolicyConfigClientCom();
@@ -205,24 +205,48 @@ internal sealed class Audio : IDisposable
         Reler();
     }
 
-    /// <summary>Troca o padrão nos três papéis (como o painel de som faz). Falhou: devolve false e não muda nada aqui.</summary>
+    /// <summary>
+    /// Troca o padrão nos três papéis (como o painel de som faz). Falhou num papel: volta os anteriores para o aparelho
+    /// de antes (nada fica meio trocado) e devolve false. Só desliga a troca quando a interface não serve; erro do
+    /// aparelho (saiu de alcance, desativado) só recarrega a lista.
+    /// </summary>
     public bool TrocarSaida(string id)
     {
-        if (_politica == null) return false;
-        foreach (var papel in new[] { PapelAudio.Console, PapelAudio.Multimidia, PapelAudio.Comunicacoes })
+        if (_politica == null || _enum == null) return false;
+        var papeis = new[] { PapelAudio.Console, PapelAudio.Multimidia, PapelAudio.Comunicacoes };
+        var antigos = new string?[papeis.Length];
+        for (int i = 0; i < papeis.Length; i++)
         {
-            int hr;
-            try { hr = _politica.SetDefaultEndpoint(id, papel); }
-            catch (Exception e) { Log.Escrever("volume: SetDefaultEndpoint: " + e.Message); DesligarTroca(); return false; }
-            if (hr != 0)
+            if (_enum.GetDefaultAudioEndpoint(FluxoAudio.Render, papeis[i], out var d) != 0) continue;
+            try { if (d.GetId(out var idAntigo) == 0) antigos[i] = idAntigo; }
+            finally { Com.Soltar(d); }
+        }
+        for (int i = 0; i < papeis.Length; i++)
+        {
+            bool quebrou;
+            try
             {
-                Log.Escrever($"volume: SetDefaultEndpoint({papel}) devolveu 0x{hr:X8}; troca de saída desligada");
-                DesligarTroca();
-                return false;
+                int hr = _politica.SetDefaultEndpoint(id, papeis[i]);
+                if (hr == 0) continue;
+                quebrou = ErroDeInterface(hr);
+                Log.Escrever($"volume: SetDefaultEndpoint({papeis[i]}) devolveu 0x{hr:X8}{(quebrou ? "; troca de saída desligada" : "")}");
             }
+            catch (Exception e)
+            {
+                Log.Escrever($"volume: SetDefaultEndpoint({papeis[i]}): {e.Message}; troca de saída desligada");
+                quebrou = true;
+            }
+            for (int j = 0; j < i; j++)
+                if (antigos[j] != null) try { _politica.SetDefaultEndpoint(antigos[j]!, papeis[j]); } catch { }
+            if (quebrou) DesligarTroca();
+            AtualizarLista();
+            return false;
         }
         return true;
     }
+
+    /// <summary>E_NOINTERFACE ou E_NOTIMPL: a interface (não documentada) não serve neste Windows.</summary>
+    internal static bool ErroDeInterface(int hr) => hr == unchecked((int)0x80004002) || hr == unchecked((int)0x80004001);
 
     private void DesligarTroca()
     {
@@ -237,6 +261,10 @@ internal sealed class Audio : IDisposable
     internal static (Guid Contexto, bool Mudo, float Escala) LerNotificacao(IntPtr dados) =>
         (Marshal.PtrToStructure<Guid>(dados), Marshal.ReadInt32(dados, 16) != 0, BitConverter.Int32BitsToSingle(Marshal.ReadInt32(dados, 20)));
 
+    /// <summary>A mudança veio da ilha: deste módulo ou da rodinha em cima da mídia (que tem o contexto dela).</summary>
+    internal static bool DaIlha(Guid contexto) =>
+        contexto == ContextoDaIlha || contexto == global::Ilha.Midia.VolumeDoSistema.Contexto;
+
     internal void ChegouVolume(float escala, bool mudo, Guid contexto)
     {
         bool postar;
@@ -245,7 +273,7 @@ internal sealed class Audio : IDisposable
             _escalaNova = escala;
             _mudoNovo = mudo;
             // várias notificações juntas (tecla segurada): basta uma de fora para abrir a ilha
-            _deFora |= contexto != ContextoDaIlha;
+            _deFora |= !DaIlha(contexto);
             postar = !_pendente;
             _pendente = true;
         }

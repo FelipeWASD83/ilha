@@ -71,7 +71,7 @@ internal sealed class Loopback
         AvisoDeDispositivo? aviso = null;
         try
         {
-            en = (IMMDeviceEnumerator)new EnumeradorDeDispositivos();
+            en = (IMMDeviceEnumerator)ComDeAudio.NovoEnumerador();
             aviso = new AvisoDeDispositivo(() => c.Reiniciar.Set());
             en.RegisterEndpointNotificationCallback(aviso);
             int falhas = 0;
@@ -224,7 +224,7 @@ internal sealed class Loopback
         IntPtr pFormato = IntPtr.Zero;
         try
         {
-            en = (IMMDeviceEnumerator)new EnumeradorDeDispositivos();
+            en = (IMMDeviceEnumerator)ComDeAudio.NovoEnumerador();
             int hr = en.GetDefaultAudioEndpoint(FluxoAudio.Render, PapelAudio.Multimidia, out dev);
             if (hr == CoreAudio.E_NOTFOUND) return "aviso   loopback: nenhuma saída de áudio";
             if (hr != 0) return $"FALHOU  loopback: GetDefaultAudioEndpoint 0x{hr:X8}";

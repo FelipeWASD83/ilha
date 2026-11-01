@@ -140,6 +140,8 @@ internal abstract class Atividade
     public virtual bool AnunciaChegada => TemExpandida;
     /// <summary>Rodinha do mouse em cima da ilha com esta atividade na frente (delta 120 por dente; true = tratou).</summary>
     public virtual bool Rolar(int delta) => false;
+    /// <summary>O cartão expandido desta atividade abriu (true) ou fechou (false).</summary>
+    public virtual void ExpandidaMudou(bool aberta) { }
     public bool Ativa { get; private set; }
     public DateTime Desde { get; private set; }
 

@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Specialized;
+using System.IO;
 using System.Runtime.InteropServices;
 using System.Threading;
 using System.Threading.Tasks;
@@ -186,8 +187,11 @@ internal static class Selecao
         ki = new KEYBDINPUT { wVk = vk, dwFlags = solta ? KEYEVENTF_KEYUP : 0 },
     };
 
-    /// <summary>O que estava na área de transferência, para devolver depois do Ctrl+C (texto, imagem ou arquivos).</summary>
-    private sealed record Guardado(string? Texto, System.Drawing.Image? Imagem, StringCollection? Arquivos);
+    /// <summary>
+    /// O que estava na área de transferência, para devolver depois do Ctrl+C: todos os formatos que deram para ler
+    /// (Tudo) e, à parte, texto, imagem e arquivos, a reserva se o Tudo não voltar.
+    /// </summary>
+    private sealed record Guardado(DataObject? Tudo, string? Texto, System.Drawing.Image? Imagem, StringCollection? Arquivos);
 
     private static T? Tentar<T>(Func<T> f)
     {
@@ -199,13 +203,66 @@ internal static class Selecao
         return default;
     }
 
-    private static Guardado Guardar() => new(
-        Tentar(() => Clipboard.ContainsText() ? Clipboard.GetText() : null),
-        Tentar(() => Clipboard.ContainsImage() ? Clipboard.GetImage() : null),
-        Tentar(() => Clipboard.ContainsFileDropList() ? Clipboard.GetFileDropList() : null));
+    private static readonly string[] Basicos =
+        { DataFormats.UnicodeText, DataFormats.Text, DataFormats.Bitmap, DataFormats.Dib, DataFormats.FileDrop };
+
+    private static T? Ler<T>(Func<T?> f)
+    {
+        try { return f(); }
+        catch { return default; }
+    }
+
+    /// <summary>
+    /// Cópia de todos os formatos, com os dados lidos na hora: o GetDataObject da área de transferência é um proxy
+    /// da viva, e o conteúdo some quando o app copia. Formato próprio em HGLOBAL (o do After Effects, HTML, RTF, os do
+    /// Office) vem como MemoryStream. Null se nada deu para ler. Passado o prazo, só lê texto, imagem e arquivos:
+    /// app que gera os formatos na hora (Excel com uma faixa grande, Photoshop) leva centenas de ms em cada um,
+    /// com a interface parada.
+    /// </summary>
+    internal static DataObject? Copiar(IDataObject? origem, int prazoMs = 500)
+    {
+        if (origem == null) return null;
+        var formatos = Ler(() => Tentar(() => origem.GetFormats(false)));
+        if (formatos == null) return null;
+        long fim = Environment.TickCount64 + prazoMs;
+        var d = new DataObject();
+        bool algo = false;
+        foreach (var f in formatos)
+        {
+            if (Environment.TickCount64 >= fim && Array.IndexOf(Basicos, f) < 0) continue;
+            // formato que não dá para ler (IStorage, metarquivo, objeto serializado) fica de fora; lido uma vez só,
+            // sem o Tentar: formato que o app recusa custaria 100 ms de espera cada
+            object? v = Ler(() => origem.GetData(f, false));
+            if (v == null) continue;
+            // cópia própria do começo ao fim: o fluxo lido pode vir com a posição no meio
+            if (v is MemoryStream ms) v = new MemoryStream(ms.ToArray());
+            d.SetData(f, false, v);
+            algo = true;
+        }
+        return algo ? d : null;
+    }
+
+    private static Guardado Guardar()
+    {
+        var tudo = Copiar(Ler(() => Tentar(() => Clipboard.GetDataObject())));
+        if (tudo != null)
+            return new(tudo,
+                Ler(() => tudo.ContainsText() ? tudo.GetText() : null),
+                Ler(() => tudo.ContainsImage() ? tudo.GetImage() : null),
+                Ler(() => tudo.ContainsFileDropList() ? tudo.GetFileDropList() : null));
+        return new(null,
+            Tentar(() => Clipboard.ContainsText() ? Clipboard.GetText() : null),
+            Tentar(() => Clipboard.ContainsImage() ? Clipboard.GetImage() : null),
+            Tentar(() => Clipboard.ContainsFileDropList() ? Clipboard.GetFileDropList() : null));
+    }
 
     private static void Devolver(Guardado g)
     {
+        if (g.Tudo != null)
+        {
+            try { if (Tentar(() => { Clipboard.SetDataObject(g.Tudo, true, 5, 20); return true; })) return; }
+            catch (Exception e) { Log.Escrever("tradutor: não devolvi todos os formatos (" + e.GetType().Name + "), vai o básico"); }
+        }
         Tentar(() =>
         {
             var d = new DataObject();
@@ -214,7 +271,8 @@ internal static class Selecao
             if (g.Imagem != null) { d.SetImage(g.Imagem); algo = true; }
             if (g.Arquivos is { Count: > 0 }) { d.SetFileDropList(g.Arquivos); algo = true; }
             if (algo) Clipboard.SetDataObject(d, true, 5, 20);
-            else Clipboard.Clear();
+            // limpa só quando estava vazia de verdade: havendo algo que não deu para devolver, melhor não apagar mais
+            else if (g.Tudo == null) Clipboard.Clear();
             return true;
         });
     }
@@ -222,10 +280,14 @@ internal static class Selecao
     /// <summary>
     /// Manda Ctrl+C para a janela da frente e lê o texto copiado; devolve a área de transferência como estava.
     /// Roda na thread da interface (STA, exigida pela área de transferência do Windows Forms). Null se nada foi copiado.
+    /// Só manda se o alvo continua na frente, não é terminal e <paramref name="podeMandar"/> (sem jogo competitivo)
+    /// ainda vale depois de guardar, que pode demorar: o Alt+Tab troca a janela mesmo com a interface parada.
     /// </summary>
-    public static async Task<string?> PorCtrlC(int esperaMs = 300)
+    public static async Task<string?> PorCtrlC(IntPtr alvo, Func<bool> podeMandar, int esperaMs = 300)
     {
         var antes = Guardar();
+        var frente = Nativo.GetForegroundWindow();
+        if (frente != alvo || EhTerminal(frente) || !podeMandar()) return null;
         uint seq = GetClipboardSequenceNumber();
         var teclas = new[] { Tecla(VK_CONTROL, false), Tecla(VK_C, false), Tecla(VK_C, true), Tecla(VK_CONTROL, true) };
         if (SendInput((uint)teclas.Length, teclas, Marshal.SizeOf<INPUT>()) != teclas.Length) return null;

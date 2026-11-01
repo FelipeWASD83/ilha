@@ -110,7 +110,8 @@ internal sealed class AtividadeClaude : Atividade
     {
         var s = Mostrada;
         int outras = Outras(s).Count;
-        return $"{_modo}|{s?.Id}|{PedidoDe(s) != null}|{outras}|{_aviso != null}|{_opcoesDoApp.Count}";
+        // qual pedido, não só se tem: o segundo da mesma sessão assumindo refaz os botões ligados a ele
+        return $"{_modo}|{s?.Id}|{PedidoDe(s)?.Numero ?? 0}|{outras}|{_aviso != null}|{_opcoesDoApp.Count}";
     }
 
     private List<Sessao> Outras(Sessao? s) => _m.Ordenadas(_agora()).Where(x => x != s && x.EmAndamento).Take(3).ToList();
@@ -388,8 +389,18 @@ internal sealed class AtividadeClaude : Atividade
                     if (pedido != null)
                     {
                         var pd = pedido;
-                        botoes.Add(new Botao { Area = new RectangleF(0, yy + 46, 164, 30), Acao = () => Decidir(pd, "allow") });
-                        botoes.Add(new Botao { Area = new RectangleF(176, yy + 46, 164, 30), Acao = () => Decidir(pd, "deny") });
+                        long apareceu = Environment.TickCount64;
+                        // o pedido na tela já não é este (saiu entre a troca e o Atualizar): só refaz, não decide nada
+                        botoes.Add(new Botao { Area = new RectangleF(0, yy + 46, 164, 30), Acao = () =>
+                        {
+                            if (PedidoDe(Mostrada) != pd) { Atualizar(); return; }
+                            if (PedidoPermissao.PassouCarencia(apareceu, Environment.TickCount64)) Decidir(pd, "allow");
+                        } });
+                        botoes.Add(new Botao { Area = new RectangleF(176, yy + 46, 164, 30), Acao = () =>
+                        {
+                            if (PedidoDe(Mostrada) != pd) { Atualizar(); return; }
+                            Decidir(pd, "deny");
+                        } });
                         yy += 82;
                     }
                     else yy += 46;

@@ -22,7 +22,7 @@ internal sealed class ModuloUso : Modulo
     private readonly System.Windows.Forms.Timer _relogio = new();
     private AtividadeUso? _atv;
     private Nvml? _nvml;
-    private bool _parado, _competitivo, _iniciandoGpu;
+    private bool _parado, _competitivo, _telaCheia, _iniciandoGpu;
     private double _ultimaAmostra = double.NaN, _ultimaBase = double.NaN, _ultimaTentativaGpu = double.NaN;
 
     public override Type? TipoConfig => typeof(ConfigUso);
@@ -53,8 +53,10 @@ internal sealed class ModuloUso : Modulo
 
     public override void Contexto(Contexto ctx)
     {
-        if (ctx.Competitivo == _competitivo) return;
+        bool telaCheia = ctx.TelaCheia && !ctx.Desktop;
+        if (ctx.Competitivo == _competitivo && telaCheia == _telaCheia) return;
         _competitivo = ctx.Competitivo;
+        _telaCheia = telaCheia;
         // no jogo competitivo a atividade não aparece: nem lê, e sai do estourado para não voltar velha depois
         if (_competitivo) _e.Limites.Zerar();
         Sincronizar();
@@ -134,11 +136,18 @@ internal sealed class ModuloUso : Modulo
 
         AtualizarGpu();
 
-        if (_cfg.AvisarLimites) _e.Limites.Avaliar(agora, m => EstadoUso.Valor(a, m));
+        if (_cfg.AvisarLimites) _e.Limites.Avaliar(agora, m => ValorDoLimite(a, m, _telaCheia));
         Sincronizar();
         if (_atv.Cenas > 0) _atv.Atualizar();
         Ritmo();
     }
+
+    /// <summary>
+    /// Jogo ou vídeo em tela cheia deixa a placa a 99% de propósito: aí o uso da GPU não conta para o limite e só a
+    /// temperatura dela avisa (CPU e RAM continuam iguais).
+    /// </summary>
+    private static double? ValorDoLimite(Amostra a, Medida m, bool telaCheia) =>
+        m == Medida.Gpu && telaCheia ? null : EstadoUso.Valor(a, m);
 
     /// <summary>
     /// Liga ou desliga a atividade conforme os limites. Com o cartão aberto pelo atalho, ela só some depois que ele
@@ -296,6 +305,23 @@ internal sealed class ModuloUso : Modulo
         lim.Avaliar(705, V);
         lim.Avaliar(710, V);
         Ok(!aposLacuna && lim.Ligada, "buraco de 95 s entre leituras zera a contagem dos 10 s");
+
+        // tela cheia: o uso da GPU não conta, a temperatura dela sim
+        Ok(ValorDoLimite(am, Medida.Gpu, true) == null && ValorDoLimite(am, Medida.Gpu, false) == 97.4
+            && ValorDoLimite(am, Medida.GpuTemp, true) == 86 && ValorDoLimite(am, Medida.Cpu, true) == 93.2,
+            "tela cheia tira só o uso da GPU do limite");
+        var limTc = new Limites();
+        limTc.Definir(new[] { new Limites.Regra(Medida.GpuTemp, 83, 0), new Limites.Regra(Medida.Gpu, 95, 10) });
+        var jogo = am with { GpuTemp = 70 };
+        for (int t = 0; t <= 60; t += 5) limTc.Avaliar(t, m => ValorDoLimite(jogo, m, true));
+        Ok(!limTc.Ligada, "GPU a 97% por 60 s em tela cheia não liga");
+        limTc.Avaliar(65, m => ValorDoLimite(jogo with { GpuTemp = 86 }, m, true));
+        Ok(limTc.Ligada && limTc.Motivo == Medida.GpuTemp, "temperatura da GPU em tela cheia ainda liga na hora");
+        limTc.Zerar();
+        for (int t = 0; t <= 15; t += 5) limTc.Avaliar(t, m => ValorDoLimite(jogo, m, false));
+        Ok(limTc.Ligada && limTc.Motivo == Medida.Gpu, "fora da tela cheia a GPU a 97% por 10 s liga como antes");
+        for (int t = 20; t <= 50; t += 5) limTc.Avaliar(t, m => ValorDoLimite(jogo, m, true));
+        Ok(!limTc.Ligada, "ligada pela GPU, entrar em tela cheia apaga depois dos 30 s");
 
         // config
         var cfg = ConfigUso.Normalizar(new ConfigUso { LimiteCpu = double.NaN, SegundosCpu = -3, IntervaloChecagem = 0, LimiteTemperaturaGpu = 500 });

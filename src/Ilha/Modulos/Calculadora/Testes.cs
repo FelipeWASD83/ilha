@@ -99,6 +99,7 @@ internal static class TestesCalculadora
         ("3!", false, 0, 6), ("(2+3)!", false, 0, 120), ("4!/2", false, 0, 12), ("3!!", false, 0, 720),
         ("2^0.5", false, 0, Math.Sqrt(2)), ("100 / (2 + 3)", false, 0, 20), ("10%", false, 0, 0.1), ("50 + 50%", false, 0, 75),
         ("√9+1", false, 0, 4), ("√(9+16)", false, 0, 5), ("log2 16", false, 0, 4), ("log 100", false, 0, 2), ("ln 1", false, 0, 0),
+        ("log 25", false, 0, Math.Log10(25)), ("log 2", false, 0, Math.Log10(2)), ("log 20", false, 0, Math.Log10(20)), ("sqrt 25", false, 0, 5),
         ("2(3)", false, 0, 6), ("2sin(π/6)", false, 0, 1), ("cos(π)", false, 0, -1), ("tan(45)", true, 0, 1),
         ("ans", false, 7.5, 7.5), ("ans^2+1", false, 3, 10), ("ANS + 1", false, 1, 2),
         ("0,1+0,2", false, 0, 0.3), ("1/3*3", false, 0, 1), ("((((1))))", false, 0, 1), ("-0", false, 0, 0),

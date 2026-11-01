@@ -88,7 +88,7 @@ internal sealed class Servicos
     public void NaInterface(Action a) => Programa.NaInterface(a);
 }
 
-internal static class Modulos
+internal static class CatalogoDeModulos
 {
     public static List<(ModuloAttribute Info, Type Tipo)> Descobrir() =>
         typeof(Modulo).Assembly.GetTypes()

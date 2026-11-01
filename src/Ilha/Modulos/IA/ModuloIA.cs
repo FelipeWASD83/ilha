@@ -60,7 +60,8 @@ internal sealed class ModuloIA : Modulo
         _chat?.ConfigMudou();
     }
 
-    // a ilha recolheu (ou trocou de atividade): o que estava respondendo para, ninguém vai ver
+    // a ilha recolheu: o que estava respondendo para, ninguém vai ver (a troca de cartão sem mudar de estado
+    // chega pelo ExpandidaMudou das atividades)
     private void AoMudarEstado(Estado e)
     {
         if (S.Ilha.Expandida != _chat) _chat?.Interromper(fecharCampo: true);

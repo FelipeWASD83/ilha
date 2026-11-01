@@ -147,6 +147,13 @@ internal sealed class AtividadeAr : Atividade
         AtualizarTela();
     }
 
+    /// <summary>O núcleo avisa na hora: abriu lê já, fechou para os GETs sem esperar o próximo tique.</summary>
+    public override void ExpandidaMudou(bool aberta)
+    {
+        if (aberta) AbriuCartao();
+        else if (_leitura.Enabled) TiqueLeitura();
+    }
+
     private void TiqueLeitura()
     {
         if (_parado || !Aberta)

@@ -10,7 +10,7 @@ Leia antes: `../CLAUDE.md` do projeto (arquitetura e decisões), `Modulo.cs`, `S
 ## O esqueleto
 
 ```csharp
-namespace Ilha.Modulos.Exemplo;
+namespace Ilha.Exemplo;   // não Ilha.Modulos.X: Ilha.Modulos colidia com uma classe (hoje CatalogoDeModulos)
 
 [Modulo("exemplo", "Exemplo")]                       // LigadoPorPadrao = false se não deve ligar sozinho
 internal sealed class ModuloExemplo : Modulo

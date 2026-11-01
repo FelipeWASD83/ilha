@@ -70,6 +70,14 @@ internal sealed partial class ModuloAtualizador
         Conferir("0.2.0 não é mais nova que 0.2.0", !Versoes.MaisNova("0.2.0", "0.2.0"));
         Conferir("2.0.0 > 1.99.99", Versoes.MaisNova("2.0.0", "1.99.99"));
 
+        // agenda da procura automática
+        var agora = new DateTime(2026, 11, 1, 12, 0, 0, DateTimeKind.Utc);
+        Conferir("agenda: nunca procurou espera 3 min", Espera(null, agora) == TimeSpan.FromMinutes(3));
+        Conferir("agenda: procurou há 1 h espera 23 h", Espera(agora.AddHours(-1), agora) == TimeSpan.FromHours(23));
+        Conferir("agenda: atrasada espera só 3 min", Espera(agora.AddDays(-3), agora) == TimeSpan.FromMinutes(3));
+        var depoisDaFalha = Espera(UltimaDepoisDeFalha(agora), agora);
+        Conferir("agenda: depois de falhar tenta em 6 h, não em 3 min", depoisDaFalha == TimeSpan.FromHours(6), depoisDaFalha.ToString());
+
         // resposta do GitHub
         const string json = """
             {"tag_name":"v0.3.0","html_url":"https://github.com/x/y/releases/tag/v0.3.0",

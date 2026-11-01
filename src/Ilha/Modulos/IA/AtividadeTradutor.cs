@@ -87,7 +87,7 @@ internal sealed class AtividadeTradutor : Atividade
             if (g != _geracao) return;
             if (texto == null && !Selecao.EhTerminal(alvo) && await Selecao.EsperarSoltar(teclaDoAtalho) && g == _geracao
                 && Nativo.GetForegroundWindow() == alvo && !S.ContextoAtual().Competitivo)
-                texto = await Selecao.PorCtrlC();
+                texto = await Selecao.PorCtrlC(alvo, () => g == _geracao && !S.ContextoAtual().Competitivo);
             if (g != _geracao) return;
         }
         if (S.Ilha.Expandida != this) return;
@@ -149,6 +149,13 @@ internal sealed class AtividadeTradutor : Atividade
             finally { _trocandoEntrada = false; }
         }
         _entradaNossa = false;
+    }
+
+    // outra ferramenta abriu no lugar: o EstadoMudou não vem. Aviso atrasado com o cartão já reaberto é velho
+    // (o _geracao++ do Interromper derrubaria o Abrir em andamento).
+    public override void ExpandidaMudou(bool aberta)
+    {
+        if (!aberta && S.Ilha.Expandida != this) Interromper(fecharCampo: true);
     }
 
     private void AbrirCampo()

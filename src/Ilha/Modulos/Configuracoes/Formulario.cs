@@ -71,15 +71,16 @@ internal static class Formulario
         return sb.ToString().Trim();
     }
 
-    /// <summary>A config do módulo a partir da seção dele (o que faltar vem do padrão da classe).</summary>
+    /// <summary>
+    /// A config do módulo a partir da seção dele (o que faltar vem do padrão da classe). Seção que existe e não lê
+    /// dá exceção em vez do padrão: salvar o padrão por cima apagaria o que a pessoa escreveu à mão. Seção que
+    /// nem é objeto (lista, texto, número) quem chama confere antes: aqui ela chegaria como null e viraria o padrão.
+    /// </summary>
     public static object Instanciar(Type tipo, JsonObject? secao)
     {
-        if (secao != null)
-        {
-            try { if (secao.Deserialize(tipo, Config.Json) is { } o) return o; }
-            catch (Exception e) { Log.Escrever($"configurações: seção ilegível para {tipo.Name}: {e.Message}"); }
-        }
-        return Activator.CreateInstance(tipo)!;
+        if (secao == null) return Activator.CreateInstance(tipo)!;
+        try { return secao.Deserialize(tipo, Config.Json) ?? Activator.CreateInstance(tipo)!; }
+        catch (Exception e) { throw new InvalidOperationException("a seção deste módulo no config.json não lê: " + e.Message, e); }
     }
 
     /// <summary>Os controles dos campos editáveis, com o valor atual.</summary>
@@ -159,6 +160,26 @@ internal static class Formulario
     {
         foreach (var c in campos) c.Propriedade.SetValue(instancia, c.Ler());
     }
+
+    /// <summary>O que está nos controles agora, na ordem dos campos (para saber depois o que a pessoa mexeu).</summary>
+    public static List<object?> Valores(IEnumerable<CampoGerado> campos) => campos.Select(c => c.Ler()).ToList();
+
+    /// <summary>
+    /// Passa para a instância só os campos cujo controle saiu do valor <paramref name="iniciais"/>; o resto fica
+    /// como está na instância (que pode ter vindo de uma seção mais nova que a da abertura da tela).
+    /// </summary>
+    public static void AplicarMudados(IReadOnlyList<CampoGerado> campos, IReadOnlyList<object?> iniciais, object instancia)
+    {
+        for (int i = 0; i < campos.Count; i++)
+        {
+            var v = campos[i].Ler();
+            if (i < iniciais.Count && Igual(v, iniciais[i])) continue;
+            campos[i].Propriedade.SetValue(instancia, v);
+        }
+    }
+
+    private static bool Igual(object? a, object? b) =>
+        JsonSerializer.Serialize(a, Config.Json) == JsonSerializer.Serialize(b, Config.Json);
 
     /// <summary>
     /// A seção nova do módulo: parte da original (chaves que a classe não conhece ficam), põe por cima o que a

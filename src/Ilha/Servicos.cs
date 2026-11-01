@@ -71,7 +71,38 @@ internal sealed class Atalhos : IDisposable
     private readonly Func<Config> _cfg;
     private readonly Dictionary<int, (string Nome, Action Acao)> _porId = new();
     private readonly Dictionary<string, (Atalho Padrao, Action Acao)> _pedidos = new();
+    private readonly Dictionary<string, string> _donos = new();
     private int _proximo = 0x5000;
+
+    /// <summary>O módulo que está ligando agora (o núcleo marca); os atalhos pedidos ficam em nome dele.</summary>
+    public string? Dono { get; set; }
+
+    /// <summary>Nome e combinação padrão de cada atalho pedido (a tela de configurações mostra).</summary>
+    public IReadOnlyDictionary<string, Atalho> Padroes
+    {
+        get
+        {
+            var r = new Dictionary<string, Atalho>(StringComparer.OrdinalIgnoreCase);
+            foreach (var (nome, v) in _pedidos) r[nome] = v.Padrao;
+            return r;
+        }
+    }
+
+    /// <summary>Solta o atalho (a combinação fica livre para outros programas).</summary>
+    public void Remover(string nome)
+    {
+        foreach (var (id, v) in new Dictionary<int, (string, Action)>(_porId))
+            if (v.Item1 == nome) { Nativo.UnregisterHotKey(_janela, id); _porId.Remove(id); }
+        _pedidos.Remove(nome);
+        _donos.Remove(nome);
+    }
+
+    /// <summary>Solta todos os atalhos de um módulo (ele foi desligado).</summary>
+    public void RemoverDoDono(string dono)
+    {
+        foreach (var (nome, d) in new Dictionary<string, string>(_donos))
+            if (d == dono) Remover(nome);
+    }
 
     public Atalhos(IntPtr janela, Func<Config> cfg)
     {
@@ -83,6 +114,7 @@ internal sealed class Atalhos : IDisposable
     public Atalho? Registrar(string nome, Atalho padrao, Action acao)
     {
         _pedidos[nome] = (padrao, acao);
+        if (Dono != null) _donos[nome] = Dono;
         return Aplicar(nome);
     }
 
@@ -243,6 +275,8 @@ internal sealed class Entrada : IDisposable
     public bool Senha { get; private set; }
     /// <summary>Qualquer mudança de texto ou de cursor (o módulo redesenha).</summary>
     public event Action? Mudou;
+    /// <summary>Setas para cima e para baixo, Page Up, Page Down e Tab (histórico, lista...); o texto não muda.</summary>
+    public event Action<Keys>? Tecla;
 
     public Entrada()
     {
@@ -270,6 +304,10 @@ internal sealed class Entrada : IDisposable
     private void AoTeclar(object? s, KeyEventArgs e)
     {
         if (e.KeyCode == Keys.Escape) { e.SuppressKeyPress = true; Fechar(); return; }
+        if (e.KeyCode is Keys.Up or Keys.Down or Keys.PageUp or Keys.PageDown or Keys.Tab && !(_multilinha && e.KeyCode is Keys.Up or Keys.Down))
+        {
+            if (Tecla != null) { e.SuppressKeyPress = true; e.Handled = true; Tecla(e.KeyCode); return; }
+        }
         if (e.KeyCode == Keys.Enter && !(_multilinha && e.Shift))
         {
             e.SuppressKeyPress = true;
@@ -299,12 +337,24 @@ internal sealed class Entrada : IDisposable
         _caixa.UseSystemPasswordChar = senha;
         _caixa.Text = inicial;
         _caixa.SelectionStart = inicial.Length;
-        _antes = Nativo.GetForegroundWindow();
+        // de um campo para outro: a janela da frente já é a invisível da ilha; a de antes continua a original
+        var frente = Nativo.GetForegroundWindow();
+        if (frente != _form.Handle) _antes = frente;
         Aberta = true;
         _form.Show();
         _form.Activate();
         Nativo.SetForegroundWindow(_form.Handle);
         _caixa.Focus();
+        Avisar();
+    }
+
+    /// <summary>Troca senha ou multilinha com o campo aberto, sem piscar o foco.</summary>
+    public void Trocar(bool senha, bool multilinha)
+    {
+        Senha = senha;
+        _multilinha = multilinha;
+        _caixa.UseSystemPasswordChar = senha;
+        _caixa.Multiline = multilinha;
         Avisar();
     }
 

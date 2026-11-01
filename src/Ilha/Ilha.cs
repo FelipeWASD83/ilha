@@ -117,7 +117,13 @@ internal sealed class Ilha : IDisposable
         _toque.Saiu += Saiu;
         _toque.Clicou += Clicou;
         _toque.Apertou += Apertou;
-        _toque.Arrastando += (x, y) => { if (_arraste != null) _arraste(Local(_vagaCorpo, x, y).X, Local(_vagaCorpo, x, y).Y, false); };
+        _toque.Arrastando += (x, y) =>
+        {
+            if (_arraste == null) return;
+            var l = Local(_vagaCorpo, x, y);
+            if (Vector2.Distance(l, _inicioArraste) > 4) _arrastou = true;
+            _arraste(l.X, l.Y, false);
+        };
         _toque.Rolou += Rolou;
         _relogioAlerta.Tick += (_, _) => { _relogioAlerta.Stop(); FimDoAlerta(); };
         _relogioSaida.Tick += (_, _) => { _relogioSaida.Stop(); if (!_sobre && _expandida && !_porAtalho) Recolher(); };
@@ -481,11 +487,60 @@ internal sealed class Ilha : IDisposable
 
     // ------------------------------------------------------------------ atividades e contexto
 
+    private readonly Dictionary<Atividade, string> _donos = new();
+    private Atividade? _cartaoAvisado;
+
+    /// <summary>O módulo que está ligando agora (o núcleo marca); as atividades adicionadas ficam em nome dele.</summary>
+    public string? DonoAtual { get; set; }
+
+    /// <summary>As atividades em andamento que podem aparecer agora, da mais importante para a menos.</summary>
+    public IReadOnlyList<Atividade> Ativas => Visiveis();
+
     public void Adicionar(Atividade a)
     {
+        if (DonoAtual != null) _donos[a] = DonoAtual;
         _atividades.Add(a);
-        a.Mudou += x => AtividadeMudou(x);
+        a.Mudou += AtividadeMudou;
         a.Alertou += Alertar;
+    }
+
+    /// <summary>Tira a atividade da ilha (o módulo dela foi desligado).</summary>
+    public void Remover(Atividade a)
+    {
+        if (!_atividades.Remove(a)) return;
+        a.Mudou -= AtividadeMudou;
+        a.Alertou -= Alertar;
+        _donos.Remove(a);
+        _jaVistas.Remove(a);
+        var resto = _fila.Where(x => x.Dono != a).ToList();
+        _fila.Clear();
+        foreach (var x in resto) _fila.Enqueue(x);
+        if (_foco == a) { _foco = null; _expandida = false; }
+        if (_cartaoAvisado == a) _cartaoAvisado = null;
+        if (_alerta?.Dono == a) { _relogioAlerta.Stop(); ProximoAlerta(); return; }
+        Aplicar();
+    }
+
+    public void RemoverDoDono(string dono)
+    {
+        foreach (var (a, d) in _donos.ToList())
+            if (d == dono) Remover(a);
+    }
+
+    /// <summary>Tira um alerta da tela (ou da fila) sem mexer nos outros.</summary>
+    public void FecharAlerta(Alerta a)
+    {
+        if (_alerta == a) { _relogioAlerta.Stop(); ProximoAlerta(); return; }
+        var resto = _fila.Where(x => x != a).ToList();
+        _fila.Clear();
+        foreach (var x in resto) _fila.Enqueue(x);
+    }
+
+    /// <summary>Solta o arraste em andamento (depois de um arrastar para outro app, que engole o botão solto).</summary>
+    public void SoltarArraste()
+    {
+        _arraste = null;
+        _toque.SoltarCaptura();
     }
 
     /// <summary>A atividade que o atalho abre quando não tem nada em andamento.</summary>
@@ -495,16 +550,17 @@ internal sealed class Ilha : IDisposable
 
     private void AtividadeMudou(Atividade a)
     {
+        // um evento atrasado (tarefa que terminou depois do Parar) de quem já saiu da ilha não traz ela de volta
+        if (!_atividades.Contains(a)) return;
         if (a.Ativa && _jaVistas.Add(a))
         {
             // algo novo aparece expandindo por um instante (não no Não Incomodar)
             if (!(_ctx.NaoPerturbe && _cfg.RespeitarNaoPerturbe) && a.AnunciaChegada && Permitida(a))
                 Alertar(new Alerta { Tipo = "chegada", Som = "chegada", Criar = p => a.Criar(p, Forma.Expandida), PermitidoNoCompetitivo = a.PermitidaNoCompetitivo, Segundos = _cfg.AlertaSegundos * 0.7f, Dono = a });
         }
-        if (!a.Ativa)
+        if (!a.Ativa && _jaVistas.Remove(a))
         {
-            _jaVistas.Remove(a);
-            if (_foco == a) { _foco = null; _expandida = false; }
+            if (_foco == a && !a.EhFerramenta) { _foco = null; _expandida = false; }
             // a chegada dela não faz mais sentido: sai da fila e, se estiver na tela, sai também
             // (os outros alertas dela, como o "timer acabou", ficam)
             var resto = _fila.Where(x => !(x.Tipo == "chegada" && x.Dono == a)).ToList();
@@ -543,6 +599,7 @@ internal sealed class Ilha : IDisposable
     public void Alertar(Alerta a)
     {
         if (_cfg.Pausada) return;
+        if (a.Dono != null && a.Dono != _painel && !_atividades.Contains(a.Dono)) return;
         if (_ctx.Competitivo && !a.PermitidoNoCompetitivo) return;
         if (_ctx.NaoPerturbe && _cfg.RespeitarNaoPerturbe && !a.Importante) return;
         if (a.Importante)
@@ -556,6 +613,9 @@ internal sealed class Ilha : IDisposable
         else _fila.Enqueue(a);
         if (_alerta == null) ProximoAlerta();
     }
+
+    /// <summary>O alerta apareceria agora (não pausada, não barrado pelo modo competitivo nem pelo Não Incomodar)?</summary>
+    public bool PodeMostrarAlerta(Alerta a) => PodeMostrar(a);
 
     private bool PodeMostrar(Alerta a) =>
         !_cfg.Pausada && (!_ctx.Competitivo || a.PermitidoNoCompetitivo) && !(_ctx.NaoPerturbe && _cfg.RespeitarNaoPerturbe && !a.Importante);
@@ -608,6 +668,13 @@ internal sealed class Ilha : IDisposable
     }
 
     private Action<float, float, bool>? _arraste;
+    private Vector2 _inicioArraste;
+    private bool _arrastou;
+    private string? _cenaApertada;
+
+    /// <summary>A chave da cena sem a versão do fim: o mesmo cartão ou alerta redesenhado continua sendo a mesma cena.</summary>
+    private static string? SemVersao(string? chave) =>
+        chave is null ? null : chave.LastIndexOf(':') is var i and > 0 ? chave[..i] : chave;
 
     private Vector2 Local(Vaga v, int x, int y)
     {
@@ -620,10 +687,18 @@ internal sealed class Ilha : IDisposable
     private void Apertou(int x, int y)
     {
         _arraste = null;
+        _cenaApertada = _vagaCorpo.Atual == null ? null : SemVersao(_vagaCorpo.Chave);
         if (_vagaCorpo.Atual == null) return;
         var l = Local(_vagaCorpo, x, y);
         foreach (var b in _vagaCorpo.Atual.Cena.Botoes)
-            if (b.Arrastar != null && b.Area.Contains(l.X, l.Y)) { _arraste = b.Arrastar; _arraste(l.X, l.Y, false); return; }
+            if (b.Arrastar != null && b.Area.Contains(l.X, l.Y))
+            {
+                _arraste = b.Arrastar;
+                _inicioArraste = l;
+                _arrastou = false;
+                _arraste(l.X, l.Y, false);
+                return;
+            }
     }
 
     private void Rolou(int delta)
@@ -640,20 +715,29 @@ internal sealed class Ilha : IDisposable
             var fim = _arraste;
             _arraste = null;
             fim(l.X, l.Y, true);
-            return;
+            // apertou e soltou sem sair do lugar: vale como clique (o botão, ou fechar o alerta)
+            if (_arrastou || Vector2.Distance(l, _inicioArraste) > 4) return;
         }
+        bool mesmaCena = _cenaApertada != null && _vagaCorpo.Atual != null && _cenaApertada == SemVersao(_vagaCorpo.Chave);
+        _cenaApertada = null;
         if (_estado == Estado.Alerta)
         {
+            // apertou noutra coisa e o alerta apareceu antes de soltar: nem aprova nem fecha nada
+            if (!mesmaCena) return;
             if (!ClicarBotao(_vagaCorpo, x, y)) { _relogioAlerta.Stop(); ProximoAlerta(); }
             return;
         }
         if (_estado == Estado.Expandida)
         {
-            ClicarBotao(_vagaCorpo, x, y);
+            if (mesmaCena) ClicarBotao(_vagaCorpo, x, y);
             return;
         }
         var vis = Visiveis();
-        if (_temBolha && _rBolha.Contains(x, y) && vis.Count > 1) _foco = vis[1];
+        var daBolha = DaBolha(vis);
+        if (_temBolha && _rBolha.Contains(x, y) && daBolha != null) _foco = daBolha;
+        else if (_estado == Estado.Compacta && _pontosVisiveis && _extraPontos > 0
+                 && x >= _rCorpo.Right - _p.Px(COMPACTA_FOLGA + _extraPontos)
+                 && vis.FirstOrDefault(a => a.Tipo == "privacidade") is { } privacidade) _foco = privacidade;
         else if (vis.Count > 0) _foco = vis[0];
         else _foco = _ctx.Competitivo ? null : _painel;
         if (_foco == null || !_foco.TemExpandida) return;
@@ -735,6 +819,7 @@ internal sealed class Ilha : IDisposable
     public void Expandir(Atividade a)
     {
         if (_cfg.Pausada) return;
+        if (a != _painel && !_atividades.Contains(a)) return;
         if (_alerta != null) { _relogioAlerta.Stop(); _fila.Clear(); _alerta = null; }
         _foco = a;
         _expandida = true;
@@ -808,12 +893,13 @@ internal sealed class Ilha : IDisposable
             _extraPontos = PontosDevemAparecer(Estado.Compacta, a) ? LarguraPontos() + 8 : 0;
             l += _extraPontos;
             if (_sobre) { l += PREVIA_L; h += PREVIA_A; }
-            bool bolha = _cfg.Dividir && vis.Count > 1;
+            var segunda = DaBolha(vis);
+            bool bolha = _cfg.Dividir && segunda != null;
             string? cb = null;
             Func<Cena>? fb = null;
             if (bolha)
             {
-                var b = vis[1];
+                var b = segunda!;
                 cb = $"bol:{b.GetHashCode()}:{b.Versao}";
                 fb = () => b.Criar(_p, Forma.Bolha);
             }
@@ -861,6 +947,7 @@ internal sealed class Ilha : IDisposable
         _ultimoPlano = assinatura;
         var anterior = _estado;
         _estado = pl.Estado;
+        AvisarCartao(_estado == Estado.Expandida ? _foco : null);
         int geracao = ++_geracao;
         var c = _g.Compositor;
         var mola = _cfg.Mola;
@@ -958,6 +1045,22 @@ internal sealed class Ilha : IDisposable
     }
 
     private (Estado, Vector2, float, string?, bool, string?, bool, bool, bool) _ultimoPlano;
+
+    /// <summary>Quem vai para a bolha: a segunda da fila, menos a privacidade (as bolinhas dela já ficam na pílula).</summary>
+    private static Atividade? DaBolha(List<Atividade> vis) => vis.Skip(1).FirstOrDefault(a => a.Tipo != "privacidade");
+
+    private void AvisarCartao(Atividade? cartao)
+    {
+        if (cartao == _cartaoAvisado) return;
+        var velho = _cartaoAvisado;
+        _cartaoAvisado = cartao;
+        // depois do Aplicar (a atividade pode querer mexer na ilha de volta)
+        Programa.NaInterface(() =>
+        {
+            try { velho?.ExpandidaMudou(false); cartao?.ExpandidaMudou(true); }
+            catch (Exception e) { Log.Escrever("ExpandidaMudou: " + e); }
+        });
+    }
 
     private float LarguraPontos()
     {

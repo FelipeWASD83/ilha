@@ -37,23 +37,7 @@ internal sealed class ModuloConfiguracoes : Modulo
     /// o dicionário interno do Atalhos por reflexão (só leitura); se o campo mudar de nome, volta null e a tela mostra
     /// só os atalhos já trocados na config.
     /// </summary>
-    public static IReadOnlyDictionary<string, Atalho>? AtalhosRegistrados(Atalhos atalhos)
-    {
-        try
-        {
-            var campo = typeof(Atalhos).GetField("_pedidos", BindingFlags.NonPublic | BindingFlags.Instance);
-            if (campo?.GetValue(atalhos) is not IDictionary pedidos) return null;
-            var r = new Dictionary<string, Atalho>(StringComparer.OrdinalIgnoreCase);
-            foreach (DictionaryEntry kv in pedidos)
-            {
-                if (kv.Key is not string nome || kv.Value == null) continue;
-                var item1 = kv.Value.GetType().GetField("Item1")?.GetValue(kv.Value);
-                if (item1 is Atalho a) r[nome] = a;
-            }
-            return r;
-        }
-        catch { return null; }
-    }
+    public static IReadOnlyDictionary<string, Atalho>? AtalhosRegistrados(Atalhos atalhos) => atalhos.Padroes;
 
     // ------------------------------------------------------------------ autoteste
 
@@ -111,6 +95,26 @@ internal sealed class ModuloConfiguracoes : Modulo
             Conferir("a seção mesclada lê de volta igual", volta.Vezes == 9 && volta.Lado == Lado.Esquerda && volta.Itens.Count == 3);
             foreach (var c in campos) c.Editor.Dispose();
 
+            // seção que não lê não vira o padrão (salvar o padrão apagaria o que estava escrito à mão)
+            var ruim = new JsonObject { ["ligado"] = false, ["vezes"] = "7", ["itens"] = new JsonArray("manual") };
+            bool recusou = false;
+            try { Formulario.Instanciar(typeof(ConfigDeTeste), ruim); } catch (InvalidOperationException) { recusou = true; }
+            Conferir("seção ilegível dá erro em vez do padrão", recusou);
+            var ruimMesclada = Formulario.Mesclar(ruim, null, null, true);
+            ruim["ligado"] = true;
+            Conferir("mesclar sem tipo mantém a seção e só troca o ligado", JsonNode.DeepEquals(ruimMesclada, ruim), ruimMesclada.ToJsonString());
+            ruim["ligado"] = false;
+
+            // só o que a pessoa mexeu vai por cima da instância
+            var base0 = new ConfigDeTeste();
+            var cs = Formulario.Gerar(typeof(ConfigDeTeste), base0);
+            var iniciais = Formulario.Valores(cs);
+            ((NumericUpDown)cs[1].Editor).Value = 8;
+            var maisNova = new ConfigDeTeste { Nome = "do módulo", Vezes = 5 };
+            Formulario.AplicarMudados(cs, iniciais, maisNova);
+            Conferir("aplicar só os mudados: o mexido vai, o resto fica o da instância", maisNova.Vezes == 8 && maisNova.Nome == "do módulo", $"{maisNova.Vezes} {maisNova.Nome}");
+            foreach (var c in cs) c.Editor.Dispose();
+
             // captura de atalho
             var (r1, a1) = CaixaDeAtalho.DeTecla(Keys.Space, true, true, false, false);
             Conferir("Ctrl + Alt + Espaço", r1 == CaixaDeAtalho.Resultado.Atalho && a1.Mods == (Nativo.MOD_CONTROL | Nativo.MOD_ALT) && a1.Tecla == 0x20, Teclas.Nome(a1));
@@ -138,9 +142,11 @@ internal sealed class ModuloConfiguracoes : Modulo
             // a janela inteira, sem mostrar
             cfg.AtalhosModulos["timer"] = new Atalho { Mods = Nativo.MOD_CONTROL, Tecla = (int)Keys.T };
             cfg.Modulos["teste"] = new JsonObject { ["ligado"] = true, ["vezes"] = 4, ["outra"] = 1 };
+            cfg.Modulos["ilegivel"] = new JsonObject { ["ligado"] = true, ["vezes"] = "7", ["itens"] = new JsonArray("manual") };
             var antes = JsonSerializer.Serialize(cfg, Config.Json);
             var lista = mods.Select(m => (m.id, m.nome, m.tipoConfig, m.ligado)).ToList();
             lista.Add(("teste", "Teste", typeof(ConfigDeTeste), true));
+            lista.Add(("ilegivel", "Ilegível", typeof(ConfigDeTeste), true));
             var padroes = new Dictionary<string, Atalho> { ["calculadora"] = new() { Mods = Nativo.MOD_CONTROL | Nativo.MOD_ALT, Tecla = (int)Keys.C }, ["timer"] = new() { Mods = Nativo.MOD_ALT, Tecla = (int)Keys.T } };
             using (var j = JanelaDeConfiguracoes.ParaTeste(() => cfg, lista, padroes))
             {
@@ -158,6 +164,9 @@ internal sealed class ModuloConfiguracoes : Modulo
                     sem.AtalhosModulos.ContainsKey("timer") && !sem.AtalhosModulos.ContainsKey("calculadora"));
                 Conferir("sem mexer, a seção do teste mantém chave desconhecida", sem.Modulos["teste"]?["outra"]?.GetValue<int>() == 1 && sem.Modulos["teste"]?["vezes"]?.GetValue<int>() == 4);
                 Conferir("sem mexer, o atualizador continua desligado", sem.Modulos["atualizador"]?["ligado"]?.GetValue<bool>() == false);
+                Conferir("seção ilegível fica sem campos e sai do salvar intacta",
+                    j.ModulosNaTela.First(m => m.Id == "ilegivel").Campos.Count == 0 && JsonNode.DeepEquals(sem.Modulos["ilegivel"], cfg.Modulos["ilegivel"]),
+                    sem.Modulos["ilegivel"]?.ToJsonString() ?? "null");
 
                 j.CampoTamanho.Value = 1.25m;
                 j.CampoColada.Checked = true;
@@ -171,6 +180,41 @@ internal sealed class ModuloConfiguracoes : Modulo
                     && com.JogosCompetitivos.Last() == "jogo-novo.exe" && com.Modulos["atualizador"]?["ligado"]?.GetValue<bool>() == true);
                 Conferir("atalho de volta ao padrão sai da config", !com.AtalhosModulos.ContainsKey("timer"));
                 Conferir("coletar não mexe na config que vale", cfg.Tamanho == 1f && !cfg.Colada && cfg.AtalhosModulos.ContainsKey("timer"));
+
+                // o módulo grava a seção dele com a tela aberta (estado do timer, por exemplo): salvar não volta ela
+                cfg.Modulos["teste"] = new JsonObject { ["ligado"] = true, ["vezes"] = 4, ["outra"] = 1, ["nome"] = "do módulo", ["mapa"] = new JsonObject { ["k"] = 5 } };
+                ((NumericUpDown)j.ModulosNaTela.First(m => m.Id == "teste").Campos[2].Editor).Value = 2m;
+                var depois = j.Coletar().Modulos["teste"];
+                Conferir("salvar parte da seção de agora e só põe por cima o que a tela mudou",
+                    depois?["mapa"]?["k"]?.GetValue<int>() == 5 && depois?["nome"]?.GetValue<string>() == "do módulo"
+                    && depois?["fator"]?.GetValue<double>() == 2.0 && depois?["vezes"]?.GetValue<int>() == 4 && depois?["outra"]?.GetValue<int>() == 1,
+                    depois?.ToJsonString() ?? "null");
+            }
+
+            // a janela fica aberta depois do salvar: mudar, salvar, desfazer e salvar de novo também grava a volta
+            var cfgSalva = new Config();
+            cfgSalva.Modulos["teste"] = new JsonObject { ["ligado"] = true, ["vezes"] = 3 };
+            cfgSalva.Modulos["lista"] = new JsonArray("manual");
+            var listaSalvar = new List<(string id, string nome, Type? tipoConfig, bool ligado)>
+            {
+                ("teste", "Teste", typeof(ConfigDeTeste), true),
+                ("lista", "Lista", typeof(ConfigDeTeste), true),
+            };
+            using (var j = JanelaDeConfiguracoes.ParaTeste(() => cfgSalva, listaSalvar, null, c => cfgSalva = c))
+            {
+                var vz = (NumericUpDown)j.ModulosNaTela.First(m => m.Id == "teste").Campos[1].Editor;
+                vz.Value = 5;
+                j.Salvar();
+                var primeiro = cfgSalva.Modulos["teste"]?["vezes"]?.GetValue<int>();
+                vz.Value = 3;
+                j.Salvar();
+                var segundo = cfgSalva.Modulos["teste"]?["vezes"]?.GetValue<int>();
+                Conferir("salvar, desfazer e salvar de novo grava a volta", primeiro == 5 && segundo == 3, $"{primeiro} {segundo}");
+
+                var lst = j.ModulosNaTela.First(m => m.Id == "lista");
+                Conferir("seção que não é objeto fica sem campos, com o ligado travado, e sai do salvar intacta",
+                    lst.Campos.Count == 0 && !lst.Ligado.Enabled && JsonNode.DeepEquals(cfgSalva.Modulos["lista"], new JsonArray("manual")),
+                    cfgSalva.Modulos["lista"]?.ToJsonString() ?? "null");
             }
 
             // opcional, para o desenvolvimento: ILHA_FOTO_CONFIG=<pasta> guarda uma foto de cada aba (sem mostrar a janela)

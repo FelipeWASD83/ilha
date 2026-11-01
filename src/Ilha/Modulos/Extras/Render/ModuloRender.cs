@@ -19,8 +19,9 @@ namespace Ilha.Extras;
 ///   AMEEncodingErrorLog.txt), por evento. Progresso não: o log só tem o fim.
 /// - After Effects: o aerender.exe rodando (render pela linha de comando ou por script) vira a atividade
 ///   "Renderizando" com cronômetro, sem barra (não há API de porcentagem), e o fim vem pelo código de saída. A lista
-///   de processos é conferida a cada 10 s só enquanto o After Effects, o Media Encoder ou o aerender estão abertos;
-///   o gatilho é a janela da frente virar um deles. Render pela fila de dentro do After Effects não tem nada que dê
+///   de processos (Toolhelp, sem abrir handle) é conferida a cada 10 s enquanto o After Effects, o Media Encoder ou
+///   o aerender estão abertos e a cada 30 s sem eles, para pegar o aerender de terminal ou script com o After
+///   Effects fechado; a janela da frente virar um deles confere na hora. Render pela fila de dentro do After Effects não tem nada que dê
 ///   para observar de fora sem injetar código, então fica de fora.
 /// </summary>
 [Modulo("render", "Render da Adobe")]
@@ -67,7 +68,8 @@ internal sealed class ModuloRender : Modulo
 
     public override void Contexto(Contexto ctx)
     {
-        if (_cfg.AfterEffects && !_conferir.Enabled && EhAdobe(ctx.Processo)) Conferir();
+        // no ritmo lento, a Adobe vindo para a frente confere na hora em vez de esperar até 30 s
+        if (_cfg.AfterEffects && (!_conferir.Enabled || _conferir.Interval != RAPIDO) && EhAdobe(ctx.Processo)) Conferir();
     }
 
     public static bool EhAdobe(string exe) => Adobe.Any(a => a.Equals(exe, StringComparison.OrdinalIgnoreCase));
@@ -127,10 +129,15 @@ internal sealed class ModuloRender : Modulo
         }
         if (_renders.Count > 0) _atv?.Comecou(_renders.Values.Min(x => x.Inicio), _renders.Count);
         else _atv?.Acabou();
-        bool continuar = adobeAberto || _renders.Count > 0;
-        if (continuar && !_conferir.Enabled) _conferir.Start();
-        else if (!continuar) _conferir.Stop();
+        int intervalo = Intervalo(adobeAberto, _renders.Count);
+        if (_conferir.Interval != intervalo) _conferir.Interval = intervalo;
+        if (!_conferir.Enabled) _conferir.Start();
     }
+
+    private const int RAPIDO = 10_000, LENTO = 30_000;
+
+    /// <summary>Nunca para: o aerender de um terminal ou script, com o After Effects fechado, não traz nada da Adobe para a frente.</summary>
+    public static int Intervalo(bool adobeAberto, int renders) => adobeAberto || renders > 0 ? RAPIDO : LENTO;
 
     // ------------------------------------------------------------------ alertas
 
@@ -409,6 +416,8 @@ internal static class TestesRender
             && p3.Sumiram.SequenceEqual(new uint[] { 10 }) && p4.Sumiram.SequenceEqual(new uint[] { 20 }) && p4.Novos.Count == 0);
         r.Conferir("cronômetro", AtividadeRender.Cronometro(TimeSpan.FromSeconds(75)) == "1:15" && AtividadeRender.Cronometro(TimeSpan.FromSeconds(3725)) == "1:02:05" && AtividadeRender.Cronometro(TimeSpan.FromSeconds(-3)) == "0:00");
         r.Conferir("processos da Adobe", ModuloRender.EhAdobe("afterfx.exe") && ModuloRender.EhAdobe("Adobe Media Encoder.exe") && ModuloRender.EhAdobe("aerender.exe") && !ModuloRender.EhAdobe("Photoshop.exe"));
+        r.Conferir("conferência nunca para: 10 s com Adobe ou render, 30 s sem nada",
+            ModuloRender.Intervalo(true, 0) == 10_000 && ModuloRender.Intervalo(false, 1) == 10_000 && ModuloRender.Intervalo(false, 0) == 30_000);
 
         r.Tentar("sonda", () =>
         {

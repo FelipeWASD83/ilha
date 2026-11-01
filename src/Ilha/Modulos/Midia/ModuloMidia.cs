@@ -171,6 +171,10 @@ internal sealed class ModuloMidia : Modulo
         var agora = DateTime.Now;
         var vistas = new List<Acompanhada>();
         var usadas = new HashSet<string>();
+        var presentes = new HashSet<IntPtr>();
+        foreach (var s in lista) presentes.Add(Identidade(s));
+        // a escolhida que ganhou outro objeto: o cartão precisa recarregar tudo dela
+        Acompanhada? trocada = null;
         foreach (var s in lista)
         {
             string aumid;
@@ -178,16 +182,26 @@ internal sealed class ModuloMidia : Modulo
             string chave = aumid;
             for (int n = 2; !usadas.Add(chave); n++) chave = aumid + "#" + n;
             var id = Identidade(s);
-            var a = _sessoes.Find(x => x.Rastro.Chave == chave);
-            bool nova = a == null;
-            if (a != null && a.Identidade != id)
+            // a mesma sessão segue com o histórico e os eventos dela, mesmo que o "#2" tenha passado para outra aba
+            var a = _sessoes.Find(x => x.Identidade == id && !vistas.Contains(x));
+            bool nova = false;
+            if (a != null) a.Rastro.Chave = chave;
+            else
             {
                 // o app recriou a sessão com o mesmo nome: troca o objeto, mantém o histórico
-                Soltar(a);
-                a = Acompanhar(s, id, a.Rastro);
-                if (_escolhida?.Rastro.Chave == chave) _escolhida = a;
+                var antiga = _sessoes.Find(x => x.Rastro.Chave == chave && !vistas.Contains(x) && !presentes.Contains(x.Identidade));
+                if (antiga != null)
+                {
+                    Soltar(antiga);
+                    a = Acompanhar(s, id, antiga.Rastro);
+                    if (_escolhida == antiga) { _escolhida = a; trocada = a; }
+                }
+                else
+                {
+                    a = Acompanhar(s, id, new Rastro { Chave = chave });
+                    nova = true;
+                }
             }
-            a ??= Acompanhar(s, id, new Rastro { Chave = chave });
             try
             {
                 var (tocando, pausada, _) = Estado(s);
@@ -208,6 +222,13 @@ internal sealed class ModuloMidia : Modulo
         if (_escolhida != null && !_sessoes.Contains(_escolhida)) _escolhida = null;
         _ressinc.Enabled = _sessoes.Count > 0;
         Reavaliar();
+        // o Reavaliar só recarrega quando a escolha muda de linha; se ela continua na que trocou de objeto, recarrega aqui
+        if (trocada != null && trocada == _escolhida && _atv != null)
+        {
+            AtualizarEstado(trocada, novaLinha: true);
+            _atv.Definir("", "", null, null);
+            CarregarPropriedades();
+        }
     }
 
     private Acompanhada Acompanhar(Sessao s, IntPtr id, Rastro r)

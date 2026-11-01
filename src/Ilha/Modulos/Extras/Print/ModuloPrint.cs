@@ -141,8 +141,6 @@ internal sealed class ModuloPrint : Modulo
         });
     }
 
-    [System.Runtime.InteropServices.DllImport("user32.dll")] private static extern bool ReleaseCapture();
-
     /// <summary>
     /// OLE DoDragDrop com o arquivo (CF_HDROP, o que navegador, Discord e Explorer pegam) e a imagem (bitmap e PNG,
     /// para quem só aceita imagem). DoDragDrop precisa de um Control: um invisível, criado uma vez.
@@ -159,8 +157,9 @@ internal sealed class ModuloPrint : Modulo
         if (Path.GetExtension(caminho).Equals(".png", StringComparison.OrdinalIgnoreCase))
             try { dados.SetData("PNG", false, new MemoryStream(File.ReadAllBytes(caminho))); } catch { }
         using var fantasma = imagem == null ? null : Miniatura(imagem, 220);
-        // a janela de toque da ilha segurava o mouse (SetCapture do arraste): solta para o OLE pegar
-        ReleaseCapture();
+        // a janela de toque da ilha segurava o mouse (SetCapture do arraste): solta para o OLE pegar, e o arraste do
+        // núcleo acaba aqui (o OLE engole o botão solto)
+        S.Ilha.SoltarArraste();
         try
         {
             if (fantasma != null)
