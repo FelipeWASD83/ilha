@@ -16,13 +16,16 @@
     <RootNamespace>Ilha</RootNamespace>
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <NoWarn>$(NoWarn);WFO0003;CA1416</NoWarn>
-    <Version>0.1.0</Version>
+    <Version>0.2.0</Version>
+    <ApplicationIcon>..\..\icone\icone.ico</ApplicationIcon>
     <Product>Ilha</Product>
     <SatelliteResourceLanguages>pt-BR</SatelliteResourceLanguages>
   </PropertyGroup>
 
   <ItemGroup>
-    <None Include="imagens\**\*" Exclude="imagens\**\*.md" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="imagens\**\*" Exclude="imagens\**\*.md" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+    <None Include="animacoes.json" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+    <None Include="..\..\icone\icone.ico" Link="icone.ico" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
   </ItemGroup>
 
   <!-- Wrappers gerenciados sobre d3d11.dll, d2d1.dll e dwrite.dll do sistema: nenhuma DLL nativa de terceiro -->

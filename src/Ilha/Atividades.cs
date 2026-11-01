@@ -50,10 +50,23 @@ internal sealed class Palco
     public Compositor C => G.Compositor;
     public float Escala => G.Escala;
 
+    public Faixas Faixas { get; }
+
     public Palco(Grafico g)
     {
         G = g;
         Texto = new Escrita(g);
+        Faixas = new Faixas(g);
+    }
+
+    /// <summary>Uma logo animada dentro da cena (pos e lado em DIP). Para de encadear quando a cena some.</summary>
+    public LogoAnimada Logo(Cena cena, Vector2 pos, float lado)
+    {
+        var l = new LogoAnimada(this, lado);
+        l.Visual.Offset = new Vector3(Px(pos.X), Px(pos.Y), 0);
+        cena.Raiz.Children.InsertAtTop(l.Visual);
+        cena.AoSoltar += l.Soltar;
+        return l;
     }
 
     public float Px(float dip) => MathF.Round(dip * Escala);

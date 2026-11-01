@@ -6,5 +6,8 @@ obj/
 src/Ilha/Carimbo.g.cs
 # imagens de terceiros (logo do Claude, fotos oficiais de fones): o repositório é público, elas ficam só no PC.
 # A origem de cada uma está em src/Ilha/imagens/fones/FONTES.md
-src/Ilha/imagens/logo-claude.png
 src/Ilha/imagens/fones/*.png
+# vídeos e logos paradas que o Felipe fez (3,3 GB, marcas de terceiros) e as faixas de quadros geradas deles
+/videos/
+/imagens/
+src/Ilha/imagens/logos/

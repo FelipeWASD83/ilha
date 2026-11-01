@@ -1,0 +1,210 @@
+{
+  "fps": 23.976023976023978,
+  "lado": 128,
+  "zoom": {
+    "claude": 1.8,
+    "chatgpt": 1.0
+  },
+  "animacoes": {
+    "chatgpt-loop": {
+      "quadros": 120,
+      "loop": true
+    },
+    "chatgpt-volta": {
+      "quadros": 75,
+      "loop": false
+    },
+    "chatgpt-saida": {
+      "quadros": 50,
+      "loop": false
+    },
+    "chatgpt-entrada": {
+      "quadros": 50,
+      "loop": false
+    },
+    "chatgpt-pulso": {
+      "quadros": 48,
+      "loop": true
+    },
+    "chatgpt-some": {
+      "quadros": 21,
+      "loop": false
+    },
+    "chatgpt-surge": {
+      "quadros": 19,
+      "loop": false
+    },
+    "claude-loop": {
+      "quadros": 120,
+      "loop": true
+    },
+    "claude-volta": {
+      "quadros": 74,
+      "loop": false
+    },
+    "claude-saida": {
+      "quadros": 50,
+      "loop": false
+    },
+    "claude-entrada": {
+      "quadros": 50,
+      "loop": false
+    },
+    "claude-pulso": {
+      "quadros": 47,
+      "loop": true
+    },
+    "claude-some": {
+      "quadros": 19,
+      "loop": false
+    },
+    "claude-surge": {
+      "quadros": 18,
+      "loop": false
+    },
+    "claude-bola": {
+      "quadros": 26,
+      "loop": false
+    },
+    "claude-bola-cresce": {
+      "quadros": 10,
+      "loop": false
+    },
+    "claude-bola-encolhe": {
+      "quadros": 8,
+      "loop": false
+    },
+    "claude-bola-orbita": {
+      "quadros": 36,
+      "loop": true
+    },
+    "claude-bola-orbita-entrada": {
+      "quadros": 9,
+      "loop": false
+    },
+    "claude-bola-orbita-saida": {
+      "quadros": 9,
+      "loop": false
+    },
+    "claude-bola-onda": {
+      "quadros": 48,
+      "loop": true
+    },
+    "claude-bola-onda-entrada": {
+      "quadros": 9,
+      "loop": false
+    },
+    "claude-bola-onda-saida": {
+      "quadros": 9,
+      "loop": false
+    },
+    "claude-bola-cometa": {
+      "quadros": 30,
+      "loop": true
+    },
+    "claude-bola-cometa-entrada": {
+      "quadros": 9,
+      "loop": false
+    },
+    "claude-bola-cometa-saida": {
+      "quadros": 9,
+      "loop": false
+    },
+    "claude-bola-anel": {
+      "quadros": 36,
+      "loop": true
+    },
+    "claude-bola-anel-entrada": {
+      "quadros": 9,
+      "loop": false
+    },
+    "claude-bola-anel-saida": {
+      "quadros": 9,
+      "loop": false
+    },
+    "claude-bola-divide": {
+      "quadros": 48,
+      "loop": true
+    },
+    "claude-bola-divide-entrada": {
+      "quadros": 9,
+      "loop": false
+    },
+    "claude-bola-divide-saida": {
+      "quadros": 9,
+      "loop": false
+    },
+    "chatgpt-bola": {
+      "quadros": 33,
+      "loop": false
+    },
+    "chatgpt-bola-cresce": {
+      "quadros": 10,
+      "loop": false
+    },
+    "chatgpt-bola-encolhe": {
+      "quadros": 8,
+      "loop": false
+    },
+    "chatgpt-bola-orbita": {
+      "quadros": 36,
+      "loop": true
+    },
+    "chatgpt-bola-orbita-entrada": {
+      "quadros": 9,
+      "loop": false
+    },
+    "chatgpt-bola-orbita-saida": {
+      "quadros": 9,
+      "loop": false
+    },
+    "chatgpt-bola-onda": {
+      "quadros": 48,
+      "loop": true
+    },
+    "chatgpt-bola-onda-entrada": {
+      "quadros": 9,
+      "loop": false
+    },
+    "chatgpt-bola-onda-saida": {
+      "quadros": 9,
+      "loop": false
+    },
+    "chatgpt-bola-cometa": {
+      "quadros": 30,
+      "loop": true
+    },
+    "chatgpt-bola-cometa-entrada": {
+      "quadros": 9,
+      "loop": false
+    },
+    "chatgpt-bola-cometa-saida": {
+      "quadros": 9,
+      "loop": false
+    },
+    "chatgpt-bola-anel": {
+      "quadros": 36,
+      "loop": true
+    },
+    "chatgpt-bola-anel-entrada": {
+      "quadros": 9,
+      "loop": false
+    },
+    "chatgpt-bola-anel-saida": {
+      "quadros": 9,
+      "loop": false
+    },
+    "chatgpt-bola-divide": {
+      "quadros": 48,
+      "loop": true
+    },
+    "chatgpt-bola-divide-entrada": {
+      "quadros": 9,
+      "loop": false
+    },
+    "chatgpt-bola-divide-saida": {
+      "quadros": 9,
+      "loop": false
+    }
+  }
+}

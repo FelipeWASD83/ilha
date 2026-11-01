@@ -42,6 +42,9 @@ internal sealed class Bandeja : IDisposable
             foreach (var a in n.Demonstracao.Atividades) ((ToolStripMenuItem)_demo.DropDownItems[i++]).Checked = a.Ativa;
         };
 
+        var inicio = new ToolStripMenuItem("Iniciar com o Windows");
+        inicio.Click += (_, _) => n.AlternarInicio();
+        menu.Opening += (_, _) => inicio.Checked = n.Config.IniciarComWindows;
         var colada = new ToolStripMenuItem("Colada na borda (estilo notch)");
         colada.Click += (_, _) => n.AlternarColada();
         menu.Opening += (_, _) => colada.Checked = n.Config.Colada;
@@ -51,11 +54,11 @@ internal sealed class Bandeja : IDisposable
         logs.Click += (_, _) => Abrir("explorer.exe", Config.Pasta);
         var sair = new ToolStripMenuItem("Sair");
         sair.Click += (_, _) => n.Sair();
-        menu.Items.AddRange(new ToolStripItem[] { titulo, new ToolStripSeparator(), _pausar, colada, _demo, new ToolStripSeparator(), config, logs, new ToolStripSeparator(), sair });
+        menu.Items.AddRange(new ToolStripItem[] { titulo, new ToolStripSeparator(), _pausar, colada, inicio, _demo, new ToolStripSeparator(), config, logs, new ToolStripSeparator(), sair });
 
         _icone = new NotifyIcon
         {
-            Icon = Desenhar(),
+            Icon = Carregar(),
             ContextMenuStrip = menu,
             Visible = true,
             Text = "Ilha",
@@ -78,7 +81,14 @@ internal sealed class Bandeja : IDisposable
 
     public void Avisar(string texto) => _icone.ShowBalloonTip(6000, "Ilha", texto, ToolTipIcon.Info);
 
-    /// <summary>O ícone é desenhado aqui: a pílula preta com borda clara, para aparecer na barra escura ou clara.</summary>
+    /// <summary>O ícone do app (icone.ico, o desenho do Menu Iniciar); sem ele, uma pílula desenhada aqui.</summary>
+    private static Icon Carregar()
+    {
+        string arq = System.IO.Path.Combine(AppContext.BaseDirectory, "icone.ico");
+        try { if (System.IO.File.Exists(arq)) return new Icon(arq, 32, 32); } catch { }
+        return Desenhar();
+    }
+
     private static Icon Desenhar()
     {
         using var bmp = new Bitmap(32, 32);

@@ -229,48 +229,111 @@ internal sealed class MidiaDeMentira : DeMentira
     }
 }
 
-internal sealed class ClaudeDeMentira : DeMentira
+/// <summary>
+/// Atividade com uma logo animada: guarda a animação do momento e manda todas as cenas vivas (pílula, bolha,
+/// cartão) trocarem juntas; cena que nasce depois já entra direto no loop atual.
+/// </summary>
+internal abstract class ComLogo : DeMentira
+{
+    private readonly List<LogoAnimada> _logos = new();
+    private string[] _atual = System.Array.Empty<string>();
+
+    protected LogoAnimada Logo(Palco p, Cena c, Vector2 pos, float lado)
+    {
+        var l = p.Logo(c, pos, lado);
+        _logos.Add(l);
+        c.AoSoltar += () => _logos.Remove(l);
+        if (_atual.Length > 0) l.Tocar(_atual[^1]);
+        return l;
+    }
+
+    protected void Animar(params string[] seq)
+    {
+        _atual = seq;
+        foreach (var l in _logos.ToArray()) l.Tocar(seq);
+    }
+}
+
+internal sealed class ClaudeDeMentira : ComLogo
 {
     public override string Tipo => "claude";
     public override string Nome => "Claude Code trabalhando";
 
-    private static readonly string[] Passos = { "Lendo Ilha.cs", "Pensando", "Editando Ilha.cs", "Rodando dotnet build", "Editando Demo.cs", "Rodando os testes" };
-    private readonly System.Windows.Forms.Timer _passo = new() { Interval = 2500 };
-    private int _i;
+    private static readonly (string texto, int ms, bool pensa)[] Passos =
+    {
+        ("Lendo Ilha.cs", 2500, false), ("Pensando", 5000, true), ("Editando Ilha.cs", 2500, false),
+        ("Rodando dotnet build", 2500, false), ("Pensando", 5000, true), ("Editando Demo.cs", 2500, false),
+        ("Rodando os testes", 2500, false),
+    };
+    // uma animação de bolinhas diferente a cada vez que ele pensa
+    private static readonly string[] Bolinhas = { "orbita", "cometa", "onda", "divide", "anel" };
+    private readonly System.Windows.Forms.Timer _passo = new();
+    private int _i, _vezes;
     private bool _terminou;
+    private string? _bolinha;
 
     public ClaudeDeMentira()
     {
         _passo.Tick += (_, _) =>
         {
             _i++;
-            if (_i == Passos.Length)
-            {
-                _terminou = true;
-                _passo.Stop();
-                Alertar(new Alerta
-                {
-                    Tipo = "claude",
-                    Criar = p =>
-                    {
-                        var c = p.NovaCena(new Vector2(300, 52));
-                        p.Desenho(c, Vector2.Zero, c.Tamanho, (dc, t) =>
-                        {
-                            Imagem.Desenhar(dc, p, "logo-claude.png", 9, 11, 30);
-                            p.Texto.Desenhar(dc, "Claude Code terminou", new Vector2(56, 4), 17, Cor.Branco);
-                            p.Texto.Desenhar(dc, "ilha · 6 passos, de mentira", new Vector2(56, 28), 13, Cor.Secundario, FontWeight.Normal);
-                        });
-                        return c;
-                    },
-                });
-            }
+            if (_i >= Passos.Length) { Terminar(); return; }
+            Entrar(Passos[_i]);
             Redesenhar();
         };
     }
 
-    private string Agora => _terminou ? "Esperando você" : Passos[_i % Passos.Length];
+    private void Entrar((string texto, int ms, bool pensa) passo)
+    {
+        _passo.Interval = passo.ms;
+        if (passo.pensa)
+        {
+            _bolinha = "claude-bola-" + Bolinhas[_vezes++ % Bolinhas.Length];
+            Animar("claude-bola", "claude-bola-cresce", _bolinha + "-entrada", _bolinha);
+        }
+        else if (_bolinha != null)
+        {
+            Animar(_bolinha + "-saida", "claude-bola-encolhe", "claude-surge", "claude-loop");
+            _bolinha = null;
+        }
+    }
 
-    public override void Comecar() { _i = 0; _terminou = false; _passo.Start(); Ligar(); }
+    private void Terminar()
+    {
+        _terminou = true;
+        _passo.Stop();
+        Animar("claude-saida", "claude-pulso");
+        Redesenhar();
+        Alertar(new Alerta
+        {
+            Tipo = "claude",
+            Criar = p =>
+            {
+                var c = p.NovaCena(new Vector2(300, 52));
+                p.Logo(c, new Vector2(8, 10), 32).Tocar("claude-volta");
+                p.Desenho(c, Vector2.Zero, c.Tamanho, (dc, t) =>
+                {
+                    p.Texto.Desenhar(dc, "Claude Code terminou", new Vector2(56, 4), 17, Cor.Branco);
+                    p.Texto.Desenhar(dc, "ilha · 7 passos, de mentira", new Vector2(56, 28), 13, Cor.Secundario, FontWeight.Normal);
+                });
+                return c;
+            },
+        });
+    }
+
+    private string Agora => _terminou ? "Esperando você" : Passos[_i % Passos.Length].texto;
+
+    public override void Comecar()
+    {
+        _i = 0;
+        _terminou = false;
+        _bolinha = null;
+        Animar("claude-entrada", "claude-loop");
+        Entrar(Passos[0]);
+        _passo.Start();
+        Ligar();
+    }
+
     public override void Parar() { _passo.Stop(); Desligar(); }
 
     protected override Cena Montar(Palco p, Forma f)
@@ -279,16 +342,16 @@ internal sealed class ClaudeDeMentira : DeMentira
         {
             case Forma.Bolha:
             {
-                var c = p.NovaCena(new Vector2(22, 22));
-                p.Desenho(c, Vector2.Zero, c.Tamanho, (dc, t) => Imagem.Desenhar(dc, p, "logo-claude.png", 1, 1, 20));
+                var c = p.NovaCena(new Vector2(24, 24));
+                Logo(p, c, Vector2.Zero, 24);
                 return c;
             }
             case Forma.Compacta:
             {
                 var c = p.NovaCena(new Vector2(210, 24));
+                Logo(p, c, Vector2.Zero, 24);
                 p.Desenho(c, Vector2.Zero, c.Tamanho, (dc, t) =>
                 {
-                    Imagem.Desenhar(dc, p, "logo-claude.png", 1, 2, 20);
                     var tam = p.Texto.Medir(Agora, 13);
                     float l = MathF.Min(tam.X, 170);
                     p.Texto.Desenhar(dc, Agora, new Vector2(t.X - l, (t.Y - tam.Y) / 2), 13, _terminou ? Cor.Secundario : Cor.Branco, largura: 170);
@@ -298,16 +361,188 @@ internal sealed class ClaudeDeMentira : DeMentira
             default:
             {
                 var c = p.NovaCena(new Vector2(340, 80));
+                Logo(p, c, new Vector2(-4, -5), 30);
                 p.Desenho(c, Vector2.Zero, c.Tamanho, (dc, t) =>
                 {
-                    Imagem.Desenhar(dc, p, "logo-claude.png", 1, 3, 18);
-                    p.Texto.Desenhar(dc, "Claude Code · ilha", new Vector2(28, 2), 13, Cor.Secundario);
-                    p.Texto.Desenhar(dc, Agora, new Vector2(0, 26), 20, Cor.Branco, largura: t.X);
-                    p.Texto.Desenhar(dc, "Opus 5.5 · Alto, de mentira", new Vector2(0, 58), 12, Cor.Secundario, FontWeight.Normal);
+                    p.Texto.Desenhar(dc, "Claude Code · ilha", new Vector2(32, 1), 13, Cor.Secundario);
+                    p.Texto.Desenhar(dc, Agora, new Vector2(0, 28), 20, Cor.Branco, largura: t.X);
+                    p.Texto.Desenhar(dc, "Opus 5.5 · Alto, de mentira", new Vector2(0, 60), 12, Cor.Secundario, FontWeight.Normal);
                 });
                 return c;
             }
         }
+    }
+}
+
+internal sealed class GptDeMentira : ComLogo
+{
+    public override string Tipo => "ia";
+    public override string Nome => "GPT respondendo";
+
+    private static readonly (string texto, int ms, bool escreve)[] Passos =
+    {
+        ("Pensando", 4500, false), ("Escrevendo a resposta", 4000, true), ("Pensando", 4500, false), ("Escrevendo a resposta", 3500, true),
+    };
+    private static readonly string[] Bolinhas = { "cometa", "orbita", "divide", "onda", "anel" };
+    private readonly System.Windows.Forms.Timer _passo = new();
+    private int _i, _vezes;
+    private bool _terminou;
+    private string? _bolinha;
+
+    public GptDeMentira()
+    {
+        _passo.Tick += (_, _) =>
+        {
+            _i++;
+            if (_i >= Passos.Length) { Terminar(); return; }
+            Entrar(Passos[_i]);
+            Redesenhar();
+        };
+    }
+
+    private void Entrar((string texto, int ms, bool escreve) passo)
+    {
+        _passo.Interval = passo.ms;
+        if (!passo.escreve)
+        {
+            _bolinha = "chatgpt-bola-" + Bolinhas[_vezes++ % Bolinhas.Length];
+            Animar("chatgpt-bola", "chatgpt-bola-cresce", _bolinha + "-entrada", _bolinha);
+        }
+        else if (_bolinha != null)
+        {
+            Animar(_bolinha + "-saida", "chatgpt-bola-encolhe", "chatgpt-surge", "chatgpt-loop");
+            _bolinha = null;
+        }
+    }
+
+    private void Terminar()
+    {
+        _terminou = true;
+        _passo.Stop();
+        Animar("chatgpt-saida");
+        Redesenhar();
+        Alertar(new Alerta
+        {
+            Tipo = "ia",
+            Criar = p =>
+            {
+                var c = p.NovaCena(new Vector2(300, 52));
+                p.Logo(c, new Vector2(8, 10), 32).Tocar("chatgpt-volta");
+                p.Desenho(c, Vector2.Zero, c.Tamanho, (dc, t) =>
+                {
+                    p.Texto.Desenhar(dc, "O GPT respondeu", new Vector2(56, 4), 17, Cor.Branco);
+                    p.Texto.Desenhar(dc, "Chat da ilha, de mentira", new Vector2(56, 28), 13, Cor.Secundario, FontWeight.Normal);
+                });
+                return c;
+            },
+        });
+    }
+
+    private string Agora => _terminou ? "Resposta pronta" : Passos[_i % Passos.Length].texto;
+
+    public override void Comecar()
+    {
+        _i = 0;
+        _terminou = false;
+        _bolinha = null;
+        Animar("chatgpt-entrada");
+        Entrar(Passos[0]);
+        _passo.Start();
+        Ligar();
+    }
+
+    public override void Parar() { _passo.Stop(); Desligar(); }
+
+    protected override Cena Montar(Palco p, Forma f)
+    {
+        switch (f)
+        {
+            case Forma.Bolha:
+            {
+                var c = p.NovaCena(new Vector2(22, 22));
+                Logo(p, c, Vector2.Zero, 22);
+                return c;
+            }
+            case Forma.Compacta:
+            {
+                var c = p.NovaCena(new Vector2(210, 24));
+                Logo(p, c, new Vector2(1, 1), 22);
+                p.Desenho(c, Vector2.Zero, c.Tamanho, (dc, t) =>
+                {
+                    var tam = p.Texto.Medir(Agora, 13);
+                    float l = MathF.Min(tam.X, 170);
+                    p.Texto.Desenhar(dc, Agora, new Vector2(t.X - l, (t.Y - tam.Y) / 2), 13, _terminou ? Cor.Secundario : Cor.Branco, largura: 170);
+                });
+                return c;
+            }
+            default:
+            {
+                var c = p.NovaCena(new Vector2(340, 80));
+                Logo(p, c, new Vector2(0, 0), 24);
+                p.Desenho(c, Vector2.Zero, c.Tamanho, (dc, t) =>
+                {
+                    p.Texto.Desenhar(dc, "Chat · GPT-6 Luna, de mentira", new Vector2(32, 2), 13, Cor.Secundario);
+                    p.Texto.Desenhar(dc, Agora, new Vector2(0, 28), 20, Cor.Branco, largura: t.X);
+                    p.Texto.Desenhar(dc, "Na fase 5 isto vira o chat de verdade", new Vector2(0, 60), 12, Cor.Secundario, FontWeight.Normal);
+                });
+                return c;
+            }
+        }
+    }
+}
+
+/// <summary>Todas as animações das logos e das bolinhas num cartão, repetindo, para ver de uma vez.</summary>
+internal sealed class GaleriaDeMentira : DeMentira
+{
+    public override string Tipo => "galeria";
+    public override string Nome => "Galeria de animações";
+
+    private static readonly (string titulo, string[] nomes)[] Linhas =
+    {
+        ("Claude", new[] { "claude-loop", "claude-volta", "claude-saida", "claude-entrada", "claude-pulso", "claude-some", "claude-surge", "claude-bola" }),
+        ("Bolinhas do Claude", new[] { "claude-bola-cresce", "claude-bola-orbita", "claude-bola-cometa", "claude-bola-onda", "claude-bola-divide", "claude-bola-anel", "claude-bola-encolhe", "claude-bola-orbita-entrada" }),
+        ("GPT", new[] { "chatgpt-loop", "chatgpt-volta", "chatgpt-saida", "chatgpt-entrada", "chatgpt-pulso", "chatgpt-some", "chatgpt-surge", "chatgpt-bola" }),
+        ("Bolinhas do GPT", new[] { "chatgpt-bola-cresce", "chatgpt-bola-orbita", "chatgpt-bola-cometa", "chatgpt-bola-onda", "chatgpt-bola-divide", "chatgpt-bola-anel", "chatgpt-bola-encolhe", "chatgpt-bola-orbita-entrada" }),
+    };
+
+    public override void Comecar() => Ligar();
+    public override void Parar() => Desligar();
+
+    private static string Rotulo(string nome) => nome.Replace("claude-bola-", "").Replace("chatgpt-bola-", "").Replace("claude-", "").Replace("chatgpt-", "");
+
+    protected override Cena Montar(Palco p, Forma f)
+    {
+        if (f != Forma.Expandida && f != Forma.Alerta)
+        {
+            var c = p.NovaCena(f == Forma.Bolha ? new Vector2(22, 22) : new Vector2(190, 24));
+            p.Logo(c, Vector2.Zero, f == Forma.Bolha ? 22 : 24).Tocar("claude-bola-cometa");
+            if (f == Forma.Compacta)
+                p.Desenho(c, Vector2.Zero, c.Tamanho, (dc, t) =>
+                {
+                    var tam = p.Texto.Medir("Galeria de animações", 13);
+                    p.Texto.Desenhar(dc, "Galeria de animações", new Vector2(t.X - tam.X, (t.Y - tam.Y) / 2), 13, Cor.Branco);
+                });
+            return c;
+        }
+        const float CEL = 44, LOGO = 38, LINHA = 74;
+        var cena = p.NovaCena(new Vector2(CEL * 8, LINHA * Linhas.Length));
+        for (int r = 0; r < Linhas.Length; r++)
+            for (int k = 0; k < Linhas[r].nomes.Length; k++)
+                p.Logo(cena, new Vector2(k * CEL + (CEL - LOGO) / 2, r * LINHA + 18), LOGO).Tocar(true, Linhas[r].nomes[k]);
+        p.Desenho(cena, Vector2.Zero, cena.Tamanho, (dc, t) =>
+        {
+            for (int r = 0; r < Linhas.Length; r++)
+            {
+                p.Texto.Desenhar(dc, Linhas[r].titulo, new Vector2(2, r * LINHA), 12, Cor.Secundario);
+                for (int k = 0; k < Linhas[r].nomes.Length; k++)
+                {
+                    string rot = Rotulo(Linhas[r].nomes[k]);
+                    var tam = p.Texto.Medir(rot, 9.5f, FontWeight.Normal);
+                    p.Texto.Desenhar(dc, rot, new Vector2(k * CEL + (CEL - MathF.Min(tam.X, CEL)) / 2, r * LINHA + 58), 9.5f, Cor.Secundario, FontWeight.Normal, largura: CEL);
+                }
+            }
+        });
+        return cena;
     }
 }
 
@@ -420,7 +655,7 @@ internal sealed class Painel : Atividade
 internal sealed class Demonstracao
 {
     private readonly Ilha _ilha;
-    public List<DeMentira> Atividades { get; } = new() { new TimerDeMentira(), new MidiaDeMentira(), new ClaudeDeMentira(), new UsoDeMentira() };
+    public List<DeMentira> Atividades { get; } = new() { new TimerDeMentira(), new MidiaDeMentira(), new ClaudeDeMentira(), new UsoDeMentira(), new GptDeMentira(), new GaleriaDeMentira() };
     private readonly System.Windows.Forms.Timer _roteiro = new();
     private Queue<(int ms, Action passo)> _passos = new();
 

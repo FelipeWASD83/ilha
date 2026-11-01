@@ -51,6 +51,7 @@ internal sealed class Nucleo : IDisposable
         _teclas = new Teclas(_vis.Handle);
         _bandeja = new Bandeja(this);
         RegistrarAtalho();
+        Inicio.Definir(Config.IniciarComWindows);
 
         // a config é um JSON editável: salvou, vale na hora
         try
@@ -85,7 +86,6 @@ internal sealed class Nucleo : IDisposable
                     p.Texto.Desenhar(dc, "0123456789:% -", System.Numerics.Vector2.Zero, tam, Cor.Branco, peso, tabular: true);
                     p.Texto.Desenhar(dc, "Timer acabou Música Lendo ção", System.Numerics.Vector2.Zero, tam, Cor.Branco, peso);
                 }
-            foreach (var lado in new[] { 18f, 20f, 30f }) Imagem.Desenhar(dc, p, "logo-claude.png", 0, 0, lado);
         });
         sup.Superf.Dispose();
         Ilha.Aquecer();
@@ -136,6 +136,7 @@ internal sealed class Nucleo : IDisposable
         Ilha.TrocarConfig(nova);
         _bandeja.Atualizar(nova.Pausada);
         if (atalho) RegistrarAtalho();
+        if (nova.IniciarComWindows != Inicio.Ligado()) Inicio.Definir(nova.IniciarComWindows);
         Log.Escrever("config relida");
     }
 
@@ -145,6 +146,15 @@ internal sealed class Nucleo : IDisposable
         Config.Salvar();
         Ilha.TrocarConfig(Config);
         _bandeja.Atualizar(sim);
+    }
+
+    public void AlternarInicio()
+    {
+        Config.IniciarComWindows = !Config.IniciarComWindows;
+        Config.Salvar();
+        Inicio.Definir(Config.IniciarComWindows);
+        if (!Inicio.Instalada)
+            _bandeja.Avisar("Iniciar com o Windows só vale na ilha instalada (ferramentas\\instalar.ps1). A escolha ficou salva.");
     }
 
     public void AlternarColada()

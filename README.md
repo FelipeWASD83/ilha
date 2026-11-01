@@ -4,17 +4,22 @@ A Dynamic Island do iPhone no Windows: uma pílula preta flutuando no topo do mo
 encolhe e muda de forma para mostrar o que está acontecendo. Roda o tempo todo, sem pesar (quase nada de
 processador e uns 77 MB de memória) e sem roubar o foco de nada.
 
-**Versão 0.1.0, fase 1:** o motor da ilha pronto, testado com atividades de mentira. Mídia, volume, câmera,
-timer de verdade, Claude Code, calculadora, tradutor, IA e o resto chegam nas próximas fases.
+**Versão 0.2.0:** o motor da ilha pronto, testado com atividades de mentira, mais as animações das logos do
+Claude e do GPT e as bolinhas 3D. Mídia, volume, câmera, timer de verdade, Claude Code de verdade, calculadora,
+tradutor, IA e o resto chegam nas próximas fases.
 
 ## Como usar
 
-- Abrir: `src\Ilha\bin\Release\net10.0-windows10.0.26100.0\win-x64\Ilha.exe` (o atalho no Menu Iniciar chega na
-  fase 7). Aparece um ícone de pílula perto do relógio.
-- **Menu do ícone (botão direito):** pausar a ilha, colada na borda (estilo notch) ou flutuante, demonstração,
-  abrir a configuração, abrir a pasta dos logs e sair. Clique esquerdo no ícone abre e fecha a ilha.
-- **Demonstração:** no menu, liga e desliga um timer de 1 minuto, uma música, o Claude Code trabalhando e o uso do
-  PC (tudo de mentira), mostra um alerta, ou "Passear por todos os estados" faz um tour sozinho.
+- **Instalar:** `powershell -ExecutionPolicy Bypass -File .\ferramentas\instalar.ps1` (num terminal normal). Ela vai
+  para `%LOCALAPPDATA%\Programs\Ilha`, ganha o atalho "Ilha" no Menu Iniciar e passa a abrir com o Windows. Rodar
+  de novo atualiza; `-Desinstalar` tira tudo (a configuração fica).
+- Depois de aberta, aparece o ícone da ilha perto do relógio.
+- **Menu do ícone (botão direito):** pausar a ilha, colada na borda (estilo notch) ou flutuante, iniciar com o
+  Windows, demonstração, abrir a configuração, abrir a pasta dos logs e sair. Clique esquerdo no ícone abre e fecha a ilha.
+- **Demonstração:** no menu, liga e desliga um timer de 1 minuto, uma música, o Claude Code trabalhando, o uso do
+  PC, o GPT respondendo e a galeria de animações (tudo de mentira), mostra um alerta, ou "Passear por todos os
+  estados" faz um tour sozinho. Pela linha de comando: `Ilha.exe --demo claude` (ou `timer`, `midia`, `uso`, `ia`,
+  `galeria`), com `--expandir` para abrir o cartão.
 - **Atalho global:** `Ctrl + Alt + Espaço` abre a ilha expandida; de novo, fecha. Se outro programa já usa, a ilha
   pega `Ctrl + Shift + Espaço` e avisa no balão do ícone.
 - **Mouse:** passar por cima dá uma prévia (cresce um pouco); clicar expande com os controles; tirar o mouse ou
@@ -52,12 +57,14 @@ digitação, a ilha avisa e continua com a anterior.
 | `mola` | `amortecimento` (abaixo de 1 passa do ponto e volta) e `periodoMs` (velocidade) |
 | `desenharNaGpu` | desenhar texto pela placa de vídeo (gasta uns 110 MB a mais; vale ao reabrir) |
 | `pausada` | ilha pausada |
+| `iniciarComWindows` | abrir junto com o Windows (só vale na ilha instalada) |
 
-## Imagens
+## Imagens e animações
 
-A logo do Claude e as fotos dos fones (para a animação de "fone conectou") são de terceiros e **não estão neste
-repositório**. A ilha funciona sem elas (o espaço da imagem fica vazio). A origem de cada foto está em
-`src/Ilha/imagens/fones/FONTES.md`; a logo vai em `src/Ilha/imagens/logo-claude.png`.
+As logos do Claude e do GPT, os vídeos das animações delas e as fotos dos fones (para a animação de "fone
+conectou") são de terceiros e **não estão neste repositório**. A ilha funciona sem elas (o espaço da imagem fica
+vazio). As animações saem dos vídeos em `videos\` pelo `python ferramentas\preparar_logos.py`, que também desenha
+as bolinhas; a origem de cada foto de fone está em `src/Ilha/imagens/fones/FONTES.md`.
 
 ## Para quem mexe no código
 

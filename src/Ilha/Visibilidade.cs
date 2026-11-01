@@ -112,7 +112,8 @@ internal sealed class Visibilidade : IDisposable
             Processo = proc,
             Desktop = desktop,
             Competitivo = !desktop && _competitivos.Contains(proc),
-            TelaCheia = quns is 2 or 3 or 4 || (!desktop && CobreOMonitor(janela)),
+            // janela maximizada passa uns pixels da borda do monitor: não é tela cheia
+            TelaCheia = quns is 2 or 3 or 4 || (!desktop && !Nativo.IsZoomed(janela) && CobreOMonitor(janela)),
             D3DExclusivo = quns == 3,
             NaoPerturbe = np == true || foco,
             NaoPerturbeLido = np,

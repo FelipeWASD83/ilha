@@ -50,6 +50,19 @@ public static class Programa
         ThreadPool.RegisterWaitForSingleObject(pedidoDeSair, (_, _) => NaInterface(nucleo.Sair), null, -1, true);
         if (Array.IndexOf(args, "--medir") >= 0) Medidor.Comecar(nucleo);
         else if (Array.IndexOf(args, "--roteiro") >= 0) nucleo.Demonstracao.Roteiro();
+        int d = Array.IndexOf(args, "--demo");
+        if (d >= 0 && d + 1 < args.Length)
+        {
+            // liga uma atividade de mentira pelo tipo (timer, midia, claude, uso, ia, galeria); --expandir abre o cartão
+            var a = nucleo.Demonstracao.Atividades.Find(x => x.Tipo == args[d + 1]);
+            a?.Comecar();
+            if (a != null && Array.IndexOf(args, "--expandir") >= 0)
+            {
+                var t = new System.Windows.Forms.Timer { Interval = 3500 };
+                t.Tick += (_, _) => { t.Stop(); nucleo.Ilha.Atalho(); };
+                t.Start();
+            }
+        }
         Application.Run();
         nucleo.Dispose();
     }

@@ -122,9 +122,9 @@ internal sealed unsafe class Grafico : IDisposable
     }
 
     /// <summary>Superfície desenhada pelo Direct2D, medida em DIP. Redesenha sozinha se o dispositivo trocar.</summary>
-    public Superficie NovaSuperficie(Vector2 tamanhoDip, Action<ID2D1DeviceContext, Vector2> desenho)
+    public Superficie NovaSuperficie(Vector2 tamanhoDip, Action<ID2D1DeviceContext, Vector2> desenho, bool emPixels = false)
     {
-        var s = new Superficie(this, tamanhoDip, desenho);
+        var s = new Superficie(this, tamanhoDip, desenho, emPixels);
         _superficies.RemoveAll(w => !w.TryGetTarget(out _));
         _superficies.Add(new WeakReference<Superficie>(s));
         s.Redesenhar();
@@ -135,7 +135,7 @@ internal sealed unsafe class Grafico : IDisposable
         _dispositivo.CreateDrawingSurface(new Windows.Foundation.Size(Math.Max(1, px.X), Math.Max(1, px.Y)),
             DirectXPixelFormat.B8G8R8A8UIntNormalized, DirectXAlphaMode.Premultiplied);
 
-    internal bool Desenhar(CompositionDrawingSurface s, Vector2 tamanhoDip, Action<ID2D1DeviceContext, Vector2> desenho)
+    internal bool Desenhar(CompositionDrawingSurface s, Vector2 tamanhoDip, Action<ID2D1DeviceContext, Vector2> desenho, float escala)
     {
         IntPtr ps = ((WinRT.IWinRTObject)s).NativeObject.ThisPtr;
         Marshal.QueryInterface(ps, in IID_ICompositionDrawingSurfaceInterop, out IntPtr interop);
@@ -156,8 +156,8 @@ internal sealed unsafe class Grafico : IDisposable
             if (hr != 0) { Log.Escrever($"BeginDraw falhou 0x{hr:X8}"); return false; }
             using (var dc = new ID2D1DeviceContext(pdc))
             {
-                dc.SetDpi(96f * Escala, 96f * Escala);
-                dc.Transform = Matrix3x2.CreateTranslation(off.X / Escala, off.Y / Escala);
+                dc.SetDpi(96f * escala, 96f * escala);
+                dc.Transform = Matrix3x2.CreateTranslation(off.X / escala, off.Y / escala);
                 dc.Clear(new Color4(0, 0, 0, 0));
                 try { desenho(dc, tamanhoDip); }
                 catch (Exception e) { Log.Escrever("desenho falhou: " + e); }
@@ -193,20 +193,25 @@ internal sealed class Superficie
     public Vector2 TamanhoDip { get; private set; }
     public CompositionSurfaceBrush Pincel { get; }
 
-    public Superficie(Grafico g, Vector2 tamanhoDip, Action<ID2D1DeviceContext, Vector2> desenho)
+    /// <summary>Em pixels: tamanho e desenho sem a escala do monitor (as faixas de quadros já vêm no tamanho exato).</summary>
+    public bool EmPixels { get; }
+
+    public Superficie(Grafico g, Vector2 tamanhoDip, Action<ID2D1DeviceContext, Vector2> desenho, bool emPixels = false)
     {
         _g = g;
         _desenho = desenho;
+        EmPixels = emPixels;
         TamanhoDip = tamanhoDip;
         Superf = g.CriarSuperficie(Px(tamanhoDip));
         Pincel = g.Compositor.CreateSurfaceBrush(Superf);
         Pincel.Stretch = CompositionStretch.Fill;
     }
 
-    private Vector2 Px(Vector2 dip) => new(MathF.Ceiling(dip.X * _g.Escala), MathF.Ceiling(dip.Y * _g.Escala));
+    private float E => EmPixels ? 1f : _g.Escala;
+    private Vector2 Px(Vector2 dip) => new(MathF.Ceiling(dip.X * E), MathF.Ceiling(dip.Y * E));
     public Vector2 TamanhoPx => Px(TamanhoDip);
 
-    public void Redesenhar() => _g.Desenhar(Superf, TamanhoDip, _desenho);
+    public void Redesenhar() => _g.Desenhar(Superf, TamanhoDip, _desenho, E);
 
     public void Trocar(Action<ID2D1DeviceContext, Vector2> desenho)
     {

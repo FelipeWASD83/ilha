@@ -1,5 +1,25 @@
 # Changelog
 
+## 0.2.0 (01/11/2026)
+
+**Novo**
+- Animações das logos do Claude e do GPT (as que o Felipe fez): loop girando, volta suavizada, volta de saída,
+  volta de entrada, diminuindo e aumentando, sumindo e surgindo, e o Claude virando bola.
+- Bolinhas girando em 3D a partir da bola do Claude, com borrão de movimento e as de trás mais escuras: órbita,
+  cometa, onda, divisão e anel. As mesmas em branco para o GPT, que também ganhou o "virando bola".
+- O Claude de mentira usa as animações de verdade: entra girando, trabalha em loop, vira bola e solta as bolinhas
+  quando pensa, volta a ser logo para trabalhar, sai girando ao terminar e pulsa esperando você.
+- GPT de mentira e galeria com todas as animações (menu Demonstração).
+- Instalador (`ferramentas\instalar.ps1`) com atalho no Menu Iniciar e ícone próprio.
+- Iniciar com o Windows (ligado por padrão, opção no menu do ícone).
+
+**Mudou**
+- As duas logos aparecem do mesmo tamanho (a do Claude ganha zoom, porque ocupa metade do quadro dela).
+- O ícone da bandeja é o mesmo do Menu Iniciar.
+
+**Corrigido**
+- Janela maximizada não conta mais como tela cheia.
+
 ## 0.1.0 (01/11/2026)
 
 **Novo**

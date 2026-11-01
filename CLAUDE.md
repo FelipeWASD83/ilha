@@ -5,7 +5,9 @@ que está acontecendo (mídia, timer, Claude Code, alertas). Criada em 01/11/202
 aprovado em 7 fases. Repositório **público** (`FelipeWASD83/ilha`, MIT), escolha dele ao criar. O README
 explica o uso; aqui ficam as decisões e as armadilhas.
 
-**Fase atual: 1 (núcleo) entregue para ele testar, com atividades de mentira.** Fases seguintes: 2 mídia,
+**Fase atual: 1 (núcleo) entregue para ele testar, com atividades de mentira; 0.2.0 trouxe as animações das logos
+e das bolinhas, o instalador, o atalho no Menu Iniciar e o iniciar com o Windows (pedido dele, adiantado da fase
+7).** Fases seguintes: 2 mídia,
 volume, câmera/mic e sons; 3 timer e uso do PC; 4 Claude Code e mascote; 5 calculadora, tradutor, IA e ar;
 6 extras (Bluetooth e bateria, print, notificações, render do AE); 7 atualizador, Menu Iniciar e iniciar com o
 Windows. A pesquisa de viabilidade de cada feature (API, o que é frágil, o que exige algo especial) foi feita
@@ -44,13 +46,50 @@ antes do plano; o resumo está no plano aprovado na conversa de 01/11/2026 e os 
 - **Config em `%USERPROFILE%\.ilha\`**, não no AppData: processo aberto de dentro do app do Claude (MSIX) vê um
   AppData virtual. Log em `ilha.log` (1 MB, depois gira para `.1`), medição em `medicao.txt`.
 
+## Animações das logos e das bolinhas (0.2.0)
+
+- **Fonte**: os vídeos que o Felipe fez, `videos\ChatGPT-logo.mov` e `videos\Claude-logo.mov` (ProRes 4444 com alfa,
+  23,976 fps, 4320 e 7680 px), e as logos paradas em `imagens\`. Fora do git (3,3 GB e marcas de terceiros).
+- **`ferramentas\preparar_logos.py`** recorta cada trecho numa faixa horizontal de quadros de 128 px em
+  `src\Ilha\imagens\logos\` (fora do git) e escreve `src\Ilha\animacoes.json` (no git: nome, quadros, se repete,
+  fps e zoom). `--so-bolinhas` refaz só as bolinhas sem reler os vídeos. Os trechos foram achados pela diferença
+  entre quadros seguidos: loop 0-119 (o 120 é igual ao 0, emenda perfeita), volta 143/144-217, saída 240-289,
+  entrada 312-361, pulso 384/385-431 (e as metades "some" e "surge"), Claude virando bola 455-480.
+- **Ficam a 24 fps, como ele fez** (decisão dele: "não precisa fazer em 250 fps"). As bolinhas também saem a
+  23,976 fps, no mesmo ritmo. No tamanho da ilha uma volta a 72°/s anda menos de 1 px por quadro.
+- **Bolinhas**: desenhadas pelo script (Pillow, 4x e reduzido), em 3D (órbita inclinada 26°, vista de cima,
+  perspectiva), as de trás escurecem até 40% (só atrás do centro), borrão de movimento por média de 8 instantes
+  com obturador de 180°. Órbita, cometa, onda, divisão e anel; cada uma com entrada (sai da bola única) e saída
+  (volta para ela), para nenhuma troca dar pulo. Começam na bola do vídeo dele (5,86% do quadro, `#D97757`). O
+  GPT tem as mesmas em branco e um "virando bola" feito aqui (o trecho "some" dele + a bolinha nascendo).
+- **Zoom**: a logo do Claude ocupa 50% do quadro dela (ele renderizou maior porque ela é assimétrica e saía da
+  tela) e a do GPT 90%. A ilha mostra a família Claude com zoom 1,8x; as bolinhas do Claude são desenhadas a 72%
+  e as do GPT a 130% para todas aparecerem do mesmo tamanho.
+- **Tocador** (`Faixas.cs`): cada faixa é reamostrada uma vez no tamanho exato em pixels (GDI+ bicúbica) e o
+  compositor desliza o pincel pela faixa em degraus (keyframes com step). Roda no DWM: com a logo e as bolinhas
+  animando, a ilha gasta 0,026% do processador. As de uma vez emendam na seguinte pelo `Completed` do lote; a
+  cena que some para o encadeamento (`LogoAnimada.Soltar`).
+
+## Instalação e início com o Windows
+
+- `ferramentas\instalar.ps1` publica pelo `compilar.ps1` (checagem do SAC), fecha a ilha aberta, copia para
+  `%LOCALAPPDATA%\Programs\Ilha`, cria `Ilha.lnk` no Menu Iniciar com o `icone\icone.ico` e abre a cópia
+  instalada. **Rodar num terminal normal** (o `run_in_terminal`), nunca do shell do Claude: processo aberto pelo app
+  (MSIX) vê AppData e registro virtuais e instalaria na cópia virtual.
+- O `Run` (`HKCU\...\Run`, valor "Ilha") é gravado **só pela cópia instalada** (`Inicio.cs`), conforme
+  `iniciarComWindows` (padrão ligado). A compilação da pasta muda a cada build e pode ser barrada pelo SAC.
+- Ícone: `ilha()` no `_organizacao\atalhos\desenhar_icones.py` (pílula preta com o anel do timer e as barras do
+  visualizador sobre azul-violeta), renderizado pelo `gerar_icones.py ilha` em `icone\`.
+
 ## Smart App Control (importante)
 
 Em 01/11/2026 uma compilação do `Ilha.dll` foi **barrada** (0x800711C7, "política de Controle de Aplicativo")
-depois de várias passarem: o SAC julga cada binário pela reputação na nuvem. `dotnet Ilha.dll` **não** escapa
-(o bloqueio é no DLL). Por isso: **compilar sempre por `ferramentas\compilar.ps1`**. Ele compila, roda
-`Ilha.exe --ping` e, se o SAC barrar, troca o `Carimbo.g.cs` (constante com bloco de letras de tamanho
-sorteado, fora do git) e compila de novo, até 8 vezes. Mesmo método do `quadra`. Desligar o SAC está fora de
+depois de várias passarem, e mais tarde o **`Ilha.exe`** também (aí o `Start-Process` nem abre). O SAC julga cada
+binário pela reputação na nuvem. `dotnet Ilha.dll` **não** escapa (o bloqueio é no DLL). Por isso: **compilar
+sempre por `ferramentas\compilar.ps1`**. Ele compila, roda `Ilha.exe --ping` e, se o SAC barrar, troca o carimbo
+e compila de novo, até 8 vezes: `Carimbo.g.cs` (constante com bloco de letras de tamanho sorteado, fora do git)
+muda o DLL, e `-p:SourceRevisionId=<sorteado>` muda a versão informativa, que vai para os recursos do `.exe` (sem
+isso o apphost sai igual em toda compilação). Num dia chegou a barrar três seguidas. Mesmo método do `quadra`. Desligar o SAC está fora de
 questão. Release feita fora deste PC terá outro hash: testar o `.exe` do pacote, não o da compilação local.
 
 ## Comandos
@@ -58,7 +97,10 @@ questão. Release feita fora deste PC terá outro hash: testar o `.exe` do pacot
 - Compilar (com a checagem do SAC): `powershell -ExecutionPolicy Bypass -File .\ferramentas\compilar.ps1`
   (`-Publicar <pasta>` publica com ReadyToRun). Saída em `src\Ilha\bin\Release\net10.0-windows10.0.26100.0\win-x64`.
 - Abrir: `Ilha.exe`. Fechar o que está aberto: `Ilha.exe --sair`. Uma instância só.
-- Demonstração automática de todos os estados: `Ilha.exe --roteiro`.
+- Demonstração automática de todos os estados: `Ilha.exe --roteiro`. Uma atividade só: `Ilha.exe --demo <tipo>`
+  (`timer`, `midia`, `claude`, `uso`, `ia`, `galeria`), com `--expandir` para abrir o cartão.
+- Instalar ou atualizar a cópia do PC: `ferramentas\instalar.ps1` (num terminal normal); `-Desinstalar` tira tudo.
+- Refazer as animações: `python ferramentas\preparar_logos.py` (precisa de ffmpeg, numpy e Pillow).
 - Medir fps, CPU e memória: `Ilha.exe --medir` (passeia pelos estados, ~1 min, resultado em
   `~/.ilha/medicao.txt`, fecha sozinho). Abre a captura do Windows, que liga a GPU: a memória do fim da medição
   não é a do uso normal.
@@ -95,7 +137,7 @@ questão. Release feita fora deste PC terá outro hash: testar o `.exe` do pacot
   na mesma hora antes de culpar a ilha.
 - **Imagens de terceiros ficam fora do git** (o repositório é público): as fotos oficiais de fones em
   `imagens/fones/*.png` (Apple, Logitech e outras marcas, origem em `imagens/fones/FONTES.md`, que vai no git) e
-  a logo do Claude (`imagens/logo-claude.png`, a mesma do mascote). Estão no PC dele e no backup do SSD; o
-  `.gitignore` as segura. Imagem nova de marca entra do mesmo jeito. Sem elas a ilha abre normal (fica vazio).
-- Quando o chat de IA (fase 5) usar o GPT, falta a logo da OpenAI (baixar só com o ok dele, e fora do git).
+  as logos e animações do Claude e do GPT (`imagens\`, `videos\`, `src\Ilha\imagens\logos\`). Estão no PC dele
+  e no backup do SSD; o `.gitignore` as segura. Imagem nova de marca entra do mesmo jeito. Sem elas a ilha abre
+  normal (fica vazio).
 - A foto da HyperX tem fundo branco: recortar na fase 6 antes de usar. A da Razer tem só 500 px.
