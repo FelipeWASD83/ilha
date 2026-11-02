@@ -433,9 +433,11 @@ internal sealed class PonteClaudeApp : IDisposable
     }
 
     /// <summary>
-    /// Opens a submenu that only reacts to hover. First the WM_MOUSEMOVE goes straight to the app's render widget
-    /// (works with another window on top of the app), then through the window under the point (the old path).
-    /// <paramref name="achouItem"/> tells "the item is not in the menu" apart from "the hover did not open it".
+    /// Opens a submenu. First the item's MSAA default action (a click for Chromium, which opens the submenu wherever the
+    /// real cursor is). Then the old hover paths: a WM_MOUSEMOVE posted to the app's render widget, then through the
+    /// window under the point. The hover alone failed on 01/11/2026 whenever the real cursor was over the island (the
+    /// app got the move and then lost the pointer again). <paramref name="achouItem"/> tells "the item is not in the
+    /// menu" apart from "it did not open".
     /// </summary>
     private static AutomationElement? AbrirSubmenu(AutomationElement raiz, AutomationElement menu, Func<string, bool> qual, out bool achouItem)
     {
@@ -445,6 +447,18 @@ internal sealed class PonteClaudeApp : IDisposable
         string nome = item.Current.Name;
         var ja = MenuChamado(raiz, nome);
         if (ja != null) return ja;
+        if (MsaaClicarItem(_janelaDoApp, nome))
+        {
+            // the click alone only focuses the trigger; the Right arrow on the focused trigger opens the submenu
+            Thread.Sleep(150);
+            var porClique = MenuChamado(raiz, nome);
+            if (porClique != null) return porClique;
+            if (TeclaNoRenderizador(_janelaDoApp, 0x27))
+            {
+                var porTecla = Esperar(() => MenuChamado(raiz, nome), 1500);
+                if (porTecla != null) return porTecla;
+            }
+        }
         var c = Centro(item.Current.BoundingRectangle);
         int x = (int)c.X, y = (int)c.Y;
         if (PassarNoRenderizador(_janelaDoApp, x, y))
@@ -713,6 +727,21 @@ internal sealed class PonteClaudeApp : IDisposable
         }
     }
 
+    /// <summary>
+    /// A key (WM_KEYDOWN and WM_KEYUP) posted to the app's render widget: Chromium hands it to the focused element even
+    /// with the app in the background. Tested on 01/11/2026 with the Right arrow on the focused effort trigger.
+    /// </summary>
+    private static bool TeclaNoRenderizador(IntPtr janela, int vk)
+    {
+        var h = Renderizador(janela, int.MinValue, int.MinValue);
+        if (h == IntPtr.Zero) return false;
+        // repeat count 1, scan code of the arrow (0x4D) with the extended bit; key up also has the previous and transition bits
+        PostMessageW(h, 0x0100, (IntPtr)vk, (IntPtr)0x014D0001);
+        Thread.Sleep(30);
+        PostMessageW(h, 0x0101, (IntPtr)vk, unchecked((IntPtr)(int)0xC14D0001));
+        return true;
+    }
+
     /// <summary>Hover at (x, y) of the screen sent straight to the app's render widget, even with another window on top.</summary>
     private static bool PassarNoRenderizador(IntPtr janela, int x, int y)
     {
@@ -746,7 +775,10 @@ internal sealed class PonteClaudeApp : IDisposable
     /// Finds the Ultracode node through MSAA (for when UIA has no TogglePattern on it). Walks the render widget's tree
     /// from the last child (Chromium puts the open menus at the end of the page), with a node and time budget.
     /// </summary>
-    private static (Accessibility.IAccessible? Acc, int Filho) MsaaUltracode(IntPtr janela)
+    private static (Accessibility.IAccessible? Acc, int Filho) MsaaUltracode(IntPtr janela) => MsaaAchar(janela, EhChaveMsaa);
+
+    /// <summary>The first MSAA node (from the end of the page) that matches, with a node and time budget.</summary>
+    private static (Accessibility.IAccessible? Acc, int Filho) MsaaAchar(IntPtr janela, Func<Accessibility.IAccessible, int, bool> qual)
     {
         var rw = Renderizador(janela, int.MinValue, int.MinValue);
         if (rw == IntPtr.Zero) return (null, 0);
@@ -762,7 +794,7 @@ internal sealed class PonteClaudeApp : IDisposable
             visitados++;
             try
             {
-                if (EhChaveMsaa(no, 0)) return (no, 0);
+                if (qual(no, 0)) return (no, 0);
                 int n = no.accChildCount;
                 if (n <= 0) continue;
                 var filhos = new object?[n];
@@ -771,12 +803,24 @@ internal sealed class PonteClaudeApp : IDisposable
                 for (int i = 0; i < obtidos; i++)
                 {
                     if (filhos[i] is Accessibility.IAccessible f) pilha.Push(f);
-                    else if (filhos[i] is int id && EhChaveMsaa(no, id)) return (no, id);
+                    else if (filhos[i] is int id && qual(no, id)) return (no, id);
                 }
             }
             catch (Exception) { }
         }
         return (null, 0);
+    }
+
+    /// <summary>
+    /// The menu item's default action, which for Chromium is a click: the submenu trigger opens on click, so this needs
+    /// no mouse at all. Only a menu item (role 0x0C) with exactly that name.
+    /// </summary>
+    private static bool MsaaClicarItem(IntPtr janela, string nome)
+    {
+        var (acc, filho) = MsaaAchar(janela, (no, f) => no.get_accName(f) is string n && n == nome && no.get_accRole(f) is int papel && papel == 0x0C);
+        if (acc == null) return false;
+        try { acc.accDoDefaultAction(filho); return true; }
+        catch (Exception) { return false; }
     }
 
     private static bool EhChaveMsaa(Accessibility.IAccessible no, int filho)

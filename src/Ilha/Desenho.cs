@@ -106,6 +106,17 @@ internal sealed class Escrita
 }
 
 /// <summary>Ícones simples desenhados em Direct2D (sem arquivo de imagem).</summary>
+/// <summary>
+/// Draws a whole bitmap into a destination rectangle (DIP). Vortice's DrawBitmap(bitmap, opacity, mode, Rect) takes the
+/// SOURCE rectangle and always draws at the origin: every photo with a position came out in the corner, cut (the
+/// headphone photos, the chat photos, the mixer icons). Found on 01/11/2026.
+/// </summary>
+internal static class Bitmaps
+{
+    public static void Draw(ID2D1DeviceContext dc, ID2D1Bitmap bmp, float x, float y, float w, float h, BitmapInterpolationMode mode) =>
+        dc.DrawBitmap(bmp, new Vortice.RawRectF(x, y, x + w, y + h), 1f, mode, null);
+}
+
 internal static class Icone
 {
     public static void Circulo(ID2D1DeviceContext dc, Vector2 c, float r, Color4 cor)
@@ -223,7 +234,7 @@ internal static class Imagem
         fixed (byte* d = px.Dados)
         {
             using var bmp = dc.CreateBitmap(new SizeI(lado, lado), (IntPtr)d, (uint)(lado * 4), props);
-            dc.DrawBitmap(bmp, 1f, BitmapInterpolationMode.NearestNeighbor, new Rect(x0, y0, l, l));
+            Bitmaps.Draw(dc, bmp, x0, y0, l, l, BitmapInterpolationMode.NearestNeighbor);
         }
     }
 }

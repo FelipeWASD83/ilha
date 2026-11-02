@@ -165,6 +165,18 @@ and the points that matter are here.
   3 and 4 count; `quns` and the window class go to the log when they change). A transitional or empty foreground whose
   previous window is gone, hidden or minimized is the desktop (closing the browser left a stale context). On the
   desktop the island is plain dark: no border, no clock, and the border goes off whenever the probe pauses.
+- **Drawing bitmaps (1.2.0):** Vortice's `DrawBitmap(bitmap, opacity, mode, Rect)` takes the SOURCE rectangle and
+  draws at the origin. Use `Bitmaps.Draw(dc, bmp, x, y, w, h, mode)` (destination); every positioned photo was in the
+  corner, cut, until 01/11/2026. `Faixas.cs` draws at the origin and was left as it was.
+- **Effort selector (1.2.0):** the effort submenu of the Claude app opens by the MSAA default action on its menu item
+  (a click, which only focuses it) followed by a Right arrow posted to the render widget; the WM_MOUSEMOVE hover is
+  the fallback. The hover alone failed whenever the real cursor was over the island (always, when the card is
+  clicked). `Ilha.exe --ponte-claude ler | esforco SESSION LEVEL | ultracode SESSION on|off [--foco]` runs the bridge
+  with no window and writes to `~/.ilha/ponte-claude.txt` (`--foco` takes the foreground first, like a click on the
+  island); test it with the cursor parked over the island, which is the real case.
+- **Battery tiles (1.2.0):** `bateria:<key>` items in the main menu (owner `fones`), shown while the device is on (G733
+  by HID++), connected (AirPods) or listed by G HUB (mouse), removed when it goes; `bateriaNoMenu` turns them off.
+- **ALTURA_MAX (640 DIP)** bounds the shape visuals of the island: a card taller than it loses the bottom of its body.
 - **Low battery alerts (1.1.0, `BatteryAlerts.cs`, `GHub.cs`, `ModuloFones.cs`):** a level (50, 25, 10, 5, 1 by
   default, `limiaresBateria` in the settings) fires when a reading goes from above it to at or below it, once per level
   and per discharge; a big drop fires only the lowest level crossed; the first reading of a battery fires only if it is

@@ -39,6 +39,8 @@ internal sealed class ModuloFones : Modulo
         public bool Mouse;
         // the percentage comes from G HUB (exact), not from the voltage curve
         public bool PorGHub;
+        // the small photo of its tile in the main menu
+        public Retrato? RetratoMenu;
     }
 
     private const float L = 380, A = 60, CAIXA = 52;
@@ -59,6 +61,7 @@ internal sealed class ModuloFones : Modulo
     private bool _ghubBusy;
     private (int Percent, bool Charging, long At)? _ghubG733;
     private readonly Dictionary<string, Fone> _mice = new();
+    private readonly HashSet<string> _tiles = new();
 
     public override Type? TipoConfig => typeof(ConfigFones);
 
@@ -102,6 +105,8 @@ internal sealed class ModuloFones : Modulo
         _apple.Clear();
         _mice.Clear();
         _vivos.Clear();
+        // the core removes the tiles with the module (they carry its id as owner)
+        _tiles.Clear();
     }
 
     private bool Ignorado(string nome) => _cfg.Ignorar.Any(i => !string.IsNullOrWhiteSpace(i) && nome.Contains(i.Trim(), StringComparison.OrdinalIgnoreCase));
@@ -115,6 +120,7 @@ internal sealed class ModuloFones : Modulo
         bool apple = ModelosApple.EhApple(a.Fabricante, a.Nome);
         if (!conectado)
         {
+            if (_apple.TryGetValue(a.Id, out var saiu)) HideTile(saiu);
             _apple.Remove(a.Id);
             ProgramarRajadas();
             return;
@@ -220,6 +226,7 @@ internal sealed class ModuloFones : Modulo
                 if (nova != null && nova != f.Foto) TrocarFoto(f, nova);
             }
             Atualizar(f);
+            ShowTile(f);
             FeedApple(f, b);
         }
     }
@@ -298,6 +305,7 @@ internal sealed class ModuloFones : Modulo
     private void G733Sumiu(string caminho)
     {
         if (!_g733.Remove(caminho, out var g)) return;
+        HideTile(g.Fone);
         g.Leitor.Dispose();
         Log.Escrever("fones: receptor do G733 saiu");
     }
@@ -325,8 +333,16 @@ internal sealed class ModuloFones : Modulo
         else if (m == MudancaG733.Desligou) Log.Escrever("fones: G733 desligou");
         else if (m == MudancaG733.Atualizou) Atualizar(g.Fone);
 
-        if (g.Estado.Ligado == true && g.Fone.Bateria is int pct) FeedAlert(g.Fone, "g733", pct, g.Fone.Carregando, coarse: false);
-        else if (g.Estado.Ligado != true) _alerts.Forget("g733");
+        if (g.Estado.Ligado == true && g.Fone.Bateria is int pct)
+        {
+            ShowTile(g.Fone);
+            FeedAlert(g.Fone, "g733", pct, g.Fone.Carregando, coarse: false);
+        }
+        else if (g.Estado.Ligado != true)
+        {
+            HideTile(g.Fone);
+            _alerts.Forget("g733");
+        }
     }
 
     // ------------------------------------------------------------------ G HUB (mouse and exact G733 percentage)
@@ -361,12 +377,14 @@ internal sealed class ModuloFones : Modulo
     {
         // G HUB closed (or no G733 in its list): the G733 goes back to the voltage curve
         _ghubG733 = null;
-        if (devices == null) return;
-        foreach (var d in devices)
+        var seen = new HashSet<string>();
+        foreach (var d in devices ?? new List<GHubDevice>())
         {
             if (d.IsG733 && _cfg.G733) G733FromGHub(d);
-            else if (d.IsMouse && _cfg.Mouse) MouseRead(d);
+            else if (d.IsMouse && _cfg.Mouse) { MouseRead(d); seen.Add(d.Id); }
         }
+        // a mouse G HUB no longer reports (or G HUB closed): no number to show
+        foreach (var id in _mice.Keys.Where(k => !seen.Contains(k)).ToList()) HideTile(_mice[id]);
     }
 
     private void G733FromGHub(GHubDevice d)
@@ -379,6 +397,7 @@ internal sealed class ModuloFones : Modulo
         on.Fone.Carregando = d.Charging;
         on.Fone.PorGHub = true;
         Atualizar(on.Fone);
+        ShowTile(on.Fone);
         FeedAlert(on.Fone, "g733", d.Percent, d.Charging, coarse: false);
     }
 
@@ -394,7 +413,78 @@ internal sealed class ModuloFones : Modulo
         }
         f.Bateria = d.Percent;
         f.Carregando = d.Charging;
+        ShowTile(f);
         FeedAlert(f, f.Chave, d.Percent, d.Charging, coarse: false);
+    }
+
+    // ------------------------------------------------------------------ battery tiles in the main menu
+
+    /// <summary>The device's tile in the main menu (photo, short name, battery); a later call only redraws it.</summary>
+    private void ShowTile(Fone f)
+    {
+        if (!_cfg.BateriaNoMenu || _parado) return;
+        string id = "bateria:" + f.Chave;
+        if (!_tiles.Add(id)) { S.Menu.Redesenhar(); return; }
+        S.Menu.Adicionar(new ItemDoMenu
+        {
+            Id = id, Dono = "fones", Nome = MenuName(f), Ordem = 90,
+            Abrir = () => Mostrar(f, doMenu: true),
+            Icone = (dc, p, r) => DrawTileIcon(dc, p, r, f),
+            Detalhe = () => MenuDetail(f.BateriaApple, f.Bateria, f.Carregando),
+        });
+        if (f.RetratoMenu != null) return;
+        f.Foto ??= EscolherFoto(f);
+        if (f.Foto == null) return;
+        int px = Math.Max(1, (int)MathF.Round(TILE * S.Palco.Escala));
+        string foto = f.Foto;
+        Task.Run(() =>
+        {
+            var r = Retrato.DeArquivo(Path.Combine(Fotos.Pasta, foto), px, px, recortar: true);
+            if (r != null) S.NaInterface(() => { f.RetratoMenu = r; S.Menu.Redesenhar(); });
+        });
+    }
+
+    private void HideTile(Fone f)
+    {
+        string id = "bateria:" + f.Chave;
+        if (_tiles.Remove(id)) S.Menu.Remover(id);
+    }
+
+    private const float TILE = 30;
+
+    internal static string MenuName(bool mouse, bool g733, bool apple, ushort? modelo, string nome) =>
+        mouse ? "G502 X Plus" : g733 ? "G733" : apple ? "AirPods" : nome;
+
+    private static string MenuName(Fone f) => MenuName(f.Mouse, f.G733, f.Apple, f.Modelo, f.Nome);
+
+    /// <summary>The small line under the tile name: "48%", or the two AirPods ("E 80 · D 90"). Null when nothing was read.</summary>
+    internal static string? MenuDetail(BateriaApple? apple, int? bateria, bool carregando)
+    {
+        if (apple != null)
+        {
+            var partes = new List<string>();
+            if (apple.Esquerdo is int e) partes.Add(Lang.T("E ", "L ") + e);
+            if (apple.Direito is int d) partes.Add(Lang.T("D ", "R ") + d);
+            if (partes.Count == 0 && apple.Estojo is int c) partes.Add(Lang.T("estojo ", "case ") + c);
+            return partes.Count > 0 ? string.Join(" · ", partes) : null;
+        }
+        return bateria is int b ? b + "%" : null;
+    }
+
+    /// <summary>The photo centered on the icon spot (a little bigger than the 24 DIP square), and a dot for charging or low.</summary>
+    private void DrawTileIcon(Vortice.Direct2D1.ID2D1DeviceContext dc, Palco p, System.Drawing.RectangleF r, Fone f)
+    {
+        var centro = new Vector2(r.X + r.Width / 2, r.Y + r.Height / 2);
+        if (f.RetratoMenu != null)
+        {
+            var tam = f.RetratoMenu.TamanhoDip(p.Escala);
+            f.RetratoMenu.Desenhar(dc, p.Escala, centro.X - tam.X / 2, centro.Y - tam.Y / 2);
+        }
+        else if (f.Tipo == TipoAparelho.Mouse) Desenhos.Mouse(dc, p.G.Fabrica, centro, 24, Cor.Branco);
+        else Desenhos.Fone(dc, p.G.Fabrica, centro, 24, Cor.Branco);
+        int? menor = f.BateriaApple?.MenorFone ?? f.Bateria;
+        if (f.Carregando) Icone.Circulo(dc, new Vector2(r.Right + 6, r.Y + 2), 3.5f, Cor.Verde);
+        else if (menor is int m && m <= 20) Icone.Circulo(dc, new Vector2(r.Right + 6, r.Y + 2), 3.5f, Cor.Vermelho);
     }
 
     // ------------------------------------------------------------------ low battery alerts
@@ -468,17 +558,27 @@ internal sealed class ModuloFones : Modulo
 
     // ------------------------------------------------------------------ alerta
 
-    private void Mostrar(Fone f)
+    private void Mostrar(Fone f, bool doMenu = false)
     {
         S.Ilha.Alertar(new Alerta
         {
             Tipo = "fones",
-            Som = "conectou",
+            Som = doMenu ? "" : "conectou",
+            Importante = doMenu,
             Criar = p =>
             {
                 var c = p.NovaCena(new Vector2(L, A));
                 var s = p.Desenho(c, Vector2.Zero, c.Tamanho, (dc, t) => Desenhar(p, dc, t, f));
                 _vivos.Add((s, f));
+                if (f.Retrato == null && (f.Foto ??= EscolherFoto(f)) is string foto)
+                {
+                    int px = Math.Max(1, (int)MathF.Round(CAIXA * S.Palco.Escala));
+                    Task.Run(() =>
+                    {
+                        var r = Retrato.DeArquivo(Path.Combine(Fotos.Pasta, foto), px, px, recortar: true);
+                        if (r != null) S.NaInterface(() => { f.Retrato = r; Atualizar(f); });
+                    });
+                }
                 c.AoSoltar += () => _vivos.RemoveAll(x => x.S == s);
                 return c;
             },
@@ -605,6 +705,9 @@ public sealed class ConfigFones
     [Label("Cor do mouse (foto)", "Mouse color (photo)")]
     [Help("preto, roxo, branco ou menta", "preto, roxo, branco or menta (black, purple, white or mint)")]
     [JsonPropertyName("corMouse")] public string CorMouse { get; set; } = "preto";
+    [Label("Bateria no menu", "Battery in the menu")]
+    [Help("Cada aparelho ligado aparece no menu principal com a bateria", "Each connected device shows up in the main menu with its battery")]
+    [JsonPropertyName("bateriaNoMenu")] public bool BateriaNoMenu { get; set; } = true;
     [Label("Intervalo do G HUB (segundos)", "G HUB interval (seconds)")]
     [JsonPropertyName("intervaloGHubSegundos")] public int IntervaloGHubSegundos { get; set; } = 60;
 }

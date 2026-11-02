@@ -213,7 +213,7 @@ internal sealed class Retrato
             using var bmp = dc.CreateBitmap(new SizeI(Largura, Altura), (IntPtr)d, (uint)(Largura * 4), props);
             if (raio <= 0)
             {
-                dc.DrawBitmap(bmp, 1f, BitmapInterpolationMode.NearestNeighbor, new Rect(x0, y0, l, a));
+                Bitmaps.Draw(dc, bmp, x0, y0, l, a, BitmapInterpolationMode.NearestNeighbor);
                 return;
             }
             using var pincel = dc.CreateBitmapBrush(bmp, new BitmapBrushProperties1(ExtendMode.Clamp, ExtendMode.Clamp, InterpolationMode.NearestNeighbor), null);

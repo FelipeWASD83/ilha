@@ -1,5 +1,23 @@
 # Changelog
 
+## 1.2.0 (01/11/2026)
+
+**New**
+- The battery of the headphones and the mouse in the main menu: each connected device gets a tile with its photo
+  and the percentage (the two AirPods side by side), with a dot when it is charging or low. Clicking it shows the
+  device card.
+
+**Changed**
+- The G502 X Plus photo is now the straight view from above.
+
+**Fixed**
+- The Claude Code effort selector did nothing when the island was clicked: the effort submenu of the Claude app only
+  opened while the real mouse was over the app. It now opens with no mouse at all, and the levels and Ultracode were
+  tested on the real app through the island card.
+- Every photo with a position was drawn in the corner and cut: the device photos in the cards, the app icons in the
+  mixer and the pasted image in the AI chat. They are where they belong now, centered.
+- A card taller than 400 points lost the bottom of its black background.
+
 ## 1.1.0 (01/11/2026)
 
 **New**

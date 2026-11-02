@@ -116,7 +116,7 @@ internal sealed class ImagemColada
         fixed (byte* p = Miniatura)
         {
             using var bmp = dc.CreateBitmap(new Vortice.Mathematics.SizeI(MiniL, MiniA), (IntPtr)p, (uint)(MiniL * 4), props);
-            dc.DrawBitmap(bmp, 1f, BitmapInterpolationMode.Linear, new Vortice.Mathematics.Rect(x + (caixaL - l) / 2, y + (caixaA - a) / 2, l, a));
+            Bitmaps.Draw(dc, bmp, x + (caixaL - l) / 2, y + (caixaA - a) / 2, l, a, BitmapInterpolationMode.Linear);
         }
     }
 

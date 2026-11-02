@@ -17,7 +17,9 @@ internal enum Estado { Oculta, Ociosa, Compacta, Expandida, Alerta }
 internal sealed class Ilha : IDisposable
 {
     // medidas em DIP (multiplicadas pela escala do monitor e pelo "tamanho" da config)
-    private const float LARGURA_JANELA = 760, ALTURA_MAX = 400;
+    // ALTURA_MAX bounds the shape visuals: a card taller than it lost the bottom of its black body (the chat card at 380
+    // DIP did, on 01/11/2026); the window itself still follows the content
+    private const float LARGURA_JANELA = 760, ALTURA_MAX = 640;
     private const float OCIOSA_L = 128, OCIOSA_A = 32;
     private const float COMPACTA_A = 36, COMPACTA_FOLGA = 12, COMPACTA_MIN = 168;
     private const float PREVIA_L = 14, PREVIA_A = 4;

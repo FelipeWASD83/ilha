@@ -119,7 +119,7 @@ internal sealed class IconesDeApps : IDisposable
         fixed (byte* d = px)
         {
             using var bmp = dc.CreateBitmap(new SizeI(lado, lado), (IntPtr)d, (uint)(lado * 4), props);
-            dc.DrawBitmap(bmp, 1f, BitmapInterpolationMode.NearestNeighbor, new Rect(x0, y0, l, l));
+            Bitmaps.Draw(dc, bmp, x0, y0, l, l, BitmapInterpolationMode.NearestNeighbor);
         }
     }
 

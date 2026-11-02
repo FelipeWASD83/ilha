@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 using System.Threading;
 using System.Windows.Forms;
 
@@ -49,6 +50,14 @@ public static class Programa
             System.IO.File.WriteAllText(System.IO.Path.Combine(Config.Pasta, "testes.txt"), saida.ToString());
             Console.Write(saida.ToString());
             Environment.Exit(r);
+            return;
+        }
+
+        int iPonte = Array.IndexOf(args, "--ponte-claude");
+        if (iPonte >= 0)
+        {
+            // the bridge to the Claude app with no window (BridgeProbe): reads, or changes one session's effort
+            Environment.Exit(global::Ilha.Claude.BridgeProbe.Run(args.Skip(iPonte + 1).ToArray()));
             return;
         }
 
