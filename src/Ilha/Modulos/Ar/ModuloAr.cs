@@ -275,6 +275,10 @@ internal sealed class ModuloAr : Modulo
 
         // ---- comandos
         Conf(ContasAr.MontarComando(new Dictionary<string, object> { ["ligado"] = true }) == """{"ligado":true}""", "comando liga");
+        Conf(ContasAr.MontarComando(new Dictionary<string, object> { ["visor"] = false }) == """{"visor":false}""", "comando apaga a luz do visor");
+        Lanca(() => ContasAr.MontarComando(new Dictionary<string, object> { ["visor"] = "ON" }), "luz do visor só vai como verdadeiro ou falso");
+        Conf(r.Capacidades!.Visor && r.Estado!.Visor == false, "lê que o ar tem luz do visor e que ela está apagada");
+        Conf(ContasAr.Mesclar(r.Estado, new Dictionary<string, object> { ["visor"] = true })!.Visor == true, "o pedido de acender a luz aparece por cima");
         Conf(ContasAr.MontarComando(new Dictionary<string, object> { ["alvo"] = 19, ["modo"] = "HEAT" }) == """{"modo":"HEAT","alvo":19}""", "comando modo e alvo juntos");
         Conf(ContasAr.MontarComando(new Dictionary<string, object> { ["alvo"] = 20.0, ["vento"] = "MID" }) == """{"alvo":20,"vento":"MID"}""", "alvo inteiro vai sem casa decimal");
         Lanca(() => ContasAr.MontarComando(new Dictionary<string, object> { ["turbo"] = true }), "turbo nunca sai da ilha");
@@ -370,6 +374,12 @@ internal sealed class ModuloAr : Modulo
         string? vento = caps.Vento.FirstOrDefault(v => v != r3?.Estado?.Vento);
         ResumoAr? r4 = vento == null ? null : await Comando(new() { ["vento"] = vento });
         Conf(vento != null && r4?.Estado?.Vento == vento, $"POST vento {ContasAr.NomeVento(vento)}");
+        if (caps.Visor)
+        {
+            bool luz = r4?.Estado?.Visor != true;
+            var r5 = await Comando(new() { ["visor"] = luz });
+            Conf(r5?.Estado?.Visor == luz, luz ? "POST acende a luz do visor" : "POST apaga a luz do visor");
+        }
         var recusado = await Post("/api/comando", """{"alvo": 99}""");
         Conf(recusado.Tipo == TipoResposta.Recusado && recusado.Problema.Contains("temperatura"), "temperatura fora da faixa volta recusada em português");
         var hist = await Get("/api/historico");
@@ -401,6 +411,7 @@ internal sealed class ModuloAr : Modulo
         if (antes.Modo != null) volta["modo"] = antes.Modo;
         if (antes.Alvo is double av) volta["alvo"] = av;
         if (antes.Vento != null) volta["vento"] = antes.Vento;
+        if (caps.Visor && antes.Visor is bool luzAntes) volta["visor"] = luzAntes;
         if (volta.Count > 0) Conf((await Post("/api/comando", volta.ToJsonString())).Tipo == TipoResposta.Ok, "simulador de volta ao estado de antes");
         return sb.ToString();
     }

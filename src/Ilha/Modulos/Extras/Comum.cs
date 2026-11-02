@@ -346,6 +346,18 @@ internal static class Desenhos
         Icone.Circulo(dc, new Vector2(c.X + 7f * u, c.Y - 2.5f * u), 1.1f * u, furo);
     }
 
+    /// <summary>A keyboard seen from above: the body and three rows of keys cut out of it.</summary>
+    public static void Teclado(ID2D1DeviceContext dc, ID2D1Factory1 f, Vector2 c, float lado, Color4 cor)
+    {
+        float u = lado / 24f;
+        Icone.Retangulo(dc, c.X - 12 * u, c.Y - 6.5f * u, 24 * u, 13 * u, 2.5f * u, cor);
+        var furo = new Color4(0f, 0f, 0f, 1f);
+        for (int row = 0; row < 2; row++)
+            for (int k = 0; k < 6; k++)
+                Icone.Retangulo(dc, c.X + (-10 + k * 3.5f) * u, c.Y + (-4.5f + row * 3.4f) * u, 2.4f * u, 2.2f * u, 0.5f * u, furo);
+        Icone.Retangulo(dc, c.X - 6 * u, c.Y + 2.4f * u, 12 * u, 2.2f * u, 0.5f * u, furo);
+    }
+
     public static void Mouse(ID2D1DeviceContext dc, ID2D1Factory1 f, Vector2 c, float lado, Color4 cor)
     {
         float u = lado / 24f;

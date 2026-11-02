@@ -221,6 +221,22 @@ and the points that matter are here.
 - **Brightness (1.5.0, `Modulos/Brilho`):** the primary monitor over DDC/CI, VCP 0x10 (`dxva2`), on its own thread;
   a drag sends only the newest value. On 02/11/2026 the ASUS XG34WCDMTG answered. No answer = no tile. The self test
   only reads, never writes.
+- **Wired keyboards (1.7.0, `Fones/Keyboards.cs`):** a `DeviceWatcher` on the USB device interface
+  (`GUID_DEVINTERFACE_USB_DEVICE`, one per physical device) reads only the id and the name the device reports. The
+  G213 is `046D:C336`; the Razer Huntsman V3 HE TKL is matched **by name** ("Huntsman" plus HE/Magnetic and
+  TKL/Tenkeyless) because its product id was not known on 02/11/2026 (he had not bought it yet): the log writes
+  `fones: USB 1532:xxxx "name"` for every Razer device, so the id can be pinned once it is plugged in. No battery, no
+  tile: only the connected card ("Keyboard connected"), with a 76 DIP wide photo box. Keyboards present when the island
+  opens, or re-enumerated within 20 s of waking from sleep, do not show the card. A keyboard never takes a photo by
+  brand (`Fotos.Escolher` would give it the Razer headset): only its own file or the `fotos` map in the config. Photos
+  `logitech-g213.png` (transparent, from Logitech) and `razer-huntsman-v3-he-tkl.png` (cut out of Razer's gallery
+  photo on a flat 17,17,17 background), outside git like the others.
+- **Caps Lock (1.7.0, `Modulos/CapsLock`):** no event exists without a keyboard hook (anti-cheat), so a 200 ms timer
+  reads `GetKeyState(VK_CAPITAL) & 1`; checked on 02/11/2026 that it follows the real toggle from a thread with no
+  window. An `Importante` alert (Do Not Disturb reads on all the time on his PC), no sound, 1.4 s on and 1.1 s off; a
+  second press replaces the alert; nothing in competitive mode.
+- **Air display light (1.7.0):** `visor` joined `CamposDeComando` (the server already took it); the switch row shows
+  only when `capacidades.visor` is true and, like the site, does nothing while the air is off.
 - **ALTURA_MAX (640 DIP)** bounds the shape visuals of the island: a card taller than it loses the bottom of its body.
 - **Low battery alerts (1.1.0, `BatteryAlerts.cs`, `GHub.cs`, `ModuloFones.cs`):** a level (50, 25, 10, 5, 1 by
   default, `limiaresBateria` in the settings) fires when a reading goes from above it to at or below it, once per level

@@ -19,9 +19,11 @@ internal sealed class Capacidades
     public List<string> Modos = new();
     public Dictionary<string, Faixa> Temperatura = new();
     public List<string> Vento = new();
+    /// <summary>The AC lets its display light be turned on and off (capacidades.visor).</summary>
+    public bool Visor;
 
     /// <summary>Muda quando o layout do cartão precisa mudar (outra quantidade de modos ou de vento).</summary>
-    public string Assinatura => string.Join(",", Modos) + "|" + string.Join(",", Vento);
+    public string Assinatura => string.Join(",", Modos) + "|" + string.Join(",", Vento) + (Visor ? "|visor" : "");
 }
 
 /// <summary>O estado normalizado do ar (campo "estado" do GET /api/estado, já com as pendências do servidor por cima).</summary>
@@ -32,6 +34,7 @@ internal sealed class EstadoAr
     public double? Alvo;
     public double? Sala;
     public string? Vento;
+    public bool? Visor;
     public bool Erro;
 
     public EstadoAr Copia() => (EstadoAr)MemberwiseClone();
@@ -102,7 +105,7 @@ internal static class ContasAr
     public static readonly string[] EspeciaisVento = { "AUTO", "NATURE", "BREEZE" };
 
     /// <summary>Os únicos campos que a ilha manda. O turbo fica de fora de propósito (nenhuma tela liga o turbo).</summary>
-    public static readonly string[] CamposDeComando = { "ligado", "modo", "alvo", "vento" };
+    public static readonly string[] CamposDeComando = { "ligado", "modo", "alvo", "vento", "visor" };
 
     public static string ProblemaChave => Lang.T(
         "O mini PC recusou a chave. Rode o implantar\\mostrar-link.ps1 do ar-do-quarto e cole o link novo aqui.",
@@ -163,7 +166,7 @@ internal static class ContasAr
 
         if (o["capacidades"] is JsonObject caps)
         {
-            var cp = new Capacidades { Modos = EmOrdem(Textos(caps["modos"])), Vento = Textos(caps["vento"]) };
+            var cp = new Capacidades { Modos = EmOrdem(Textos(caps["modos"])), Vento = Textos(caps["vento"]), Visor = Booleano(caps["visor"]) == true };
             if (caps["temperatura"] is JsonObject temps)
                 foreach (var (modo, valor) in temps)
                 {
@@ -183,6 +186,7 @@ internal static class ContasAr
                 Alvo = Numero(e["alvo"]),
                 Sala = Numero(e["sala"]),
                 Vento = Texto(e["vento"]),
+                Visor = Booleano(e["visor"]),
                 Erro = Booleano(e["erro"]) == true,
             };
 
@@ -398,6 +402,7 @@ internal static class ContasAr
                 case "alvo" when valor is double d: e.Alvo = d; break;
                 case "alvo" when valor is int i: e.Alvo = i; break;
                 case "vento" when valor is string v: e.Vento = v; break;
+                case "visor" when valor is bool luz: e.Visor = luz; break;
             }
         return e;
     }
@@ -405,7 +410,7 @@ internal static class ContasAr
     // ------------------------------------------------------------------ comandos
 
     /// <summary>
-    /// O corpo do POST /api/comando. Só ligado, modo, alvo (inteiro, de 1 em 1 grau) e vento: qualquer outro campo
+    /// O corpo do POST /api/comando. Só ligado, modo, alvo (inteiro, de 1 em 1 grau), vento e visor: qualquer outro campo
     /// (o turbo, por exemplo) é recusado aqui, antes de sair da ilha.
     /// </summary>
     public static string MontarComando(IReadOnlyDictionary<string, object> campos)
@@ -417,7 +422,7 @@ internal static class ContasAr
             if (!campos.TryGetValue(campo, out var valor)) continue;
             o[campo] = (campo, valor) switch
             {
-                ("ligado", bool b) => JsonValue.Create(b),
+                ("ligado" or "visor", bool b) => JsonValue.Create(b),
                 ("modo" or "vento", string s) when s.Length > 0 => JsonValue.Create(s),
                 ("alvo", int i) => JsonValue.Create(i),
                 ("alvo", double d) when double.IsFinite(d) && Math.Abs(d - Math.Round(d)) < 1e-9 => JsonValue.Create((int)Math.Round(d)),

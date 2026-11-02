@@ -706,6 +706,9 @@ internal sealed class AtividadeAr : Atividade
     }
 
     private const float Y_TEMP = 82, Y_MODO = 136, Y_VENTO = 196, Y_AVISO = 254, ALTURA_PILULA = 30;
+    // the display light row sits where the notice was; the notice moves below it
+    private const float Y_VISOR = 254, ALTO_VISOR = 30, VISOR_AVISO = 44;
+    private static readonly RectangleF AreaVisor = new(0, Y_VISOR, L, ALTO_VISOR);
 
     private void MedirPilulas(Palco p, Capacidades caps)
     {
@@ -750,7 +753,8 @@ internal sealed class AtividadeAr : Atividade
     {
         var caps = _resumo!.Capacidades!;
         MedirPilulas(p, caps);
-        var c = p.NovaCena(new Vector2(L, Y_AVISO + 36));
+        float yAviso = caps.Visor ? Y_AVISO + VISOR_AVISO : Y_AVISO;
+        var c = p.NovaCena(new Vector2(L, yAviso + 36));
         var F = p.G.Fabrica;
         p.Desenho(c, Vector2.Zero, c.Tamanho, (dc, t) =>
         {
@@ -827,8 +831,10 @@ internal sealed class AtividadeAr : Atividade
             if (e.Vento != null && fimBarras > 0 && fimBarras + 70 < L)
                 p.Texto.Desenhar(dc, ContasAr.NomeVento(e.Vento), new Vector2(fimBarras + 10, Y_VENTO + 25), 12, Cor.Secundario, FontWeight.Normal, largura: L - fimBarras - 10);
 
+            if (caps.Visor) DrawDisplayRow(dc, p, F, e, ligado, corModo);
+
             var aviso = Aviso();
-            if (aviso != null) Paragrafo(dc, p, aviso.Value.Texto, new Vector2(0, Y_AVISO), 12, L, 2, aviso.Value.Erro ? Cor.Vermelho : Cor.Secundario);
+            if (aviso != null) Paragrafo(dc, p, aviso.Value.Texto, new Vector2(0, yAviso), 12, L, 2, aviso.Value.Erro ? Cor.Vermelho : Cor.Secundario);
         });
 
         BotaoChave(c);
@@ -847,7 +853,33 @@ internal sealed class AtividadeAr : Atividade
                 Area = r,
                 Acao = () => { if (NoCartao is { Ligado: true } e && e.Vento != v) Comandar("vento", v); },
             });
+        if (caps.Visor)
+            c.Botoes.Add(new Botao
+            {
+                Area = AreaVisor,
+                // like the site: the switch is locked while the AC is off
+                Acao = () => { if (NoCartao is { Ligado: true } e) Comandar("visor", e.Visor != true); },
+            });
         return c;
+    }
+
+    /// <summary>The "Display light" row: the display icon, the label and an on/off switch on the right.</summary>
+    private void DrawDisplayRow(ID2D1DeviceContext dc, Palco p, ID2D1Factory1 f, EstadoAr e, bool on, Color4 accent)
+    {
+        var r = AreaVisor;
+        float cy = r.Y + r.Height / 2;
+        bool lit = e.Visor == true;
+        bool pending = _fila.Pendente("visor") || _resumo?.Pendente.Contains("visor") == true;
+        float dim = on ? 1f : 0.4f;
+        IconesAr.Visor(dc, f, new Vector2(10, cy), Alfa(Cor.Branco, 0.85f * dim));
+        p.Texto.Desenhar(dc, Lang.T("Luz do visor", "Display light"), new Vector2(28, cy - 9), 13, Alfa(Cor.Branco, dim), largura: 200);
+
+        const float W = 44, H = 26;
+        float x = r.Right - W, y = cy - H / 2;
+        var track = lit ? Alfa(accent, (on ? 0.85f : 0.35f) * (pending ? 0.6f : 1f)) : Alfa(Cor.Fraco, on ? 1f : 0.6f);
+        Icone.Retangulo(dc, x, y, W, H, H / 2, track);
+        float knob = H - 6;
+        Icone.Circulo(dc, new Vector2(lit ? x + W - 3 - knob / 2 : x + 3 + knob / 2, cy), knob / 2, Alfa(Cor.Branco, on ? 1f : 0.55f));
     }
 
     public override void Dispose()
@@ -971,6 +1003,20 @@ internal static class IconesAr
             float cx = x + (12 + i * 5.5f) * s;
             Icone.Linha(dc, new Vector2(cx, y + 15.5f * s), new Vector2(cx + i * 1.6f * s, y + 21.5f * s), 1.8f * s, cor, f);
         }
+    }
+
+    /// <summary>The AC's display: a rounded panel with a digit and a dash, like the site's icon.</summary>
+    public static void Visor(ID2D1DeviceContext dc, ID2D1Factory1 f, Vector2 c, Color4 cor)
+    {
+        using var b = dc.CreateSolidColorBrush(cor);
+        dc.DrawRoundedRectangle(new RoundedRectangle(new RectangleF(c.X - 9, c.Y - 6, 18, 12), 3, 3), b, 1.6f);
+        // an "8"-ish digit box and a "7"-ish stroke
+        Icone.Linha(dc, new Vector2(c.X - 5, c.Y - 2.5f), new Vector2(c.X - 1, c.Y - 2.5f), 1.4f, cor, f);
+        Icone.Linha(dc, new Vector2(c.X - 5, c.Y + 2.5f), new Vector2(c.X - 1, c.Y + 2.5f), 1.4f, cor, f);
+        Icone.Linha(dc, new Vector2(c.X - 5, c.Y - 2.5f), new Vector2(c.X - 5, c.Y + 2.5f), 1.4f, cor, f);
+        Icone.Linha(dc, new Vector2(c.X - 1, c.Y - 2.5f), new Vector2(c.X - 1, c.Y + 2.5f), 1.4f, cor, f);
+        Icone.Linha(dc, new Vector2(c.X + 2, c.Y - 2.5f), new Vector2(c.X + 5.5f, c.Y - 2.5f), 1.4f, cor, f);
+        Icone.Linha(dc, new Vector2(c.X + 5.5f, c.Y - 2.5f), new Vector2(c.X + 5.5f, c.Y + 2.5f), 1.4f, cor, f);
     }
 
     /// <summary>Uma chave pequena (o botão de trocar a chave do servidor).</summary>

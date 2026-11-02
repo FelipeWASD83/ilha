@@ -52,6 +52,19 @@ internal static class TestesFones
     {
         var r = new Relatorio();
 
+        // ---- wired keyboards
+        r.Conferir("teclado: VID e PID do caminho da interface USB",
+            Keyboards.ParseIds(@"\\?\USB#VID_046D&PID_C336#135E32523532#{a5dcbf10-6530-11d2-901f-00c04fb951ed}") == (0x046D, 0xC336)
+            && Keyboards.ParseIds("sem id") == null);
+        r.Conferir("teclado: G213 pelo PID, com a foto dele", Keyboards.Match(0x046D, 0xC336, "G213") is { Name: "G213 Prodigy", Photo: "logitech-g213.png" });
+        r.Conferir("teclado: Huntsman V3 HE TKL pelo nome (PID ainda desconhecido)",
+            Keyboards.Match(0x1532, 0x0123, "Razer Huntsman V3 HE Magnetic Tenkeyless 8KHz") is { Name: "Huntsman V3 HE TKL", Photo: "razer-huntsman-v3-he-tkl.png" }
+            && Keyboards.Match(0x1532, 0x0456, "Razer Huntsman V3 HE TKL") is { Photo: "razer-huntsman-v3-he-tkl.png" });
+        r.Conferir("teclado: outro Huntsman fica sem a foto do HE TKL", Keyboards.Match(0x1532, 0x02A6, "Razer Huntsman V3 Pro") is { Name: "Huntsman V3 Pro", Photo: null });
+        r.Conferir("teclado: mouse, receptor e outra marca não contam",
+            Keyboards.Match(0x046D, 0xC547, "G502 X PLUS") == null && Keyboards.Match(0x1532, 0x00B7, "Razer Viper V3 Pro") == null
+            && Keyboards.Match(0x0951, 0xC336, "G213") == null);
+
         // ---- anúncio dos AirPods
         var a = AnuncioApple.Decodificar(Anuncio(0x2027, 0x2B, 0x98, 0x56), -50);
         r.Conferir("AirPods Pro 3 pelo modelo 0x2027", a?.Modelo == 0x2027 && ModelosApple.Nome(0x2027) == "AirPods Pro 3");
@@ -278,6 +291,12 @@ internal static class TestesFones
             var todos = GHubClient.ReadAll().GetAwaiter().GetResult();
             if (todos == null) { r.Sonda("G HUB: não respondeu (fechado?)"); return; }
             foreach (var d in todos) r.Sonda($"G HUB: {d.Name} ({d.Model}) {d.Percent}%{(d.Charging ? ", carregando" : "")}{(d.HoursLeft is double h ? $", ~{h:0.#} h" : "")}");
+        });
+        r.Tentar("teclados", () =>
+        {
+            var agora = Keyboards.PluggedNow();
+            if (agora.Count == 0) r.Sonda("teclados: nenhum conhecido conectado agora");
+            foreach (var (id, k) in agora) r.Sonda($"teclado conectado agora: {k.Name} ({id[..Math.Min(id.Length, 40)]}...)");
         });
         r.Tentar("fotos", () =>
         {

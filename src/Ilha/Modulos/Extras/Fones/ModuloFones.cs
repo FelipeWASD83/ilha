@@ -6,6 +6,7 @@ using System.Numerics;
 using System.Text.Json.Nodes;
 using System.Text.Json.Serialization;
 using System.Threading.Tasks;
+using Microsoft.Win32;
 using Vortice.DirectWrite;
 using Vortice.Mathematics;
 using Windows.Devices.Enumeration;
@@ -63,6 +64,11 @@ internal sealed class ModuloFones : Modulo
     private readonly Dictionary<string, Fone> _mice = new();
     private readonly HashSet<string> _tiles = new();
 
+    // wired keyboards (G213, Huntsman V3 HE TKL): the connected card when one is plugged in
+    private DeviceWatcher? _usbWatcher;
+    private readonly Dictionary<string, Fone> _keyboards = new();
+    private long _resumedAt = long.MinValue / 2;
+
     public override Type? TipoConfig => typeof(ConfigFones);
 
     protected override void Iniciar(JsonObject cfg)
@@ -75,6 +81,8 @@ internal sealed class ModuloFones : Modulo
         _bt = new VigiaBluetooth(BluetoothMudou);
         _bt.Iniciar();
         if (_cfg.G733) IniciarG733();
+        if (_cfg.Teclados) StartKeyboards();
+        SystemEvents.PowerModeChanged += PowerChanged;
         ProgramGHub();
     }
 
@@ -85,6 +93,8 @@ internal sealed class ModuloFones : Modulo
         _cfg = Ler<ConfigFones>(cfg);
         if (_cfg.G733 && !g733Antes) IniciarG733();
         else if (!_cfg.G733 && g733Antes) PararG733();
+        if (_cfg.Teclados && _usbWatcher == null) StartKeyboards();
+        else if (!_cfg.Teclados) StopKeyboards();
         if (_cfg.LimiaresBateria != niveisAntes) _alerts = new BatteryAlerts(BatteryAlerts.ParseLevels(_cfg.LimiaresBateria));
         ProgramarRajadas();
         ProgramGHub();
@@ -102,6 +112,8 @@ internal sealed class ModuloFones : Modulo
         _bt?.Dispose();
         _bt = null;
         PararG733();
+        StopKeyboards();
+        SystemEvents.PowerModeChanged -= PowerChanged;
         _apple.Clear();
         _mice.Clear();
         _vivos.Clear();
@@ -153,13 +165,13 @@ internal sealed class ModuloFones : Modulo
     /// <summary>Foto (e bateria do Windows) fora da interface; o alerta aparece quando ela fica pronta.</summary>
     private void PrepararEMostrar(Fone f, bool lerBateriaDoWindows)
     {
-        int px = Math.Max(1, (int)MathF.Round(CAIXA * S.Palco.Escala));
+        var (pw, ph) = CardPx(f);
         string? foto = f.Foto;
         ulong endereco = f.Endereco;
         float escala = S.Palco.Escala;
         Task.Run(() =>
         {
-            Retrato? r = foto == null ? null : FotoComContorno(foto, px, escala);
+            Retrato? r = foto == null ? null : FotoComContorno(foto, pw, ph, escala);
             int? bat = lerBateriaDoWindows && endereco != 0 ? NosPnp.BateriaDoAparelho(endereco) : null;
             S.NaInterface(() =>
             {
@@ -256,11 +268,11 @@ internal sealed class ModuloFones : Modulo
     private void TrocarFoto(Fone f, string foto)
     {
         f.Foto = foto;
-        int px = Math.Max(1, (int)MathF.Round(CAIXA * S.Palco.Escala));
+        var (pw, ph) = CardPx(f);
         float escala = S.Palco.Escala;
         Task.Run(() =>
         {
-            var r = FotoComContorno(foto, px, escala);
+            var r = FotoComContorno(foto, pw, ph, escala);
             if (r != null) S.NaInterface(() => { f.Retrato = r; Atualizar(f); });
         });
     }
@@ -346,6 +358,70 @@ internal sealed class ModuloFones : Modulo
             HideTile(g.Fone);
             _alerts.Forget("g733");
         }
+    }
+
+    // ------------------------------------------------------------------ wired keyboards
+
+    private void StartKeyboards()
+    {
+        if (_usbWatcher != null) return;
+        try
+        {
+            var w = DeviceInformation.CreateWatcher(Keyboards.UsbSelector, null, DeviceInformationKind.DeviceInterface);
+            bool enumerated = false;
+            w.Added += (_, d) => { bool initial = !enumerated; string id = d.Id, name = d.Name ?? ""; S.NaInterface(() => KeyboardAdded(id, name, initial)); };
+            w.Removed += (_, d) => { string id = d.Id; S.NaInterface(() => KeyboardRemoved(id)); };
+            w.EnumerationCompleted += (_, _) => enumerated = true;
+            w.Start();
+            _usbWatcher = w;
+        }
+        catch (Exception e) { Log.Escrever("fones: vigia de USB (teclados) não começou: " + e.Message); }
+    }
+
+    private void StopKeyboards()
+    {
+        if (_usbWatcher is { } w)
+            try { if (w.Status is DeviceWatcherStatus.Started or DeviceWatcherStatus.EnumerationCompleted) w.Stop(); } catch { }
+        _usbWatcher = null;
+        _keyboards.Clear();
+    }
+
+    // waking up re-enumerates USB: the keyboard that was there all along is not news
+    private void PowerChanged(object? sender, PowerModeChangedEventArgs e)
+    {
+        if (e.Mode == PowerModes.Resume) _resumedAt = Environment.TickCount64;
+    }
+
+    private void KeyboardAdded(string id, string name, bool initial)
+    {
+        if (_parado || !_cfg.Teclados || _keyboards.ContainsKey(id) || Keyboards.ParseIds(id) is not var (vid, pid)) return;
+        var k = Keyboards.Match(vid, pid, name);
+        // the Huntsman's product id was not known when this was written: the log keeps every Razer device's
+        if (vid == Keyboards.Razer || k != null)
+            Log.Escrever($"fones: USB {vid:X4}:{pid:X4} \"{name}\"{(k != null ? " = " + k.Name : "")}{(initial ? " (já estava)" : "")}");
+        if (k == null) return;
+        var f = new Fone { Chave = "usb:" + id, Nome = k.Name, Tipo = TipoAparelho.Teclado };
+        _keyboards[id] = f;
+        bool waking = Environment.TickCount64 - _resumedAt < 20_000;
+        if (initial || waking || Ignorado(k.Name) || Ignorado(name)) return;
+        f.Foto = KeyboardPhoto(k);
+        PrepararEMostrar(f, lerBateriaDoWindows: false);
+    }
+
+    private void KeyboardRemoved(string id)
+    {
+        if (_keyboards.Remove(id, out var f)) Log.Escrever($"fones: teclado {f.Nome} saiu");
+    }
+
+    /// <summary>The keyboard's own photo when it is in imagens/fones, else one from "fotos" in the config; never a guess by
+    /// brand (a "Razer" keyboard would take the Razer headset photo).</summary>
+    private string? KeyboardPhoto(KnownKeyboard k)
+    {
+        var files = Fotos.Arquivos();
+        if (k.Photo != null && files.Contains(k.Photo, StringComparer.OrdinalIgnoreCase)) return k.Photo;
+        foreach (var (part, file) in _cfg.Fotos)
+            if (part.Length > 0 && k.Name.Contains(part, StringComparison.OrdinalIgnoreCase) && files.Contains(file, StringComparer.OrdinalIgnoreCase)) return file;
+        return null;
     }
 
     // ------------------------------------------------------------------ G HUB (mouse and exact G733 percentage)
@@ -442,7 +518,7 @@ internal sealed class ModuloFones : Modulo
         float escala = S.Palco.Escala;
         Task.Run(() =>
         {
-            var r = FotoComContorno(foto, px, escala);
+            var r = FotoComContorno(foto, px, px, escala);
             if (r != null) S.NaInterface(() => { f.RetratoMenu = r; S.Menu.Redesenhar(); });
         });
     }
@@ -477,8 +553,16 @@ internal sealed class ModuloFones : Modulo
     /// A device photo fitted into `px` with a thin light gray outline that follows its shape, so a black device still
     /// shows on the black island (the connected card and the menu). Runs off the interface thread.
     /// </summary>
-    private static Retrato? FotoComContorno(string foto, int px, float escala) =>
-        Retrato.DeArquivo(Path.Combine(Fotos.Pasta, foto), px, px, recortar: true)?.ComContorno(Math.Max(1, (int)MathF.Round(1.0f * escala)), 215, 0.5f);
+    private static Retrato? FotoComContorno(string foto, int w, int h, float escala) =>
+        Retrato.DeArquivo(Path.Combine(Fotos.Pasta, foto), w, h, recortar: true)?.ComContorno(Math.Max(1, (int)MathF.Round(1.0f * escala)), 215, 0.5f);
+
+    /// <summary>The photo's box on the card (DIP): square, or wider for a keyboard.</summary>
+    private static float CardBox(Fone f) => f.Tipo == TipoAparelho.Teclado ? KEYBOARD_BOX : CAIXA;
+
+    private (int W, int H) CardPx(Fone f) =>
+        (Math.Max(1, (int)MathF.Round(CardBox(f) * S.Palco.Escala)), Math.Max(1, (int)MathF.Round(CAIXA * S.Palco.Escala)));
+
+    private const float KEYBOARD_BOX = 76;
 
     /// <summary>The photo's box (DIP); the outline adds a little around it.</summary>
     private const float PHOTO = 46;
@@ -597,12 +681,12 @@ internal sealed class ModuloFones : Modulo
         if (f.Retrato != null) { Show(); return; }
         f.Foto ??= EscolherFoto(f);
         if (f.Foto == null) { Show(); return; }
-        int px = Math.Max(1, (int)MathF.Round(CAIXA * S.Palco.Escala));
+        var (pw, ph) = CardPx(f);
         string foto = f.Foto;
         float escala = S.Palco.Escala;
         Task.Run(() =>
         {
-            var r = FotoComContorno(foto, px, escala);
+            var r = FotoComContorno(foto, pw, ph, escala);
             S.NaInterface(() => { if (r != null) f.Retrato = r; Show(); });
         });
     }
@@ -665,11 +749,11 @@ internal sealed class ModuloFones : Modulo
                 _vivos.Add((s, f));
                 if (f.Retrato == null && (f.Foto ??= EscolherFoto(f)) is string foto)
                 {
-                    int px = Math.Max(1, (int)MathF.Round(CAIXA * S.Palco.Escala));
+                    var (pw, ph) = CardPx(f);
                     float escala = S.Palco.Escala;
                     Task.Run(() =>
                     {
-                        var r = FotoComContorno(foto, px, escala);
+                        var r = FotoComContorno(foto, pw, ph, escala);
                         if (r != null) S.NaInterface(() => { f.Retrato = r; Atualizar(f); });
                     });
                 }
@@ -712,13 +796,14 @@ internal sealed class ModuloFones : Modulo
         if (f.Retrato != null)
         {
             var tam = f.Retrato.TamanhoDip(p.Escala);
-            f.Retrato.Desenhar(dc, p.Escala, (CAIXA - tam.X) / 2, (t.Y - tam.Y) / 2);
+            f.Retrato.Desenhar(dc, p.Escala, (CardBox(f) - tam.X) / 2, (t.Y - tam.Y) / 2);
         }
         else
         {
             Icone.Retangulo(dc, 4, (t.Y - 44) / 2, 44, 44, 13, Cor.Fraco);
             var centro = new Vector2(26, t.Y / 2);
             if (f.Tipo == TipoAparelho.Controle) Desenhos.Controle(dc, F, centro, 28, Cor.Branco);
+            else if (f.Tipo == TipoAparelho.Teclado) Desenhos.Teclado(dc, F, centro, 30, Cor.Branco);
             else if (f.Tipo == TipoAparelho.Fone) Desenhos.Fone(dc, F, centro, 28, Cor.Branco);
             else if (f.Tipo == TipoAparelho.Mouse) Desenhos.Mouse(dc, F, centro, 28, Cor.Branco);
             else Desenhos.Bluetooth(dc, F, centro, 24, Cor.Azul);
@@ -732,9 +817,11 @@ internal sealed class ModuloFones : Modulo
         var partes = Partes(f.BateriaApple, f.Bateria, f.Carregando, f.G733 && !f.PorGHub);
         const float PASSO = 42;
         float larguraPartes = partes.Count * PASSO;
-        float x0 = 64, largura = t.X - x0 - larguraPartes - 6;
+        bool keyboard = f.Tipo == TipoAparelho.Teclado;
+        float x0 = keyboard && f.Retrato != null ? CardBox(f) + 12 : 64, largura = t.X - x0 - larguraPartes - 6;
         p.Texto.Desenhar(dc, f.G733 ? Lang.T("G733 conectado", "G733 connected") : f.Nome, new Vector2(x0, 9), 16, Cor.Branco, largura: largura);
-        p.Texto.Desenhar(dc, Subtitulo(f.Apple, f.G733 && !f.PorGHub, f.BateriaApple, f.Carregando), new Vector2(x0, 33), 12.5f, Cor.Secundario, FontWeight.Normal, largura: largura);
+        string sub = keyboard ? Lang.T("Teclado conectado", "Keyboard connected") : Subtitulo(f.Apple, f.G733 && !f.PorGHub, f.BateriaApple, f.Carregando);
+        p.Texto.Desenhar(dc, sub, new Vector2(x0, 33), 12.5f, Cor.Secundario, FontWeight.Normal, largura: largura);
         for (int i = 0; i < partes.Count; i++)
         {
             var (rotulo, pct, carregando) = partes[i];
@@ -802,6 +889,10 @@ public sealed class ConfigFones
     [Label("Bateria no menu", "Battery in the menu")]
     [Help("Cada aparelho ligado aparece no menu principal com a bateria", "Each connected device shows up in the main menu with its battery")]
     [JsonPropertyName("bateriaNoMenu")] public bool BateriaNoMenu { get; set; } = true;
+    [Label("Teclados com fio", "Wired keyboards")]
+    [Help("Mostra o teclado quando ele é conectado (Logitech G213 e Razer Huntsman V3 HE TKL)",
+        "Shows the keyboard when it is plugged in (Logitech G213 and Razer Huntsman V3 HE TKL)")]
+    [JsonPropertyName("teclados")] public bool Teclados { get; set; } = true;
     [Label("Intervalo do G HUB (segundos)", "G HUB interval (seconds)")]
     [JsonPropertyName("intervaloGHubSegundos")] public int IntervaloGHubSegundos { get; set; } = 60;
 }

@@ -30,6 +30,9 @@ download their own.
 | `nothing-ear.png` | Nothing Ear, black (open case with the earbuds) | official store us.nothing.tech (files on its Shopify CDN), `cdn.shopify.com/s/files/1/0579/8091/1768/files/0000s_0024_Ear-black.png` |
 | `g502-x-plus-preto.png`, `g502-x-plus-roxo.png`, `g502-x-plus-branco.png`, `g502-x-plus-menta.png` | Logitech G502 X PLUS: black, black and purple, white, white and mint | Logitech G, `resource.logitechg.com/c_fill,q_auto,f_auto,dpr_1.0/d_transparent.gif/content/dam/gaming/en/products/g502x-plus/2026-update/gallery/g502-x-plus-top-angle-<black\|black-purple\|white\|white-mint>-gallery-1.png (the straight view from above)` (product page `logitechg.com/en-us/shop/p/g502-x-plus-wireless-lightforce`), downloaded on 01/11/2026 and cropped to the mouse, at most 1200 px |
 
+| `logitech-g213.png` | Logitech G213 Prodigy, black (seen from above) | Logitech G, `resource.logitechg.com/w_1600,c_limit,q_auto,f_png,dpr_1.0/d_transparent.gif/content/dam/gaming/en/non-braid/g213-finch/g213-gallery-1-nb.png` (product page `logitechg.com/en-us/shop/p/g213-rgb-gaming-keyboard.920-008083`), downloaded on 02/11/2026 and cropped to the keyboard, 1200×732 |
+| `razer-huntsman-v3-he-tkl.png` | Razer Huntsman V3 HE Magnetic Tenkeyless 8KHz, black (seen from above) | Razer, `medias-p1.phoenix.razer.com/sys-master-phoenix-images-container/h85/h2c/10362342113310/260908-huntsman-v3-he-mag-tkl-8k-1500x1000-5.jpg` (page `razer.com/gaming-keyboards/razer-huntsman-v3-he-magnetic-8khz/RZ03-05920200-R3U1`), downloaded on 02/11/2026; the JPG has a flat dark gray background (17,17,17), cut out here by flood fill from the edges, 872×424 |
+
 AirPods and G733 with a transparent background (AirPods 1000×1000, Pro 2 960×960, G733 1000×750).
 
 The other brands (downloaded on 01/11/2026) all have a transparent background, except

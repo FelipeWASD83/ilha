@@ -1,5 +1,16 @@
 # Changelog
 
+## 1.7.0 (02/11/2026)
+
+**New**
+- Wired keyboards: plugging in the Logitech G213 or the Razer Huntsman V3 HE TKL shows its card with the photo and
+  "Keyboard connected" (no battery, they are wired). "Wired keyboards" in the settings turns it off.
+- Caps Lock on the island: a short notice with the key symbol when it turns on (green) and when it turns off, for
+  keyboards without the light (the Huntsman V3 HE TKL has none). It is the new Caps Lock module, which can be turned
+  off, and "Also show when it turns off" can be unchecked.
+- The air conditioner card has a "Display light" switch, to turn the light on the unit's display on and off (only
+  with the air on, like on the site, and only if the unit allows it).
+
 ## 1.6.1 (02/11/2026)
 
 **Changed**
