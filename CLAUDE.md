@@ -388,6 +388,11 @@ hook with Claude Code calling it, hover and click with the real mouse.
 
 ## Traps
 
+- **Rebuilding the tree (`Reposicionar(forcar: true)`, 1.7.1):** `Desmontar` sets `_alvo.Root = null` before closing
+  the old root. With the closed root still on the target, `Root = new` failed with E_INVALIDARG and every later
+  `Aplicar` hit closed objects: until 1.7.0, switching notch style, size, shadow, border, offsets or language with the
+  island open left it broken until a restart (every successful mount in the log was a fresh start). Checked on
+  02/11/2026 by switching notch on, off and on again with the island open: no error, both shapes right.
 - **One `[ComImport]` class per COM object for the whole process.** `MMDeviceEnumerator` returns the same object for
   the whole process; with one class per module (media and volume had one each), .NET wraps it with the first one and
   the `new` of the other fails on the cast (the media visualizer froze). Create it through

@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.7.1 (02/11/2026)
+
+**Fixed**
+- Switching notch style on or off with the island open broke it: it stopped updating and kept failing until it was
+  closed and opened again. The same happened when changing the size, the shadow, the border, the position or the
+  language in the settings. Now the island rebuilds itself in place.
+
 ## 1.7.0 (02/11/2026)
 
 **New**

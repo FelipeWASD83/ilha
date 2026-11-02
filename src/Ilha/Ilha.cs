@@ -613,7 +613,11 @@ internal sealed class Ilha : IDisposable
         _saindo.Clear();
         foreach (var s in _fixas) s.Dispose();
         _fixas.Clear();
+        // the target lets go of the old root before it is closed: a closed root left on it made the next
+        // Root = new one fail with E_INVALIDARG, and the island kept animating the closed tree (toggling notch style)
+        if (_alvo != null) _alvo.Root = null;
         _raiz?.Dispose();
+        _raiz = null!;
         _ombros.Clear();
         _ultimoPlano = default;
     }
