@@ -47,6 +47,13 @@ internal static class Logica
         return r.ToString("0.0", Lang.Culture) + " dB";
     }
 
+    /// <summary>
+    /// The menu's tall slider, dragged like the iPhone's: from the level it had, moving up by how far the pointer went
+    /// up over the tile's height (the whole height = 0 to 100%).
+    /// </summary>
+    public static float Arrastado(float inicio, float subiu, float altura) =>
+        float.IsFinite(inicio + subiu) ? Math.Clamp(inicio + subiu / Math.Max(1f, altura), 0f, 1f) : inicio;
+
     /// <summary>A rodinha: `passo`% por dente (120), andando na grade do passo para não ficar em 63% e 65%.</summary>
     public static float Rolar(float atual, int delta, int passo)
     {

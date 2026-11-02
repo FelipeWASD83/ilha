@@ -116,6 +116,47 @@ internal static class Bitmaps
         dc.DrawBitmap(bmp, new Vortice.RawRectF(x, y, x + w, y + h), 1f, mode, null);
 }
 
+/// <summary>
+/// The iPhone battery with the number inside: a gray track filled from the left in green, yellow (50% and below) or red
+/// (25% and below), always green while charging. The number is dark over the fill and white over the empty part.
+/// </summary>
+internal static class BatteryPill
+{
+    public const float W = 34, H = 16, NUB = 2.5f;
+    /// <summary>The whole width, the little cap on the right included.</summary>
+    public const float Total = W + 1 + NUB;
+
+    private static readonly Color4 Green = new(0.2f, 0.78f, 0.35f, 1f);
+    private static readonly Color4 Yellow = new(1f, 0.8f, 0f, 1f);
+    private static readonly Color4 Red = new(1f, 0.23f, 0.19f, 1f);
+
+    public static Color4 Color(int level, bool charging) => charging || level > 50 ? Green : level > 25 ? Yellow : Red;
+
+    public static void Draw(ID2D1DeviceContext dc, Palco p, float x, float y, int? level, bool charging)
+    {
+        const float r = 5f, size = 11f;
+        Icone.Retangulo(dc, x + W + 1, y + H / 2 - 3, NUB, 6, 1.2f, new Color4(1, 1, 1, 0.35f));
+        Icone.Retangulo(dc, x, y, W, H, r, new Color4(1, 1, 1, 0.24f));
+        string text = level is int lv ? Math.Clamp(lv, 0, 100).ToString() : "–";
+        var m = p.Texto.Medir(text, size, FontWeight.Bold, tabular: true);
+        var pos = new Vector2(x + (W - m.X) / 2, y + (H - m.Y) / 2 - 0.5f);
+        float full = level is int v ? W * Math.Clamp(v, 0, 100) / 100f : 0;
+        if (full > 0)
+        {
+            dc.PushAxisAlignedClip(new System.Drawing.RectangleF(x, y, full, H), AntialiasMode.PerPrimitive);
+            Icone.Retangulo(dc, x, y, W, H, r, Color(level!.Value, charging));
+            p.Texto.Desenhar(dc, text, pos, size, new Color4(0, 0, 0, 0.88f), FontWeight.Bold, tabular: true);
+            dc.PopAxisAlignedClip();
+        }
+        if (full < W)
+        {
+            dc.PushAxisAlignedClip(new System.Drawing.RectangleF(x + full, y - 2, W - full + 1, H + 4), AntialiasMode.PerPrimitive);
+            p.Texto.Desenhar(dc, text, pos, size, Cor.Branco, FontWeight.Bold, tabular: true);
+            dc.PopAxisAlignedClip();
+        }
+    }
+}
+
 /// <summary>Ícones simples desenhados em Direct2D (sem arquivo de imagem).</summary>
 internal static class Icone
 {

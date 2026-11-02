@@ -83,6 +83,9 @@ internal static class AutotesteLimite
         Ok(!l.Validas(T0 + 86400).Any() && TextoDoUso.Detalhe(l, T0 + 86400) == null && l.ProximoReset(T0 + 86400) == null, "as duas venceram: nada no menu e nenhum relógio");
         Ok(TextoDoUso.Detalhe(null, T0) == null, "sem arquivo: nada no menu");
         Ok(TextoDoUso.Detalhe(LeituraDoUso.Ler(Arquivo(T0, null, "{\"used_percentage\": 7.6}"), 0), T0) == "sem. 8%", "só a semanal: sem. 8%");
+        Ok(TextoDoUso.MaisApertada(l, T0 + 10)?.Porcentagem == 34 && TextoDoUso.MaisApertada(Exemplo(p5: 4, p7: 68), T0 + 10)?.Porcentagem == 68
+            && TextoDoUso.MaisApertada(l, T0 + 3600)?.Porcentagem == 12 && TextoDoUso.MaisApertada(l, T0 + 86400) == null && TextoDoUso.MaisApertada(null, T0) == null,
+            "menu ring: the window closer to its limit (4% session, 68% week: 68%), the one left after a reset, none when both ended");
     }
 
     private static void Textos()

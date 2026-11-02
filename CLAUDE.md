@@ -182,9 +182,18 @@ and the points that matter are here.
   island); test it with the cursor parked over the island, which is the real case.
 - **Battery tiles (1.2.0):** `bateria:<key>` items in the main menu (owner `fones`), shown while the device is on (G733
   by HID++), connected (AirPods) or listed by G HUB (mouse), removed when it goes; `bateriaNoMenu` turns them off.
-  Since 1.3.1 they are `Footer` items: the menu draws them right-aligned in a row under the grid (photo in a gray-ringed
-  circle plus an iPhone-style battery from `Level`/`Charging`, green above 50, yellow, red at 25 and below), not as
-  tiles; the AirPods show their emptier bud.
+  Since 1.4.0 they are one tile, `baterias` (1x1 with one device, 2x2 with more, one device per line, up to 4), drawn
+  by the module with `BatteryPill` (`Desenho.cs`: green above 50, yellow, red at 25 and below, green while charging);
+  each line is a `Parts` area that opens its device. The AirPods show their emptier bud.
+- **Main menu (1.4.0, `Menu.cs`):** iPhone Control Center style, decided with him on 02/11/2026 from his mockup. An
+  `ItemDoMenu` has a size (`Cols` x `Rows`), and `Menu.Pack` puts each tile in the first free spot of the 4-column grid,
+  in `Ordem` (a later small tile fills an earlier hole). `Draw` replaces icon and name (sound slider, batteries),
+  `Drag` and `Wheel` act on the tile (the wheel reaches the card through `Atividade.Rolar(delta, noCartao)` with the
+  last mouse position), `Parts` are clickable areas inside it, `Corner` puts the entry as a round button in the top
+  right (settings), `IconSize` grows the icon (the limit ring) and `DetailSwatch` puts a color dot before the detail.
+  The tiles' radius (`RAIO_BLOCO`, 20) plus the card padding (18) is the radius of every expanded card, so the corners
+  are concentric. With his modules on 02/11/2026 the grid has 5 rows: twelve 1x1 tiles, then Sound (1x2), Translator
+  and Batteries (2x2), which leaves one empty cell under Translator.
 - **ALTURA_MAX (640 DIP)** bounds the shape visuals of the island: a card taller than it loses the bottom of its body.
 - **Low battery alerts (1.1.0, `BatteryAlerts.cs`, `GHub.cs`, `ModuloFones.cs`):** a level (50, 25, 10, 5, 1 by
   default, `limiaresBateria` in the settings) fires when a reading goes from above it to at or below it, once per level

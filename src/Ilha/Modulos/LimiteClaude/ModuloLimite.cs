@@ -45,9 +45,12 @@ internal sealed class ModuloLimite : Modulo
             Id = "limite",
             // a célula do menu tem 76 DIP de texto: "Limite do Claude" não caberia sem reticências
             Nome = Lang.T("Limite", "Limit"),
+            // where the sound tile was: the sound moved down to the bottom, as a tall slider
+            Ordem = 30,
             Abrir = () => S.Ilha.Expandir(atv),
-            Icone = (dc, palco, r) => atv.Anel(dc, palco, new Vector2(r.X + r.Width / 2, r.Y + r.Height / 2), r.Width / 2 - 2, 3f),
-            Detalhe = () => TextoDoUso.Detalhe(_leitura, AtividadeLimite.Agora()),
+            // the number goes inside the ring, so the tile has no detail line
+            IconSize = 32,
+            Icone = (dc, palco, r) => atv.Anel(dc, palco, new Vector2(r.X + r.Width / 2, r.Y + r.Height / 2), r.Width / 2 - 1.5f, 3f),
         });
         _ler.Tick += (_, _) => Carregar();
         _reset.Tick += (_, _) => { _reset.Stop(); Mostrar(); };

@@ -75,16 +75,89 @@ internal sealed class ModuloVolume : Modulo
         {
             Id = "volume",
             Nome = Lang.T("Som", "Sound"),
-            Ordem = 30,
+            // a tall slider like the iPhone's, at the bottom of the menu
+            Ordem = 70, Rows = 2,
             Abrir = AbrirCartao,
-            Icone = (dc, p, r) =>
-            {
-                bool mudo = _audio?.Mudo ?? false;
-                Desenhos.AltoFalante(dc, p.G.Fabrica, new Vector2(r.X, r.Y), r.Width / 24f, Cor.Branco, Logica.Ondas(_audio?.Escala ?? 0, mudo), mudo);
-            },
-            Detalhe = DetalheDoMenu,
+            Draw = DesenharNoMenu,
+            Drag = ArrastarNoMenu,
+            Wheel = RolarNoMenu,
         });
         _detalheMenu = DetalheDoMenu();
+    }
+
+    // ---------------------------------------------------------------- the menu's slider
+
+    private float _arrasteY, _arrasteNivel;
+    private bool _arrastando, _arrasteMoveu;
+
+    /// <summary>
+    /// Fills white from the bottom up to the volume (gray when muted), with the speaker and the number near the bottom:
+    /// dark over the fill, white over the empty part.
+    /// </summary>
+    private void DesenharNoMenu(Vortice.Direct2D1.ID2D1DeviceContext dc, Palco p, System.Drawing.RectangleF r)
+    {
+        var a = _audio;
+        bool tem = a is { TemAparelho: true }, mudo = a?.Mudo ?? false;
+        float nivel = tem ? a!.Escala : 0;
+        float topo = r.Bottom - r.Height * nivel;
+        var cheio = new System.Drawing.RectangleF(r.X, topo, r.Width, r.Bottom - topo);
+        if (cheio.Height > 0.5f)
+        {
+            dc.PushAxisAlignedClip(cheio, Vortice.Direct2D1.AntialiasMode.PerPrimitive);
+            Icone.Retangulo(dc, r.X, r.Y, r.Width, r.Height, Menu.RAIO_BLOCO, mudo ? new Vortice.Mathematics.Color4(1, 1, 1, 0.45f) : Cor.Branco);
+            Conteudo(dc, p, r, new Vortice.Mathematics.Color4(0, 0, 0, 0.82f), mudo);
+            dc.PopAxisAlignedClip();
+        }
+        dc.PushAxisAlignedClip(new System.Drawing.RectangleF(r.X, r.Y, r.Width, topo - r.Y), Vortice.Direct2D1.AntialiasMode.PerPrimitive);
+        Conteudo(dc, p, r, Cor.Branco, mudo);
+        dc.PopAxisAlignedClip();
+    }
+
+    private void Conteudo(Vortice.Direct2D1.ID2D1DeviceContext dc, Palco p, System.Drawing.RectangleF r, Vortice.Mathematics.Color4 cor, bool mudo)
+    {
+        const float ICONE = 26;
+        Desenhos.AltoFalante(dc, p.G.Fabrica, new Vector2(r.X + (r.Width - ICONE) / 2, r.Bottom - 52), ICONE / 24f, cor,
+            Logica.Ondas(_audio?.Escala ?? 0, mudo), mudo);
+        string texto = DetalheDoMenu() ?? "";
+        var m = p.Texto.Medir(texto, 11, Vortice.DirectWrite.FontWeight.SemiBold, tabular: true);
+        p.Texto.Desenhar(dc, texto, new Vector2(r.X + (r.Width - m.X) / 2, r.Bottom - 22), 11, cor, Vortice.DirectWrite.FontWeight.SemiBold, tabular: true);
+    }
+
+    /// <summary>Relative, like the iPhone: the level moves with the finger from where it was; a tap changes nothing.</summary>
+    private void ArrastarNoMenu(Vector2 pos, System.Drawing.SizeF tamanho, bool soltou)
+    {
+        if (_audio is not { TemAparelho: true } a) return;
+        if (!_arrastando)
+        {
+            _arrastando = true;
+            _arrasteMoveu = false;
+            _arrasteY = pos.Y;
+            _arrasteNivel = a.Escala;
+        }
+        // the dead zone only guards a tap: once it moved, coming back to the starting point gives the starting level
+        _arrasteMoveu |= MathF.Abs(pos.Y - _arrasteY) > 2;
+        float nivel = Logica.Arrastado(_arrasteNivel, _arrasteY - pos.Y, tamanho.Height);
+        if (_arrasteMoveu && MathF.Abs(nivel - a.Escala) > 0.001f)
+        {
+            a.DefinirEscala(nivel);
+            if (a.Mudo && nivel > 0) a.DefinirMudo(false);
+        }
+        if (soltou) _arrastando = false;
+    }
+
+    private int _rodaMenu;
+
+    /// <summary>The wheel over the slider: the same step as over the island, without popping the volume pill over the menu.</summary>
+    private bool RolarNoMenu(int delta)
+    {
+        if (_audio is not { TemAparelho: true } a) return false;
+        _rodaMenu += delta;
+        int dentes = _rodaMenu / 120;
+        if (dentes == 0) return true;
+        _rodaMenu -= dentes * 120;
+        if (dentes > 0 && a.Mudo) a.DefinirMudo(false);
+        a.DefinirEscala(Logica.Rolar(a.Escala, dentes * 120, _cfg.PassoRolar));
+        return true;
     }
 
     public override void ConfigMudou(JsonObject cfg)
@@ -199,6 +272,9 @@ internal sealed class ModuloVolume : Modulo
         Conferir(Logica.Porcentagem(1.3f) == 100 && Logica.Porcentagem(-0.2f) == 0 && Logica.Porcentagem(float.NaN) == 0, "porcentagem presa entre 0 e 100 (e NaN vira 0)");
         Conferir(Logica.Porcentagem(0.333f) == 33 && Logica.Porcentagem(0.996f) == 100, "porcentagem arredonda como o Windows");
         Conferir(Perto(Logica.Escala(64), 0.64f) && Logica.Escala(150) == 1f && Logica.Escala(-3) == 0f, "porcentagem para escala");
+        Conferir(Perto(Logica.Arrastado(0.25f, 70, 140), 0.75f) && Perto(Logica.Arrastado(0.25f, -14, 140), 0.15f)
+            && Logica.Arrastado(0.9f, 100, 140) == 1f && Logica.Arrastado(0.1f, -100, 140) == 0f && Logica.Arrastado(0.4f, float.NaN, 140) == 0.4f,
+            "menu slider: relative to where it was, the whole height is 0 to 100%, held at the ends");
 
         // decibéis
         Conferir(Perto(Logica.Amplitude(0f), 1f) && Perto(Logica.Amplitude(-6.0206f), 0.5f, 0.001f) && Perto(Logica.Amplitude(-20f), 0.1f, 0.0001f), "dB para amplitude");

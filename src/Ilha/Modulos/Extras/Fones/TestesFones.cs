@@ -75,9 +75,17 @@ internal static class TestesFones
         r.Conferir("footer: the emptier AirPod, the case when no bud was read, else the battery",
             ModuloFones.FooterLevel(a, null) == 80 && ModuloFones.FooterLevel(real! with { Esquerdo = null, Direito = null, Estojo = 40 }, null) == 40
             && ModuloFones.FooterLevel(null, 48) == 48 && ModuloFones.FooterLevel(null, null) == null);
-        r.Conferir("footer: green above 50, yellow to 26, red at 25, green while charging",
-            Menu.BatteryColor(51, false).G > 0.7f && Menu.BatteryColor(50, false).R == 1f && Menu.BatteryColor(50, false).G == 0.8f
-            && Menu.BatteryColor(25, false).G < 0.3f && Menu.BatteryColor(5, true).Equals(Menu.BatteryColor(90, false)));
+        r.Conferir("battery: green above 50, yellow to 26, red at 25, green while charging",
+            BatteryPill.Color(51, false).G > 0.7f && BatteryPill.Color(50, false).R == 1f && BatteryPill.Color(50, false).G == 0.8f
+            && BatteryPill.Color(25, false).G < 0.3f && BatteryPill.Color(5, true).Equals(BatteryPill.Color(90, false)));
+        r.Conferir("batteries tile: 1 device 1x1, 2 or more 2x2",
+            ModuloFones.TileSize(1) == (1, 1) && ModuloFones.TileSize(2) == (2, 2) && ModuloFones.TileSize(5) == (2, 2));
+        var two = ModuloFones.TileSlots(2, new System.Drawing.SizeF(176, 140));
+        var lines = ModuloFones.TileSlots(5, new System.Drawing.SizeF(176, 140));
+        r.Conferir("batteries tile: the whole tile for one, lines for more (up to 4) inside the tile",
+            ModuloFones.TileSlots(1, new(84, 66)) is [{ X: 0, Y: 0, Width: 84, Height: 66 }]
+            && two.Count == 2 && two[0].Y == 8 && Math.Abs(two[1].Bottom - 132) < 0.01f
+            && lines.Count == 4 && Math.Abs(lines[3].Bottom - 132) < 0.01f && ModuloFones.TileSlots(0, new(84, 66)).Count == 0);
 
         // ---- G733
         r.Conferir("curva: 3520 mV dá ~11%", CurvaG733.Porcentagem(3520) == 11, CurvaG733.Porcentagem(3520)?.ToString() ?? "null");

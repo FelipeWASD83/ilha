@@ -105,8 +105,9 @@ internal sealed class ModuloFones : Modulo
         _apple.Clear();
         _mice.Clear();
         _vivos.Clear();
-        // the core removes the tiles with the module (they carry its id as owner)
+        // the core removes the tile with the module (it carries its id as owner)
         _tiles.Clear();
+        _shown.Clear();
     }
 
     private bool Ignorado(string nome) => _cfg.Ignorar.Any(i => !string.IsNullOrWhiteSpace(i) && nome.Contains(i.Trim(), StringComparison.OrdinalIgnoreCase));
@@ -417,27 +418,24 @@ internal sealed class ModuloFones : Modulo
         FeedAlert(f, f.Chave, d.Percent, d.Charging, coarse: false);
     }
 
-    // ------------------------------------------------------------------ battery tiles in the main menu
+    // ------------------------------------------------------------------ the batteries tile in the main menu
 
-    /// <summary>The device's tile in the main menu (photo, short name, battery); a later call only redraws it.</summary>
+    private const string TILE_ID = "baterias";
+    /// <summary>The devices in the batteries tile (on, connected or listed by G HUB), mouse first.</summary>
+    private readonly List<Fone> _shown = new();
+
+    /// <summary>The device enters the menu's batteries tile (photo and iPhone-style battery); a later call only redraws.</summary>
     private void ShowTile(Fone f)
     {
         if (!_cfg.BateriaNoMenu || _parado) return;
-        string id = "bateria:" + f.Chave;
-        if (!_tiles.Add(id)) { S.Menu.Redesenhar(); return; }
-        S.Menu.Adicionar(new ItemDoMenu
-        {
-            Id = id, Dono = "fones", Nome = MenuName(f), Ordem = 90, Footer = true,
-            Abrir = () => Mostrar(f, doMenu: true),
-            Icone = (dc, p, r) => DrawTileIcon(dc, p, r, f),
-            Detalhe = () => MenuDetail(f.BateriaApple, f.Bateria, f.Carregando),
-            Level = () => FooterLevel(f.BateriaApple, f.Bateria),
-            Charging = () => f.Carregando,
-        });
+        if (_shown.Contains(f)) { S.Menu.Redesenhar(); return; }
+        _shown.Add(f);
+        _tiles.Add(f.Chave);
+        UpdateTile();
         if (f.RetratoMenu != null) return;
         f.Foto ??= EscolherFoto(f);
         if (f.Foto == null) return;
-        int px = Math.Max(1, (int)MathF.Round(TILE * S.Palco.Escala));
+        int px = Math.Max(1, (int)MathF.Round(PHOTO * S.Palco.Escala));
         string foto = f.Foto;
         Task.Run(() =>
         {
@@ -448,23 +446,95 @@ internal sealed class ModuloFones : Modulo
 
     private void HideTile(Fone f)
     {
-        string id = "bateria:" + f.Chave;
-        if (_tiles.Remove(id)) S.Menu.Remover(id);
+        if (!_shown.Remove(f)) return;
+        _tiles.Remove(f.Chave);
+        UpdateTile();
     }
 
-    /// <summary>The photo's box inside the footer circle (DIP).</summary>
-    private const float TILE = 23;
+    /// <summary>One tile for all the devices; its size follows how many there are (the menu repacks when it changes).</summary>
+    private void UpdateTile()
+    {
+        _shown.Sort((a, b) => a.Mouse != b.Mouse ? (a.Mouse ? -1 : 1) : string.Compare(MenuName(a), MenuName(b), StringComparison.CurrentCulture));
+        if (_shown.Count == 0) { S.Menu.Remover(TILE_ID); return; }
+        var (cols, rows) = TileSize(_shown.Count);
+        S.Menu.Adicionar(new ItemDoMenu
+        {
+            Id = TILE_ID, Dono = "fones", Nome = Lang.T("Baterias", "Batteries"), Ordem = 90, Cols = cols, Rows = rows,
+            Abrir = () => { if (_shown.Count > 0) Mostrar(_shown[0], doMenu: true); },
+            Draw = DrawTile,
+            Parts = size => TileSlots(_shown.Count, size).Select((slot, i) =>
+            {
+                var f = _shown[i];
+                return (slot, (Action)(() => Mostrar(f, doMenu: true)));
+            }).ToList(),
+        });
+    }
 
-    /// <summary>One number for the footer battery: the emptier AirPod (the case when no bud was read), else the battery.</summary>
+    /// <summary>The photo's box (DIP).</summary>
+    private const float PHOTO = 32;
+
+    /// <summary>
+    /// One device: a 1x1 tile; two or more: 2x2, one per line. (2x1 with two side by side left three empty cells next
+    /// to the tall sound slider; 2x2 leaves one.)
+    /// </summary>
+    internal static (int Cols, int Rows) TileSize(int devices) => devices <= 1 ? (1, 1) : (2, 2);
+
+    /// <summary>Where each device goes inside the tile (relative to it): the whole tile, or lines from the top (up to 4).</summary>
+    internal static List<System.Drawing.RectangleF> TileSlots(int devices, System.Drawing.SizeF size)
+    {
+        var slots = new List<System.Drawing.RectangleF>();
+        if (devices <= 0) return slots;
+        if (devices == 1)
+        {
+            slots.Add(new(0, 0, size.Width, size.Height));
+            return slots;
+        }
+        const float pad = 8;
+        int n = Math.Min(devices, 4);
+        float h = (size.Height - 2 * pad) / n;
+        for (int i = 0; i < n; i++) slots.Add(new(0, pad + i * h, size.Width, h));
+        return slots;
+    }
+
+    /// <summary>One number for the tile's battery: the emptier AirPod (the case when no bud was read), else the battery.</summary>
     internal static int? FooterLevel(BateriaApple? apple, int? bateria) =>
         apple != null ? apple.MenorFone ?? apple.Estojo : bateria;
+
+    private void DrawTile(Vortice.Direct2D1.ID2D1DeviceContext dc, Palco p, System.Drawing.RectangleF r)
+    {
+        var slots = TileSlots(_shown.Count, r.Size);
+        for (int i = 0; i < slots.Count; i++)
+        {
+            var f = _shown[i];
+            var s = slots[i];
+            s.Offset(r.X, r.Y);
+            int? level = FooterLevel(f.BateriaApple, f.Bateria);
+            if (_shown.Count == 1)
+            {
+                // photo on top, battery under it
+                DrawPhoto(dc, p, new Vector2(s.X + s.Width / 2, s.Y + 5 + PHOTO / 2), f);
+                BatteryPill.Draw(dc, p, s.X + (s.Width - BatteryPill.W) / 2, s.Y + 43, level, f.Carregando);
+            }
+            else
+            {
+                // a line: photo, name, battery on the right
+                const float side = 12;
+                DrawPhoto(dc, p, new Vector2(s.X + side + PHOTO / 2, s.Y + s.Height / 2), f);
+                float px = s.Right - side - BatteryPill.Total;
+                BatteryPill.Draw(dc, p, px, s.Y + (s.Height - BatteryPill.H) / 2, level, f.Carregando);
+                float nx = s.X + side + PHOTO + 8;
+                var m = p.Texto.Medir(MenuName(f), 12, Vortice.DirectWrite.FontWeight.Medium);
+                p.Texto.Desenhar(dc, MenuName(f), new Vector2(nx, s.Y + (s.Height - m.Y) / 2), 12, Cor.Branco, Vortice.DirectWrite.FontWeight.Medium, largura: px - nx - 6);
+            }
+        }
+    }
 
     internal static string MenuName(bool mouse, bool g733, bool apple, ushort? modelo, string nome) =>
         mouse ? "G502 X Plus" : g733 ? "G733" : apple ? "AirPods" : nome;
 
     private static string MenuName(Fone f) => MenuName(f.Mouse, f.G733, f.Apple, f.Modelo, f.Nome);
 
-    /// <summary>The small line under the tile name: "48%", or the two AirPods ("E 80 · D 90"). Null when nothing was read.</summary>
+    /// <summary>The small line under the device name: "48%", or the two AirPods ("E 80 · D 90"). Null when nothing was read.</summary>
     internal static string? MenuDetail(BateriaApple? apple, int? bateria, bool carregando)
     {
         if (apple != null)
@@ -478,18 +548,20 @@ internal sealed class ModuloFones : Modulo
         return bateria is int b ? b + "%" : null;
     }
 
-    /// <summary>The photo centered in the footer circle (the battery next to it says the rest); a drawing while it loads.</summary>
-    private void DrawTileIcon(Vortice.Direct2D1.ID2D1DeviceContext dc, Palco p, System.Drawing.RectangleF r, Fone f)
+    /// <summary>
+    /// The photo centered on the point, over a faint round backdrop (a black device still reads on the dark tile); a
+    /// drawing while the photo loads.
+    /// </summary>
+    private static void DrawPhoto(Vortice.Direct2D1.ID2D1DeviceContext dc, Palco p, Vector2 centro, Fone f)
     {
-        var centro = new Vector2(r.X + r.Width / 2, r.Y + r.Height / 2);
-        float lado = MathF.Min(r.Width, r.Height);
+        Icone.Circulo(dc, centro, PHOTO / 2 + 2, new Vortice.Mathematics.Color4(1, 1, 1, 0.07f));
         if (f.RetratoMenu != null)
         {
             var tam = f.RetratoMenu.TamanhoDip(p.Escala);
             f.RetratoMenu.Desenhar(dc, p.Escala, centro.X - tam.X / 2, centro.Y - tam.Y / 2);
         }
-        else if (f.Tipo == TipoAparelho.Mouse) Desenhos.Mouse(dc, p.G.Fabrica, centro, lado, Cor.Branco);
-        else Desenhos.Fone(dc, p.G.Fabrica, centro, lado, Cor.Branco);
+        else if (f.Tipo == TipoAparelho.Mouse) Desenhos.Mouse(dc, p.G.Fabrica, centro, 24, Cor.Branco);
+        else Desenhos.Fone(dc, p.G.Fabrica, centro, 24, Cor.Branco);
     }
 
     // ------------------------------------------------------------------ low battery alerts

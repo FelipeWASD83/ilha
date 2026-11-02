@@ -39,8 +39,9 @@ internal sealed class ModuloPrateleira : Modulo
             Id = "prateleira",
             Nome = Lang.T("Prateleira", "Shelf"),
             Abrir = atv.Abrir,
-            Detalhe = () => LogicaDaPrateleira.Contagem(_itens.Count),
-            Icone = (dc, palco, r) => AtividadePrateleira.DesenharIcone(dc, r),
+            // empty shows in the icon itself (just the plank), so no "empty" line
+            Detalhe = () => _itens.Count > 0 ? LogicaDaPrateleira.Contagem(_itens.Count) : null,
+            Icone = (dc, palco, r) => AtividadePrateleira.DesenharIcone(dc, r, vazia: _itens.Count == 0),
             Ordem = 60,
         });
     }

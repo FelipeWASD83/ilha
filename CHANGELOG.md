@@ -1,5 +1,23 @@
 # Changelog
 
+## 1.4.0 (02/11/2026)
+
+**New**
+- The main menu was redone in the style of the iPhone Control Center: rounder tiles with a faint rim, a rounder card,
+  and tiles of different sizes packed into the grid by themselves.
+- Sound is a tall slider at the bottom: it fills white up to the volume. Drag it up or down (it moves from where it
+  was, so a tap changes nothing and opens the mixer), or use the mouse wheel over it.
+- A Translator tile: it opens ready to type or paste a text (from the menu there is nothing selected to read).
+- The headset and mouse batteries share one tile, one device per line with its photo, name and iPhone-style battery;
+  clicking a line opens that device. With a single device the tile is small.
+
+**Changed**
+- Settings left the grid and became a round button in the top-right corner, next to the date.
+- Limit shows its percentage inside the ring, and the ring follows the window closest to its limit (the session or the
+  week, whichever is higher).
+- The empty shelf shows an empty shelf in its icon instead of the word "empty".
+- The color picker shows a dot with the last color next to its code.
+
 ## 1.3.1 (02/11/2026)
 
 **Changed**

@@ -86,12 +86,16 @@ internal sealed class AtividadeLimite : Atividade
     }
 
     /// <summary>O ícone: um anel com o uso da janela de 5 horas (vazio sem dado). Usado também no menu e no alerta.</summary>
+    /// <summary>The menu's ring: the window closer to its limit (session or week), with its percentage inside.</summary>
     internal void Anel(ID2D1DeviceContext dc, Palco p, Vector2 centro, float raio, float espessura)
     {
-        double agora = Agora();
-        var j = _leitura()?.SessaoValida(agora) ?? _leitura()?.SemanaValida(agora);
+        var j = TextoDoUso.MaisApertada(_leitura(), Agora());
         float progresso = j == null ? 0 : (float)(j.Porcentagem / 100);
         Icone.Anel(dc, p.G.Fabrica, centro, raio, espessura, progresso, j == null ? Cor.Secundario : CorDe(j.Porcentagem, _limiares()));
+        string texto = j == null ? "–" : TextoDoUso.Porcento(j.Porcentagem);
+        float tam = texto.Length > 3 ? 8.5f : 9.5f;
+        var m = p.Texto.Medir(texto, tam, FontWeight.SemiBold, tabular: true);
+        p.Texto.Desenhar(dc, texto, new Vector2(centro.X - m.X / 2, centro.Y - m.Y / 2), tam, Cor.Branco, FontWeight.SemiBold, tabular: true);
     }
 
     internal static Color4 CorDe(double pct, int[] limiares)

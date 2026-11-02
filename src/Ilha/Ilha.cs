@@ -24,7 +24,7 @@ internal sealed class Ilha : IDisposable
     private const float COMPACTA_A = 36, COMPACTA_FOLGA = 12, COMPACTA_MIN = 168;
     private const float PREVIA_L = 14, PREVIA_A = 4;
     private const float BOLHA = 36, VAO = 14;
-    private const float CARTAO_FOLGA = 18, CARTAO_MIN = 340, RAIO_EXPANDIDA = 30, RAIO_ALERTA = 28;
+    private const float CARTAO_FOLGA = 18, CARTAO_MIN = 340, RAIO_EXPANDIDA = Menu.RAIO_BLOCO + CARTAO_FOLGA, RAIO_ALERTA = 28;
     private const float OMBRO = 7;
     private const float SOMBRA = 30;
     private const float PONTO = 7, PONTO_VAO = 5;
@@ -187,7 +187,7 @@ internal sealed class Ilha : IDisposable
         _vis = vis;
         _toque = toque;
 
-        _toque.Moveu += (_, _) => Entrou();
+        _toque.Moveu += (x, y) => { _mouse = (x, y); Entrou(); };
         _toque.Saiu += Saiu;
         _toque.Clicou += Clicou;
         _toque.Apertou += Apertou;
@@ -1007,10 +1007,14 @@ internal sealed class Ilha : IDisposable
             foreach (var (b, d) in BotoesDe(i)) yield return (b, d + c.DeslocamentoInterno);
     }
 
+    // the last mouse position over the island (window pixels), for the wheel over a menu tile
+    private (int X, int Y) _mouse;
+
     private void Rolou(int delta)
     {
         var a = _estado == Estado.Expandida ? _foco : _estado == Estado.Compacta ? Visiveis().FirstOrDefault() : null;
-        try { a?.Rolar(delta); } catch (Exception e) { Log.Escrever("rolar: " + e); }
+        Vector2? noCartao = _estado == Estado.Expandida && _vagaCorpo.Atual != null ? Local(_vagaCorpo, _mouse.X, _mouse.Y) : null;
+        try { a?.Rolar(delta, noCartao); } catch (Exception e) { Log.Escrever("rolar: " + e); }
     }
 
     private void Clicou(int x, int y)

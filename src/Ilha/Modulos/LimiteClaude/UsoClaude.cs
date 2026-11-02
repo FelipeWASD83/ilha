@@ -74,6 +74,16 @@ internal static class TextoDoUso
 {
     public static string Porcento(double p) => $"{Math.Round(Math.Clamp(p, 0, 100)):0}%";
 
+    /// <summary>The valid window closer to its limit (the higher percentage); the session wins a tie. Null = none.</summary>
+    public static Janela? MaisApertada(LeituraDoUso? l, double agora)
+    {
+        var s = l?.SessaoValida(agora);
+        var w = l?.SemanaValida(agora);
+        if (s == null) return w;
+        if (w == null) return s;
+        return w.Porcentagem > s.Porcentagem ? w : s;
+    }
+
     public static DateTime Local(double epoch) => DateTimeOffset.FromUnixTimeMilliseconds((long)(epoch * 1000)).ToLocalTime().DateTime;
 
     /// <summary>"volta às 14:30"; a semanal com o dia: "volta sexta às 09:00" ("hoje" e "amanhã" quando é o caso).</summary>

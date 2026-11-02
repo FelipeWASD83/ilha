@@ -74,6 +74,16 @@ internal sealed class ModuloConfiguracoes : Modulo
         Lang.Set("pt");
         try
         {
+            // the main menu's grid
+            var (spots, rows) = global::Ilha.Menu.Pack(new[] { (1, 1), (1, 1), (1, 1), (1, 1), (1, 1), (1, 2), (1, 1), (2, 1), (1, 1) });
+            Conferir("menu grid: first free spot in order, a tall tile spans two rows, a later small one fills the hole",
+                spots[4] == (0, 1) && spots[5] == (1, 1) && spots[6] == (2, 1) && spots[7] == (2, 2) && spots[8] == (3, 1) && rows == 3,
+                string.Join(" ", spots));
+            var (wide, wideRows) = global::Ilha.Menu.Pack(new[] { (1, 1), (1, 1), (1, 1), (2, 1), (9, 9) });
+            Conferir("menu grid: a wide tile that doesn't fit the row's end goes to the next row; oversized is clamped to 4x4",
+                wide[3] == (0, 1) && wide[4] == (0, 2) && wideRows == 6, string.Join(" ", wide));
+            Conferir("menu grid: empty", global::Ilha.Menu.Pack(Array.Empty<(int, int)>()).Rows == 0);
+
             // formulário por reflexão
             var secao = new JsonObject { ["ligado"] = false, ["vezes"] = 7, ["nome"] = "lido", ["lado"] = 2, ["desconhecida"] = "fica" };
             var inst = (ConfigDeTeste)Formulario.Instanciar(typeof(ConfigDeTeste), secao);

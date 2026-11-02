@@ -47,12 +47,41 @@ internal sealed class ModuloIA : Modulo
                     Icone.Circulo(dc, new System.Numerics.Vector2(r.X + 7 + i * 5, r.Y + 10.5f), 1.5f, new Vortice.Mathematics.Color4(0, 0, 0, 0.85f));
             },
         });
+        S.Menu.Adicionar(new ItemDoMenu
+        {
+            Id = "tradutor", Nome = Lang.T("Tradutor", "Translator"), Ordem = 75, Abrir = () => _trad.AbrirParaDigitar(),
+            Detalhe = () => "PT ↔ EN",
+            Icone = (dc, palco, r) => DesenharIconeTradutor(dc, palco, r),
+        });
         var aTrad = S.Atalhos.Registrar("tradutor", new Atalho { Mods = Nativo.MOD_CONTROL | Nativo.MOD_ALT, Tecla = 0x54 }, () => _trad.Atalho(TeclaDoAtalho("tradutor", 0x54))); // T
         if (aChat == null) S.Avisar(Lang.T("O atalho do chat com IA (Ctrl + Alt + J) está ocupado por outro programa. Troque em atalhosModulos → ia.",
             "The AI chat shortcut (Ctrl + Alt + J) is taken by another program. Change it in atalhosModulos → ia."));
         if (aTrad == null) S.Avisar(Lang.T("O atalho do tradutor (Ctrl + Alt + T) está ocupado por outro programa. Troque em atalhosModulos → tradutor.",
             "The translator shortcut (Ctrl + Alt + T) is taken by another program. Change it in atalhosModulos → tradutor."));
         S.Ilha.EstadoMudou += AoMudarEstado;
+    }
+
+    /// <summary>Two speech bubbles: a dim one with an "A" behind, a white one with a stroked 文 in front (all lines, no font).</summary>
+    private static void DesenharIconeTradutor(Vortice.Direct2D1.ID2D1DeviceContext dc, Palco p, System.Drawing.RectangleF r)
+    {
+        float u = r.Width / 24f;
+        System.Numerics.Vector2 P(float x, float y) => new(r.X + x * u, r.Y + y * u);
+        var f = p.G.Fabrica;
+        var tinta = new Vortice.Mathematics.Color4(0, 0, 0, 0.85f);
+        var atras = new Vortice.Mathematics.Color4(1, 1, 1, 0.6f);
+        Icone.Retangulo(dc, r.X + 1 * u, r.Y + 2 * u, 13 * u, 11 * u, 3.5f * u, atras);
+        Icone.Triangulo(dc, f, P(3, 12.5f), P(6.5f, 12.5f), P(2.5f, 16), atras);
+        Icone.Linha(dc, P(4.5f, 11), P(7.5f, 4.5f), 1.4f * u, tinta, f);
+        Icone.Linha(dc, P(7.5f, 4.5f), P(10.5f, 11), 1.4f * u, tinta, f);
+        Icone.Linha(dc, P(5.6f, 8.9f), P(9.4f, 8.9f), 1.3f * u, tinta, f);
+        // a gap in the tile's own gray between the two bubbles
+        Icone.Retangulo(dc, r.X + 8 * u, r.Y + 8 * u, 16 * u, 13 * u, 4.5f * u, new Vortice.Mathematics.Color4(0.085f, 0.085f, 0.085f, 1f));
+        Icone.Retangulo(dc, r.X + 9 * u, r.Y + 9 * u, 14 * u, 11 * u, 3.5f * u, Cor.Branco);
+        Icone.Triangulo(dc, f, P(17.5f, 19.5f), P(21, 19.5f), P(21.5f, 23), Cor.Branco);
+        Icone.Linha(dc, P(16, 10.6f), P(16, 12.2f), 1.3f * u, tinta, f);
+        Icone.Linha(dc, P(12.4f, 13), P(19.6f, 13), 1.3f * u, tinta, f);
+        Icone.Linha(dc, P(13.6f, 13.6f), P(18.8f, 18.8f), 1.3f * u, tinta, f);
+        Icone.Linha(dc, P(18.4f, 13.6f), P(13.2f, 18.8f), 1.3f * u, tinta, f);
     }
 
     private int TeclaDoAtalho(string nome, int padrao) =>

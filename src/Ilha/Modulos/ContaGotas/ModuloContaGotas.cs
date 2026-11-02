@@ -39,6 +39,7 @@ internal sealed class ModuloContaGotas : Modulo
             // o clique no menu chega no meio do tratamento do mouse da ilha: a lupa abre logo depois
             Abrir = () => S.NaInterface(Pegar),
             Detalhe = () => _cfg.Cores.Count > 0 ? (_cfg.HexMinusculo ? _cfg.Cores[0].ToLowerInvariant() : _cfg.Cores[0]) : null,
+            DetailSwatch = () => _cfg.Cores.Count > 0 && CorDaTela.TentarLer(_cfg.Cores[0], out var cor) ? cor.Color4() : null,
             Icone = (dc, palco, r) => IconeContaGotas.Desenhar(dc, palco, r, _cfg.Cores.Count > 0 && CorDaTela.TentarLer(_cfg.Cores[0], out var c) ? c : null),
             Ordem = 50,
         });

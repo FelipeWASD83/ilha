@@ -214,18 +214,19 @@ internal sealed class Nucleo : IDisposable
     {
         _menu.Adicionar(new ItemDoMenu
         {
-            Id = "configuracoes", Nome = Lang.T("Configurações", "Settings"), Ordem = 1000, Abrir = AbrirConfiguracoes,
+            Id = "configuracoes", Nome = Lang.T("Configurações", "Settings"), Ordem = 1000, Abrir = AbrirConfiguracoes, Corner = true,
             Icone = (dc, p, r) =>
             {
-                // engrenagem: anel com dentes
+                // engrenagem: anel com dentes, do tamanho da caixa (o botão redondo do canto tem 20 DIP)
                 var c = new System.Numerics.Vector2(r.X + r.Width / 2, r.Y + r.Height / 2);
+                float u = r.Width / 24f;
                 for (int i = 0; i < 8; i++)
                 {
                     float a = i * MathF.PI / 4;
                     var d = new System.Numerics.Vector2(MathF.Cos(a), MathF.Sin(a));
-                    Icone.Linha(dc, c + d * 7, c + d * 11, 3.2f, Cor.Branco, p.G.Fabrica);
+                    Icone.Linha(dc, c + d * 7 * u, c + d * 11 * u, 3.2f * u, Cor.Branco, p.G.Fabrica);
                 }
-                Icone.Anel(dc, p.G.Fabrica, c, 7, 3, 1, Cor.Branco);
+                Icone.Anel(dc, p.G.Fabrica, c, 7 * u, 3 * u, 1, Cor.Branco);
             },
         });
     }

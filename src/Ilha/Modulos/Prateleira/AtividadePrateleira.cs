@@ -555,10 +555,17 @@ internal sealed class AtividadePrateleira : Atividade, IReceptorDeArquivos
         Icone.Retangulo(dc, r.X + 2, r.Y + 19, r.Width - 4, 2.4f, 1.2f, cor);
     }
 
-    /// <summary>O ícone do menu: um arquivo e uma pasta em cima de uma tábua.</summary>
-    public static void DesenharIcone(ID2D1DeviceContext dc, System.Drawing.RectangleF r)
+    /// <summary>O ícone do menu: um arquivo e uma pasta em cima de uma tábua; vazia, só a tábua (no meio da caixa).</summary>
+    public static void DesenharIcone(ID2D1DeviceContext dc, System.Drawing.RectangleF r, bool vazia = false)
     {
         float u = r.Width / 24f;
+        if (vazia)
+        {
+            Icone.Retangulo(dc, r.X + 1.5f * u, r.Y + 11 * u, 21 * u, 2.6f * u, 1.3f * u, Cor.Branco);
+            Icone.Retangulo(dc, r.X + 3.5f * u, r.Y + 13 * u, 2 * u, 3.5f * u, 0.8f * u, Cor.Branco);
+            Icone.Retangulo(dc, r.X + 18.5f * u, r.Y + 13 * u, 2 * u, 3.5f * u, 0.8f * u, Cor.Branco);
+            return;
+        }
         Icone.Retangulo(dc, r.X + 4 * u, r.Y + 4 * u, 7 * u, 12 * u, 1.6f * u, Cor.Branco);
         Icone.Retangulo(dc, r.X + 12.5f * u, r.Y + 7 * u, 4 * u, 3 * u, 1 * u, Cor.Azul);
         Icone.Retangulo(dc, r.X + 12.5f * u, r.Y + 8.5f * u, 8 * u, 7.5f * u, 1.6f * u, Cor.Azul);

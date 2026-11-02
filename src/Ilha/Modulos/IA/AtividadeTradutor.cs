@@ -59,10 +59,34 @@ internal sealed class AtividadeTradutor : Atividade
         catch (Exception e) { Log.Escrever("tradutor: " + Segredo.Limpar(e.ToString())); }
     }
 
+    // opened from the menu: nothing was selected there, so the empty card asks for text instead of saying "nothing selected"
+    private bool _doMenu;
+
+    /// <summary>From the menu's tile: the card opens ready to type (there is no selection to read from the menu).</summary>
+    public void AbrirParaDigitar()
+    {
+        if (S.ContextoAtual().Competitivo) return;
+        _geracao++;
+        _cts?.Cancel();
+        _doMenu = true;
+        _fase = Fase.Vazio;
+        _original = "";
+        _traducao.Clear();
+        _resultado = null;
+        _erro = "";
+        _copiado = false;
+        _rolagem = 0;
+        MudouTamanho();
+        S.Ilha.Expandir(this);
+        AbrirCampo();
+        Redesenhar();
+    }
+
     private async Task Abrir(int teclaDoAtalho)
     {
         if (S.ContextoAtual().Competitivo) return;
         if (S.Ilha.Expandida == this) { S.Ilha.Recolher(); return; }
+        _doMenu = false;
         int g = ++_geracao;
         _cts?.Cancel();
         IntPtr alvo = Nativo.GetForegroundWindow();
@@ -256,6 +280,8 @@ internal sealed class AtividadeTradutor : Atividade
         string original = _fase switch
         {
             Fase.Lendo => Lang.T("Lendo o texto selecionado…", "Reading the selected text…"),
+            Fase.Vazio when _doMenu => Lang.T("Digite ou cole o texto embaixo e aperte Enter. Vai para o português, ou para o inglês se já estiver em português.",
+                "Type or paste the text below and press Enter. It goes to Portuguese, or to English if it already is Portuguese."),
             Fase.Vazio => Lang.T("Nada selecionado (ou o app não deixou ler). Digite ou cole o texto embaixo.", "Nothing selected (or the app didn't let it be read). Type or paste the text below."),
             _ => _original,
         };
