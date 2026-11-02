@@ -336,8 +336,8 @@ and the points that matter are here.
   class it saw ("zona de soltar: captura com ...").
 - **Claude limit:** `ferramentas/statusline_uso.py` takes the place of the Claude Code status line, writes only
   `rate_limits` to `~/.ilha/uso-claude.json` and calls the previous status line (installed on 01/11/2026; copy of the
-  settings in `settings.json.antes-limite`). **Open question:** whether Desktop app sessions run the status line; by
-  the end of the 01/11/2026 session the file had not shown up (that session was already open before the switch).
+  settings in `settings.json.antes-limite`). **Only the terminal Claude Code writes it** (he found out on 02/11/2026):
+  desktop app sessions never run the status line, so the card shows an orange note saying so (2.0.1).
 - **Air:** it left the pill. The module reads `GET /api/historico` (which does not make the server read the LG unit)
   every 45 s and gives a notice when power, mode or target change; the room temperature alone does not trigger a
   notice. A change made from the island gives the notice right away and the confirmation that comes later stays quiet.

@@ -109,13 +109,21 @@ internal sealed class AtividadeLimite : Atividade
     {
         bool vazio = Vazio;
         _vazioMontado = vazio;
-        float altura = vazio ? 100 : TOPO + 2 * LINHA - 4;
+        // the note at the bottom: only the terminal Claude Code runs the status line (he found out on 02/11/2026: the
+        // desktop app's sessions never write the file), so the numbers stop moving while only the app is used
+        float yAviso = vazio ? 102 : TOPO + 2 * LINHA + 2;
+        float altura = yAviso + 32;
         var c = p.NovaCena(new Vector2(L, altura));
         p.Desenho(c, Vector2.Zero, c.Tamanho, (dc, t) =>
         {
             double agora = Agora();
             var l = _leitura();
             Anel(dc, p, new Vector2(9, 10), 7, 2.4f);
+            string[] aviso = Lang.English
+                ? new[] { "Only Claude Code in the terminal updates this: the", "desktop app's sessions don't run the status line." }
+                : new[] { "Só o Claude Code de terminal atualiza isto: as", "sessões do app desktop não rodam a status line." };
+            for (int i = 0; i < aviso.Length; i++)
+                p.Texto.Desenhar(dc, aviso[i], new Vector2(0, yAviso + i * 15), 11.5f, Cor.Laranja, FontWeight.Normal, largura: L);
             p.Texto.Desenhar(dc, Lang.T("Limite do Claude", "Claude limit"), new Vector2(24, 1), 13, Cor.Secundario, largura: 160);
             if (l == null)
             {

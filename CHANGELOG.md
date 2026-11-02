@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.0.1 (02/11/2026)
+
+**Changed**
+- The Claude limit card says that only Claude Code in the terminal updates it: sessions in the desktop app don't run
+  the status line, so the numbers stay still while only the app is used.
+
 ## 2.0.0 (02/11/2026)
 
 **New**
