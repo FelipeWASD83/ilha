@@ -75,6 +75,7 @@ Each one is turned on and off in the settings window (or in `config.json` → `m
 | AI | chat with GPT and Claude | `Ctrl + Alt + J` |
 | Translator | translates the selected text in any program, or a text typed from the menu | `Ctrl + Alt + T` |
 | Air | the air conditioner through the `ar-do-quarto` server, in the menu (power, temperature, mode, fan and the display light); tells you when the air changes | `Ctrl + Alt + A` |
+| Fundo Vivo | "Wallpaper" in the menu: a picker like choosing a wallpaper on the iPhone or a face on the Apple Watch, with only the wallpapers you chose from [Fundo Vivo](https://github.com/FelipeWASD83/fundo-vivo)'s library in a row (the middle one big, the neighbours smaller at the sides). The wheel, the arrows or a click on a neighbour slides it; a click on the middle one, or Enter, puts it on the selected monitor. "Choose" lists the whole library to pick from. Needs Fundo Vivo | |
 | Headphones | photo and battery of the headphones when they connect (and the card of the Logitech G213 and Razer Huntsman V3 HE TKL wired keyboards when they are plugged in), and a warning when the battery falls to 50%, 25%, 10%, 5% and 1% (AirPods: 50%, 20%, 10% and under 10%); the Logitech G502 X Plus mouse too, read from G HUB | G HUB running for the mouse |
 | Caps Lock | a short notice when Caps Lock turns on or off (for keyboards without the light) | |
 | Screenshot | thumbnail of the screenshot, draggable into another program | |

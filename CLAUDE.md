@@ -261,6 +261,19 @@ and the points that matter are here.
   - Not tested: a recording of an hour or more (a WAV keeps the 4 GB header limit, about 3 hours of 7.1 float), a
     camera recording with the cover open, recording a game (gfxcapture does not inject; the island is hidden there
     anyway), and the module turning off mid-recording (it stops the session in the background).
+- **Fundo Vivo picker (1.9.0, `Modulos/Fundo`, his request on 02/11/2026):** "Fundo" in the menu opens an iPhone /
+  Apple Watch style picker of the wallpapers he chose (`favoritos` in the module config, ids from Fundo Vivo's library).
+  Fundo Vivo is a separate public app (`fundo-vivo` in his folder); **nothing of it is linked or edited from here**:
+  `FundoVivoBridge` reads its library the same way its `Library.Scan` does (Wallpaper Engine video and web from the
+  Steam libraries, plus `userItems`), computes the same monitor ids (`QueryDisplayConfig` device paths), writes the
+  choice into its `%APPDATA%\FundoVivo\config.json` like its settings window does (read again right before writing, only
+  that monitor's entry changes, every other field kept, replaced through a unique temporary file) and sends the engine
+  window `FundoVivoEngine` the `{"cmd":"reload"}` WM_COPYDATA; with the engine closed it starts `FundoVivo.exe --engine`
+  (found from the running app, a Run entry or the Start menu shortcut). `FUNDOVIVO_HOME` moves the data like in the app,
+  which is how the self test writes a fake config. If Fundo Vivo changes its config format, this breaks: check its
+  `Core/Config.cs`. Cards: one composition visual per wallpaper, sliding with keyframe animations (Offset, Scale,
+  Opacity); thumbnails from the Wallpaper Engine preview or the Windows thumbnail, decoded once on a background thread.
+  Arrows and Enter reach the card through `Entrada.Navegar` (new: raised while the island only holds the keyboard).
 - **Discreet menu entries (1.8.0):** `ItemDoMenu.CornerBottom` draws the icon small (14 DIP) with no ball, name or
   background in the menu's bottom-right corner (inside the last row when its right cells are empty, else on a strip under
   the grid). The private unlock entry uses it with a dim lock. Not seen on screen on 02/11/2026 (it only shows locked).

@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.9.0 (02/11/2026)
+
+**New**
+- Fundo Vivo on the island: "Wallpaper" in the menu opens a picker like the iPhone's wallpaper picker or the Apple
+  Watch's faces. The wallpapers you chose sit in a row on a black card, the middle one big with its name, the
+  neighbours smaller at the sides; the mouse wheel, the arrow keys or a click on a neighbour slides the row, and a click
+  on the middle one (or Enter) puts it on the monitor. With two monitors, the buttons on top pick which one, and the
+  cards take that monitor's shape. "Choose" shows Fundo Vivo's whole library in a grid to mark the ones that show up.
+  Needs the Fundo Vivo app.
+
 ## 1.8.1 (02/11/2026)
 
 **Changed**

@@ -323,6 +323,8 @@ internal sealed class Entrada : IDisposable
     public event Action? Mudou;
     /// <summary>Setas para cima e para baixo, Page Up, Page Down e Tab (histórico, lista...); o texto não muda.</summary>
     public event Action<Keys>? Tecla;
+    /// <summary>Arrows and Enter while the island only holds the keyboard (clicked, no field open): a card that moves through items.</summary>
+    public event Action<Keys>? Navegar;
 
     public Entrada()
     {
@@ -359,8 +361,17 @@ internal sealed class Entrada : IDisposable
             if (Aberta && !fica) Fechar();
             return;
         }
-        // só ouvindo o Esc: o resto do teclado não faz nada
-        if (_soTeclas) { e.SuppressKeyPress = true; return; }
+        // só ouvindo o Esc: o resto do teclado não faz nada, menos as setas e o Enter para quem pediu (o seletor de fundo)
+        if (_soTeclas)
+        {
+            if (e.KeyCode is Keys.Left or Keys.Right or Keys.Up or Keys.Down or Keys.Enter && Navegar != null)
+            {
+                e.Handled = true;
+                try { Navegar(e.KeyCode); } catch (Exception ex) { Log.Escrever("navegar: " + ex); }
+            }
+            e.SuppressKeyPress = true;
+            return;
+        }
         if (e.KeyCode is Keys.Up or Keys.Down or Keys.PageUp or Keys.PageDown or Keys.Tab && !(_multilinha && e.KeyCode is Keys.Up or Keys.Down))
         {
             if (Tecla != null) { e.SuppressKeyPress = true; e.Handled = true; Tecla(e.KeyCode); return; }
