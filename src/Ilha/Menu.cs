@@ -42,6 +42,8 @@ internal sealed class ItemDoMenu
     public bool Corner;
     /// <summary>A small color dot before the detail line (the color picker's last color).</summary>
     public Func<Vortice.Mathematics.Color4?>? DetailSwatch;
+    /// <summary>A bigger block that draws in the label space under its body, like the balls' names (the batteries).</summary>
+    public bool LabelBelow;
 }
 
 /// <summary>A lista do menu principal. O núcleo marca o dono enquanto o módulo liga e tira as entradas dele ao desligar.</summary>
@@ -89,14 +91,15 @@ internal sealed class Menu : Atividade
     public override string Nome => "Menu";
 
     private const int COLUNAS = 4;
-    private const float LADO = 84, ALTO = 86, VAO = 8, CABECALHO = 50, BOLA = 58, CANTO = 34, CANTO_ICONE = 22;
+    private const float LADO = 84, ALTO = 86, VAO = 8, CABECALHO = 54, BOLA = 58, CANTO = 34, CANTO_ICONE = 24;
     /// <summary>The header's center line: the time's digits, the date, the dots and the corner icons sit on it.</summary>
-    private const float LINHA = 19;
-    /// <summary>
-    /// Corner radius of the bigger blocks: half a column, so their ends have the same curve as the balls. The menu's card
-    /// uses this plus its padding, so the corners are concentric.
-    /// </summary>
-    internal const float RAIO_BLOCO = LADO / 2;
+    private const float LINHA = 21;
+    /// <summary>How far the header stays from the card's sides (the time and the corner icons were almost in the corners).</summary>
+    private const float MARGEM = 8;
+    /// <summary>The icons are drawn for a 24 DIP box and scaled up as a whole (some draw in fixed units).</summary>
+    private const float ESCALA_ICONE = 28f / 24f;
+    /// <summary>Corner radius of the bigger blocks: the balls' radius, so everything has the same curve.</summary>
+    internal const float RAIO_BLOCO = BOLA / 2;
     private static readonly Vortice.Mathematics.Color4 FundoBloco = new(1, 1, 1, 0.06f);
 
     private readonly MenuDaIlha _menu;
@@ -175,6 +178,18 @@ internal sealed class Menu : Atividade
     internal static System.Drawing.RectangleF Bola(System.Drawing.RectangleF celula) =>
         new(celula.X + (celula.Width - BOLA) / 2, celula.Y, BOLA, BOLA);
 
+    /// <summary>
+    /// The gray body of a tile from its cells: the ball for a 1x1; for a bigger one, from the left edge of its first
+    /// column's ball to the right edge of its last one, and from the top of its first row's balls to the bottom of its
+    /// last row's (the label space under it stays free), so every edge lines up with the balls around it.
+    /// </summary>
+    internal static System.Drawing.RectangleF Corpo(System.Drawing.RectangleF celula)
+    {
+        if (celula.Width <= LADO + 0.5f && celula.Height <= ALTO + 0.5f) return Bola(celula);
+        float lado = (LADO - BOLA) / 2;
+        return new(celula.X + lado, celula.Y, celula.Width - 2 * lado, celula.Height - (ALTO - BOLA));
+    }
+
     protected override Cena Montar(Palco p, Forma f)
     {
         _minuto.Start();
@@ -187,7 +202,10 @@ internal sealed class Menu : Atividade
         var blocos = itens.Select((it, k) => (it, Area(lugares[k].Col, lugares[k].Row, it))).ToList();
         _blocos = blocos;
         float largura = COLUNAS * LADO + (COLUNAS - 1) * VAO;
-        float altura = CABECALHO + (linhas == 0 ? 20 : linhas * ALTO + (linhas - 1) * VAO);
+        // the card ends where the last thing drawn ends: a bottom row of blocks has no names under it, so its label
+        // space would only be an empty band above the card's edge
+        float altura = linhas == 0 ? CABECALHO + 20
+            : blocos.Max(b => Simples(b.it) || b.it.LabelBelow ? b.Item2.Bottom : Corpo(b.Item2).Bottom);
         var c = p.NovaCena(new Vector2(largura, altura));
         p.Desenho(c, Vector2.Zero, c.Tamanho, (dc, t) =>
         {
@@ -199,7 +217,7 @@ internal sealed class Menu : Atividade
             }
             foreach (var (item, r) in blocos)
             {
-                Fundo(dc, Simples(item) ? Bola(r) : r, Simples(item));
+                Fundo(dc, Corpo(r), Simples(item));
                 try
                 {
                     if (item.Draw != null) item.Draw(dc, p, r);
@@ -246,8 +264,8 @@ internal sealed class Menu : Atividade
         const float HORA = 34, DATA = 14;
         string hora = agora.ToString("HH:mm", cultura);
         var mh = p.Texto.Medir(hora, HORA, FontWeight.Medium, tabular: true);
-        p.Texto.Desenhar(dc, hora, new Vector2(-1, LINHA - Meio(HORA)), HORA, Cor.Branco, FontWeight.Medium, tabular: true);
-        float x = mh.X + 10;
+        p.Texto.Desenhar(dc, hora, new Vector2(MARGEM, LINHA - Meio(HORA)), HORA, Cor.Branco, FontWeight.Medium, tabular: true);
+        float x = MARGEM + mh.X + 10;
         // camera (green) and microphone (orange) in use: dots right after the time
         if (_indicadores is { Algum: true } ind)
         {
@@ -256,7 +274,7 @@ internal sealed class Menu : Atividade
             if (ind.Camera) { Icone.Circulo(dc, new Vector2(x + PONTO / 2, LINHA), PONTO / 2, Cor.Verde); x += PONTO + VAO_PONTO; }
             x += 5;
         }
-        float dataAte = largura - cantos.Count * (CANTO + 4) - 6;
+        float dataAte = largura - MARGEM - cantos.Count * (CANTO + 2) - 6;
         // the short weekday ("seg., 2 de novembro"): the long one got cut by the corner icons
         p.Texto.Desenhar(dc, agora.ToString(Lang.T("ddd, d 'de' MMMM", "ddd, MMMM d"), cultura), new Vector2(x, LINHA - Meio(DATA, minusculas: true)),
             DATA, Cor.Secundario, FontWeight.Normal, largura: MathF.Max(20, dataAte - x));
@@ -289,9 +307,9 @@ internal sealed class Menu : Atividade
 
     /// <summary>The corner icons line up from the right edge (the first one at the edge); the area is what takes the click.</summary>
     private static System.Drawing.RectangleF AreaDoCanto(int k, float largura) =>
-        new(largura - CANTO - k * (CANTO + 4), LINHA - CANTO / 2, CANTO, CANTO);
+        new(largura - MARGEM - CANTO - k * (CANTO + 2), LINHA - CANTO / 2, CANTO, CANTO);
 
-    /// <summary>The gray body: a ball for a 1x1 tile, a block with half-column corners for a bigger one.</summary>
+    /// <summary>The gray body: a ball for a 1x1 tile, a block with the balls' curve for a bigger one.</summary>
     internal static void Fundo(ID2D1DeviceContext dc, System.Drawing.RectangleF r, bool bola)
     {
         if (bola) { Icone.Circulo(dc, new Vector2(r.X + r.Width / 2, r.Y + r.Height / 2), r.Width / 2, FundoBloco); return; }
@@ -300,12 +318,16 @@ internal sealed class Menu : Atividade
 
     private static void DesenharPadrao(ID2D1DeviceContext dc, Palco p, ItemDoMenu item, System.Drawing.RectangleF r)
     {
-        float ic = Math.Clamp(item.IconSize, 12, BOLA - 10);
-        // the icon in the middle of the ball (1x1) or of the upper part of a bigger block; the name under the ball
-        var corpo = Simples(item) ? Bola(r) : new System.Drawing.RectangleF(r.X, r.Y, r.Width, r.Height - 30);
-        var area = new System.Drawing.RectangleF(corpo.X + (corpo.Width - ic) / 2, corpo.Y + (corpo.Height - ic) / 2, ic, ic);
+        float ic = Math.Clamp(item.IconSize, 12, (BOLA - 10) / ESCALA_ICONE);
+        // the icon in the middle of the ball (1x1) or of the block; the name under it
+        var corpo = Corpo(r);
+        var centro = new Vector2(corpo.X + corpo.Width / 2, corpo.Y + corpo.Height / 2);
+        var area = new System.Drawing.RectangleF(centro.X - ic / 2, centro.Y - ic / 2, ic, ic);
+        var antes = dc.Transform;
+        dc.Transform = Matrix3x2.CreateScale(ESCALA_ICONE, centro) * antes;
         try { item.Icone?.Invoke(dc, p, area); }
         catch (Exception e) { Log.Escrever($"menu: ícone de {item.Id}: {e.Message}"); }
+        finally { dc.Transform = antes; }
         if (item.Icone == null) Icone.Retangulo(dc, area.X + 3, area.Y + 3, ic - 6, ic - 6, 5, Cor.Fraco);
         string? detalhe = null;
         try { detalhe = item.Detalhe?.Invoke(); } catch { }
@@ -361,6 +383,7 @@ internal sealed class MenuSlider
     public static void Draw(ID2D1DeviceContext dc, Palco p, System.Drawing.RectangleF r, float level, bool dim,
         Action<ID2D1DeviceContext, Vector2, Vortice.Mathematics.Color4> icon, string text)
     {
+        r = Menu.Corpo(r);
         float top = r.Bottom - r.Height * Math.Clamp(level, 0, 1);
         float radius = MathF.Min(Menu.RAIO_BLOCO, r.Width / 2);
         if (r.Bottom - top > 0.5f)
@@ -378,10 +401,10 @@ internal sealed class MenuSlider
     private static void Content(ID2D1DeviceContext dc, Palco p, System.Drawing.RectangleF r, Vortice.Mathematics.Color4 color,
         Action<ID2D1DeviceContext, Vector2, Vortice.Mathematics.Color4> icon, string text)
     {
-        const float ICON = 26;
-        icon(dc, new Vector2(r.X + (r.Width - ICON) / 2, r.Bottom - 62), color);
-        var m = p.Texto.Medir(text, 11.5f, FontWeight.SemiBold, tabular: true);
-        p.Texto.Desenhar(dc, text, new Vector2(r.X + (r.Width - m.X) / 2, r.Bottom - 30), 11.5f, color, FontWeight.SemiBold, tabular: true);
+        const float ICON = 24;
+        icon(dc, new Vector2(r.X + (r.Width - ICON) / 2, r.Bottom - 58), color);
+        var m = p.Texto.Medir(text, 11, FontWeight.SemiBold, tabular: true);
+        p.Texto.Desenhar(dc, text, new Vector2(r.X + (r.Width - m.X) / 2, r.Bottom - 29), 11, color, FontWeight.SemiBold, tabular: true);
     }
 
     /// <summary>The new level for this drag position, or null when it should not change (a tap, or no move yet).</summary>

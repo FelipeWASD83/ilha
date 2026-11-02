@@ -24,9 +24,7 @@ internal sealed class Ilha : IDisposable
     private const float COMPACTA_A = 36, COMPACTA_FOLGA = 12, COMPACTA_MIN = 168;
     private const float PREVIA_L = 14, PREVIA_A = 4;
     private const float BOLHA = 36, VAO = 14;
-    private const float CARTAO_FOLGA = 18, CARTAO_MIN = 340, RAIO_EXPANDIDA = 38,
-        // the menu's card: its blocks' corner radius plus the padding, so the corners are concentric
-        RAIO_MENU = Menu.RAIO_BLOCO + CARTAO_FOLGA, RAIO_ALERTA = 28;
+    private const float CARTAO_FOLGA = 18, CARTAO_MIN = 340, RAIO_EXPANDIDA = 38, RAIO_ALERTA = 28;
     private const float OMBRO = 7;
     private const float SOMBRA = 30;
     private const float PONTO = 7, PONTO_VAO = 5;
@@ -1264,7 +1262,7 @@ internal sealed class Ilha : IDisposable
             var f = _foco;
             bool voltar = f != _painel && _painel != null && !_ctx.Competitivo;
             return Cartao(Estado.Expandida, $"exp:{f.GetHashCode()}:{(voltar ? 1 : 0)}:{f.Versao}",
-                voltar ? () => ComVoltar(f.Criar(_p, Forma.Expandida)) : () => f.Criar(_p, Forma.Expandida), f.Tipo == "menu" ? RAIO_MENU : RAIO_EXPANDIDA);
+                voltar ? () => ComVoltar(f.Criar(_p, Forma.Expandida)) : () => f.Criar(_p, Forma.Expandida), RAIO_EXPANDIDA);
         }
         _expandida = false;
 
@@ -1375,15 +1373,15 @@ internal sealed class Ilha : IDisposable
             _minutoDesenhado = agora.Minute;
             string h = agora.ToString("HH:mm");
             var m = _p.Texto.Medir(h, 13, Vortice.DirectWrite.FontWeight.Medium, tabular: true);
-            _p.Texto.Desenhar(dc, h, new Vector2((t.X - m.X) / 2, (t.Y - m.Y) / 2), 13, Cor.Secundario, Vortice.DirectWrite.FontWeight.Medium, tabular: true);
-            if (CorDoIndicador() is { } cor)
+            var cor = CorDoIndicador();
+            if (cor is { } c)
             {
-                // camera or microphone in use: a ring around the time (green for the camera, orange for the microphone)
+                // camera or microphone in use: the time on a pill of that color (green camera, orange microphone)
                 float l = m.X + ANEL_FOLGA * 2, a = ANEL_A;
-                var anel = new Vortice.Direct2D1.RoundedRectangle(new System.Drawing.RectangleF((t.X - l) / 2, (t.Y - a) / 2, l, a), a / 2, a / 2);
-                using var b = dc.CreateSolidColorBrush(cor);
-                dc.DrawRoundedRectangle(anel, b, 1.6f);
+                Icone.Retangulo(dc, (t.X - l) / 2, (t.Y - a) / 2, l, a, a / 2, c);
             }
+            _p.Texto.Desenhar(dc, h, new Vector2((t.X - m.X) / 2, (t.Y - m.Y) / 2), 13, cor != null ? Cor.Branco : Cor.Secundario,
+                cor != null ? Vortice.DirectWrite.FontWeight.SemiBold : Vortice.DirectWrite.FontWeight.Medium, tabular: true);
         });
         _relogios.Add(s);
         cena.AoSoltar += () => _relogios.Remove(s);

@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.5.1 (02/11/2026)
+
+**Changed**
+- Camera or microphone in use: the time now sits on a filled pill of that color, in white, instead of a ring.
+- The menu is more even: the card has its old rounding back, the sound and brightness sliders are as narrow as the
+  balls and line up with them, the batteries block lines up with the balls too (the batteries go under it, where the
+  names are), every block has the same curve as the balls, the icons are a bit bigger, the time and the corner icons
+  keep away from the corners, and there is no empty band at the bottom anymore.
+- The device photos lost the gray circle: the light gray outline now follows the shape of the mouse and the headset.
+
 ## 1.5.0 (02/11/2026)
 
 **New**

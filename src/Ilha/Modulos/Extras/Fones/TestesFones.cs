@@ -78,7 +78,12 @@ internal static class TestesFones
         r.Conferir("battery: green above 50, yellow to 26, red at 25, green while charging",
             BatteryPill.Color(51, false).G > 0.7f && BatteryPill.Color(50, false).R == 1f && BatteryPill.Color(50, false).G == 0.8f
             && BatteryPill.Color(25, false).G < 0.3f && BatteryPill.Color(5, true).Equals(BatteryPill.Color(90, false)));
-r.Conferir("batteries tile: 1 device 1x1, 2 side by side 2x1, 3 or 4 in 2x2",
+        var outlined = new Retrato(new byte[] { 10, 20, 30, 255 }, 1, 1).ComContorno(1, 200, 0.5f);
+        int Px(int x, int y, int c) => outlined.Dados[(y * outlined.Largura + x) * 4 + c];
+        r.Conferir("photo outline: grows by the radius, the picture stays on top, gray around it at the opacity",
+            outlined.Largura == 3 && outlined.Altura == 3 && Px(1, 1, 0) == 10 && Px(1, 1, 3) == 255 && Px(1, 0, 3) == 127 && Px(1, 0, 0) == 100,
+            $"{Px(1, 0, 0)}/{Px(1, 0, 3)}");
+        r.Conferir("batteries tile: 1 device 1x1, 2 side by side 2x1, 3 or 4 in 2x2",
             ModuloFones.TileSize(1) == (1, 1) && ModuloFones.TileSize(2) == (2, 1) && ModuloFones.TileSize(3) == (2, 2) && ModuloFones.TileSize(4) == (2, 2));
         var halves = ModuloFones.TileSlots(2, new System.Drawing.SizeF(176, 86));
         var lines = ModuloFones.TileSlots(5, new System.Drawing.SizeF(176, 180));

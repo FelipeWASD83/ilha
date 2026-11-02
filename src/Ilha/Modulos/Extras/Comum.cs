@@ -223,6 +223,55 @@ internal sealed class Retrato
         }
     }
 
+    /// <summary>
+    /// The same picture with an outline that follows its shape (like a sticker): the alpha grown by `raio` pixels, in
+    /// gray (`cinza` 0 to 255, at `opacidade`), behind the picture. The result is `raio` pixels bigger on each side so the
+    /// outline is not cut. Premultiplied BGRA, like `Dados`.
+    /// </summary>
+    public Retrato ComContorno(int raio, byte cinza, float opacidade)
+    {
+        if (raio <= 0) return this;
+        int l = Largura + 2 * raio, a = Altura + 2 * raio;
+        var alfa = new byte[Largura * Altura];
+        for (int i = 0; i < alfa.Length; i++) alfa[i] = Dados[i * 4 + 3];
+        // the disc of offsets, once
+        var disco = new List<(int dx, int dy)>();
+        for (int dy = -raio; dy <= raio; dy++)
+            for (int dx = -raio; dx <= raio; dx++)
+                if (dx * dx + dy * dy <= raio * raio + raio) disco.Add((dx, dy));
+        var saida = new byte[l * a * 4];
+        for (int y = 0; y < a; y++)
+            for (int x = 0; x < l; x++)
+            {
+                // the outline's alpha: the most opaque source pixel within the disc
+                int maior = 0;
+                foreach (var (dx, dy) in disco)
+                {
+                    int sx = x - raio + dx, sy = y - raio + dy;
+                    if ((uint)sx >= (uint)Largura || (uint)sy >= (uint)Altura) continue;
+                    int v = alfa[sy * Largura + sx];
+                    if (v > maior) { maior = v; if (v == 255) break; }
+                }
+                float ca = maior / 255f * opacidade;
+                int ox = x - raio, oy = y - raio;
+                float sa = 0, sb = 0, sg = 0, sr = 0;
+                if ((uint)ox < (uint)Largura && (uint)oy < (uint)Altura)
+                {
+                    int s = (oy * Largura + ox) * 4;
+                    sb = Dados[s]; sg = Dados[s + 1]; sr = Dados[s + 2]; sa = Dados[s + 3];
+                }
+                // the picture over the outline (premultiplied "over")
+                float k = 1 - sa / 255f;
+                float g = cinza * ca;
+                int o = (y * l + x) * 4;
+                saida[o] = (byte)MathF.Min(255, sb + g * k);
+                saida[o + 1] = (byte)MathF.Min(255, sg + g * k);
+                saida[o + 2] = (byte)MathF.Min(255, sr + g * k);
+                saida[o + 3] = (byte)MathF.Min(255, sa + 255 * ca * k);
+            }
+        return new Retrato(saida, l, a);
+    }
+
     /// <summary>Draws it scaled into the rectangle (DIP), smoothed: for a photo shown smaller than it was decoded.</summary>
     public unsafe void DesenharEm(ID2D1DeviceContext dc, float escala, float x, float y, float largura, float altura)
     {

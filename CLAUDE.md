@@ -184,21 +184,26 @@ and the points that matter are here.
   by HID++), connected (AirPods) or listed by G HUB (mouse), removed when it goes; `bateriaNoMenu` turns them off.
   Since 1.4.0 they are one tile, `baterias`, drawn by the module with `BatteryPill` (`Desenho.cs`: green above 50,
   yellow, red at 25 and below, green while charging). Its size follows the devices (his rule on 02/11/2026): one = a
-  1x1 ball with the battery under it, two = 2x1 side by side, three or four = 2x2 one per line. Photos sit in a light
-  gray ring, no backdrop; each device is a `Parts` area that opens it. The AirPods show their emptier bud.
+  1x1 ball with the battery under it, two = 2x1 side by side with the batteries under the block (`LabelBelow`), three
+  or four = 2x2 one per line. No circle around the photos (he called it ugly on 02/11/2026): `Retrato.ComContorno`
+  bakes a light gray outline that follows the device's shape when the photo loads. Each device is a `Parts` area that
+  opens it. The AirPods show their emptier bud.
 - **Main menu (1.4.0, reworked in 1.5.0, `Menu.cs`):** iPhone Control Center style, decided with him on 02/11/2026
   from his mockup and his phone. An `ItemDoMenu` has a size (`Cols` x `Rows`), and `Menu.Pack` puts each tile in the
   first free spot of the 4-column grid, in `Ordem` (a later small tile fills an earlier hole). A 1x1 is a gray ball
-  (58 DIP) with the name under it; bigger blocks have corners of half a column (`RAIO_BLOCO`, 42), so their ends match
-  the balls. The menu's card radius is that plus the padding (60, concentric); other cards keep 38. No lighter rim,
-  gray at 6% white. `Draw` replaces icon and name (sliders, batteries), `Drag` and `Wheel` act on the tile (the wheel
+  (58 DIP) with the name under it. A bigger block's body (`Menu.Corpo`) runs from its first column's ball edge to its
+  last one's and from its first row's ball top to its last row's ball bottom, so every edge lines up with the balls;
+  its curve is the balls' radius (`RAIO_BLOCO`, 29). The card keeps 38 like every card (60 looked wrong to him). The
+  card ends where the last thing drawn ends (a bottom row of blocks has no names). Icons are drawn for 24 DIP and
+  scaled by `ESCALA_ICONE` (28/24) with a transform, since some draw in fixed units. The header keeps `MARGEM` (8)
+  from the sides. No lighter rim, gray at 6% white. `Draw` replaces icon and name (sliders, batteries), `Drag` and `Wheel` act on the tile (the wheel
   reaches the card through `Atividade.Rolar(delta, noCartao)` with the last mouse position), `Parts` are clickable
   areas inside it, `Corner` puts the entry as a plain icon in the top right (settings at the edge, recording next to
   it), `IconSize` grows the icon (the limit ring) and `DetailSwatch` puts a color dot before the detail. The header
   centers time, date, the privacy dots and the corner icons on one line by the glyphs' middle (`Meio`), not the text
-  boxes. `MenuSlider` is the tall slider (sound, brightness): relative drag, a tap changes nothing. With his modules
-  the grid has 5 rows: twelve balls, then Sound and Brightness (1x2) and Batteries (2x1 with two devices, which
-  leaves two empty cells under it; 2x2 with three or four, none).
+  boxes. `MenuSlider` is the tall slider (sound, brightness), as narrow as a ball: relative drag, a tap changes
+  nothing. With his modules the grid has 5 rows: twelve balls, then Sound and Brightness (1x2) and Batteries (2x1 with
+  two devices, which leaves two empty cells under it; 2x2 with three or four, none).
 - **Camera and microphone (1.5.0, `Modulos/Privacidade`):** the ConsentStore stopped getting these times on Windows
   26300 (newest entries 15/10 and 18/10/2026), which is why nothing showed. `UsoAoVivo` now reads the capture sessions
   of every microphone (WASAPI, Active = recording) and the Media Foundation sensor activity monitor (cameras), on one
@@ -206,8 +211,8 @@ and the points that matter are here.
   02/11/2026 with ffmpeg holding the mic and the webcam. Kaspersky asks before letting a new program use the mic and
   holds it until answered: in a test, a program waiting on that prompt is not recording yet. The screen capture
   detector (Gravando) still reads the ConsentStore, through `RegistroDeConsentimento.cs`; whether Windows still
-  writes its keys was not checked. The pill: a ring around the time (green camera, orange microphone) when the time
-  shows, the dot on the side when it does not; only the privacy activity left = the idle pill with the time and the
+  writes its keys was not checked. The pill: the time in white on a filled pill (green camera, orange microphone;
+  he asked for the fill over the 1.5.0 ring) when the time shows, the dot on the side when it does not; only the privacy activity left = the idle pill with the time and the
   ring. The menu draws its own dots after the time (the core's card dots skip it).
 - **Brightness (1.5.0, `Modulos/Brilho`):** the primary monitor over DDC/CI, VCP 0x10 (`dxva2`), on its own thread;
   a drag sends only the newest value. On 02/11/2026 the ASUS XG34WCDMTG answered. No answer = no tile. The self test
