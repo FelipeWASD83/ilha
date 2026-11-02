@@ -54,7 +54,8 @@ internal sealed class ModuloGravando : Modulo
             Abrir = atv.Abrir,
             Detalhe = atv.DetalheDoMenu,
             Icone = (dc, palco, r) => IconeDoMenu(dc, r, atv.AcesoNoMenu),
-            Ordem = 55,
+            // an icon in the menu's top-right corner, next to settings (the dot lights up while recording)
+            Ordem = 55, Corner = true,
         });
         _competitivo = S.ContextoAtual().Competitivo;
         _procurar.Tick += (_, _) => Procurar();

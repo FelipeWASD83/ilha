@@ -8,10 +8,11 @@ using System.Text.Json.Serialization;
 namespace Ilha.Privacidade;
 
 /// <summary>
-/// Bolinha verde = câmera em uso, laranja = microfone em uso, como as do iPhone. Detecta pelo ConsentStore do
-/// Windows (o mesmo registro que alimenta "apps que usaram recentemente" em Privacidade), avisado pelo próprio
-/// registro, sem polling. Entrega o estado ao núcleo (S.Indicadores, que desenha as bolinhas no canto da pílula
-/// quando outra atividade está na frente) e mantém a atividade "privacidade" para quando a ilha não tem mais nada.
+/// Bolinha verde = câmera em uso, laranja = microfone em uso, como as do iPhone. Detecta pelas APIs do Windows
+/// (sessões de captura do WASAPI e o monitor de câmera do Media Foundation, avisados pelo sistema, sem polling; o
+/// ConsentStore do registro parou de ser gravado nesta versão do Windows). Entrega o estado ao núcleo
+/// (S.Indicadores: o contorno em volta da hora na pílula, ou as bolinhas) e mantém a atividade "privacidade" para
+/// quando a ilha não tem mais nada.
 /// </summary>
 [Modulo("privacidade", "Câmera e microfone", English = "Camera and microphone")]
 internal sealed class ModuloPrivacidade : Modulo
@@ -60,52 +61,28 @@ internal sealed class ModuloPrivacidade : Modulo
         void Conferir(string nome, bool ok, string detalhe = "") =>
             r.AppendLine((ok ? "ok      " : "FALHOU  ") + nome + (detalhe.Length > 0 ? $" ({detalhe})" : ""));
 
-        // nomes das subchaves
-        Conferir("caminho de NonPackaged", Consentimento.CaminhoDaSubchave("C:#Program Files#App Teste#app.exe") == @"C:\Program Files\App Teste\app.exe");
-        Conferir("nome do .exe sem caminho", Consentimento.NomeDoExe("C:#Program Files (x86)#Steam#jogo#bin#cs2.exe") == "cs2.exe");
-        Conferir("nome amigável do .exe", Consentimento.NomeAmigavelExe("C:#Program Files#BraveSoftware#Brave-Browser#Application#brave.exe") == "brave");
-        string unreal = Consentimento.NomeAmigavelExe("D:#Jogos#Bodycam#Binaries#Win64#Bodycam-Win64-Shipping.exe");
+        // nomes
+        Conferir("nome do .exe sem caminho", Consentimento.NomeDoExe(@"C:\Program Files (x86)\Steam\jogo\bin\cs2.exe") == "cs2.exe" && Consentimento.NomeDoExe("cs2.exe") == "cs2.exe");
+        Conferir("nome amigável do .exe", Consentimento.NomeAmigavelExe("brave.exe") == "brave");
+        string unreal = Consentimento.NomeAmigavelExe("Bodycam-Win64-Shipping.exe");
         Conferir("jogo de Unreal perde o -Win64-Shipping", unreal == "Bodycam", unreal);
-        Conferir("exe com # no fim não vira vazio", Consentimento.NomeAmigavelExe("C:#estranho#") == "estranho");
-        Conferir("pacote pela família", Consentimento.NomeAmigavelPacote("Microsoft.WindowsCamera_8wekyb3d8bbwe") == "WindowsCamera");
-        Conferir("pacote sem editor", Consentimento.NomeAmigavelPacote("Claude_pzs8sxrjxfjjc") == "Claude");
-        Conferir("pacote com número no editor", Consentimento.NomeAmigavelPacote("5319275A.WhatsAppDesktop_cv1g1gvanyjgm") == "WhatsAppDesktop");
+        Conferir("exe com barra no fim não vira vazio", Consentimento.NomeAmigavelExe(@"C:\estranho\") == "estranho");
 
-        // em uso ou não
-        Conferir("nunca usado não está em uso", !Consentimento.EmUso(0, 0));
-        Conferir("começou e não parou está em uso", Consentimento.EmUso(134368205896275911, 0));
-        Conferir("começou e parou não está em uso", !Consentimento.EmUso(134368205896275911, 134368206037152521));
-        Conferir("só o fim gravado não está em uso", !Consentimento.EmUso(0, 134368206037152521));
-        Conferir("QWORD do registro", Consentimento.Qword(134368205896275911L) == 134368205896275911L);
-        Conferir("valor faltando vale 0", Consentimento.Qword(null) == 0 && Consentimento.Qword("x") == 0);
-        Conferir("binário de 8 bytes", Consentimento.Qword(BitConverter.GetBytes(42L)) == 42);
-
-        // decisão com valores de mentira
-        const string proprio = @"C:\Programas\Ilha\Ilha.exe";
-        var entradas = new List<EntradaConsent>
+        // decisão com processos de mentira
+        var exes = new Dictionary<uint, string>
         {
-            new("webcam", "Fabricante.AppDeVideo_abc123", false, 300, 0),
-            new("webcam", "C:#Programas#Antigo#antigo.exe", true, 100, 200),
-            new("microphone", "C:#Programas#Chat#chat.exe", true, 500, 0),
-            new("microphone", "C:#Programas#Navegador#navegador.exe", true, 400, 0),
-            new("microphone", "C:#Programas#Outro Lugar#navegador.exe", true, 450, 0),
-            new("microphone", "C:#Programas#Travado#travado.exe", true, 50, 0),
-            new("microphone", "C:#Programas#Ilha#Ilha.exe", true, 10, 0),
-            new("microphone", "C:#Jogos#jogo#jogo.exe", true, 20, 0),
-            new("microphone", "Fabricante.AppDeVideo_abc123", false, 600, 0),
-            new("microphone", "Fabricante.Gravador_abc123", false, 0, 0),
+            [10] = "AppDeVideo.exe", [20] = "chat.exe", [21] = "navegador.exe", [22] = "navegador.exe", [24] = "jogo.exe",
         };
-        var rodando = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "chat.exe", "navegador.exe", "jogo.exe", "Ilha.exe" };
-        string Pacote(string f) => f.StartsWith("Fabricante.AppDeVideo") ? "App de Vídeo" : Consentimento.NomeAmigavelPacote(f);
-        var est = Consentimento.Decidir(entradas, proprio, rodando.Contains, new[] { "jogo" }, Pacote);
-        Conferir("câmera: só o que não parou", est.AppsDaCamera == "App de Vídeo", est.AppsDaCamera);
-        Conferir("microfone: ordem de início, sem repetir, sem a ilha, sem o travado, sem o ignorado",
-            est.AppsDoMicrofone == "navegador, chat, App de Vídeo", est.AppsDoMicrofone);
-        var semConferir = Consentimento.Decidir(entradas, proprio, null, Array.Empty<string>(), Pacote);
-        Conferir("sem lista de processos o travado conta", semConferir.Microfone.Contains("travado") && semConferir.Microfone.Contains("jogo"));
-        var ign = Consentimento.Decidir(entradas, proprio, null, new[] { "Fabricante.AppDeVideo", "chat.exe", " ", "NAVEGADOR" }, Pacote);
-        Conferir("ignorar por família, por .exe e sem diferenciar maiúscula", ign.AppsDaCamera == "" && ign.AppsDoMicrofone == "jogo, travado", ign.AppsDoMicrofone);
-        Conferir("nada em uso", !Consentimento.Decidir(new[] { entradas[1], entradas[^1] }, proprio, null, Array.Empty<string>(), Pacote).Algum);
+        string? Exe(uint pid) => exes.TryGetValue(pid, out var e) ? e : null;
+        var camera = new[] { (10u, 3L) };
+        var mic = new[] { (20u, 2L), (21u, 1L), (22u, 4L), (23u, 5L), (24u, 6L) };
+        var est = Consentimento.Decidir(camera, mic, Exe, new[] { "jogo" });
+        Conferir("câmera pelo processo", est.AppsDaCamera == "AppDeVideo", est.AppsDaCamera);
+        Conferir("microfone: ordem de início, sem repetir, sem o processo que morreu, sem o ignorado",
+            est.AppsDoMicrofone == "navegador, chat", est.AppsDoMicrofone);
+        var ign = Consentimento.Decidir(camera, mic, Exe, new[] { "appdevideo", "chat.exe", " ", "NAVEGADOR" });
+        Conferir("ignorar pelo nome, pelo .exe e sem diferenciar maiúscula", ign.AppsDaCamera == "" && ign.AppsDoMicrofone == "jogo", ign.AppsDoMicrofone);
+        Conferir("nada em uso", !Consentimento.Decidir(Array.Empty<(uint, long)>(), new[] { (23u, 1L) }, Exe, Array.Empty<string>()).Algum);
 
         // estado e linhas do cartão
         var a = new EstadoPrivacidade(new[] { "App" }, new[] { "App1", "App2" });
@@ -123,58 +100,19 @@ internal sealed class ModuloPrivacidade : Modulo
         Conferir("só microfone, uma linha", new EstadoPrivacidade(Array.Empty<string>(), new[] { "X" }).Linhas().Count == 1);
         Conferir("largura das bolinhas", AtividadePrivacidade.LarguraDasBolinhas(true, true) == 19 && AtividadePrivacidade.LarguraDasBolinhas(false, true) == 7);
 
-        // sondas de verdade, só leitura
-        try
+        // sondas de verdade, só leitura: a lista de processos e o detector ligado de verdade por um instante
+        int processos = DetectorDePrivacidade.Processos().Count;
+        Conferir("sonda: lista de processos (Toolhelp)", processos > 10, $"{processos} processos");
+        using (var chegou = new System.Threading.ManualResetEventSlim(false))
         {
-            var todas = DetectorDePrivacidade.LerEntradas();
-            int cam = todas.Count(e => e.Capacidade == Consentimento.Camera), mic = todas.Count(e => e.Capacidade == Consentimento.Microfone);
-            Conferir("sonda: ConsentStore lido", todas.Count > 0, $"{cam} apps na câmera, {mic} no microfone, {todas.Count(e => e.NaoEmpacotado)} não empacotados");
-            var agora = DetectorDePrivacidade.Estado(Array.Empty<string>(), Environment.ProcessPath);
-            r.AppendLine($"ok      sonda: em uso agora: câmera [{agora.AppsDaCamera}] microfone [{agora.AppsDoMicrofone}]");
-            var pac = todas.FirstOrDefault(e => !e.NaoEmpacotado && e.Subchave.Contains('_'));
-            if (pac.Subchave != null)
-                r.AppendLine($"ok      sonda: nome de pacote: {Consentimento.NomeAmigavelPacote(pac.Subchave)} -> {DetectorDePrivacidade.NomeDoPacote(pac.Subchave)}");
-            int processos = DetectorDePrivacidade.Processos().Count;
-            Conferir("sonda: lista de processos (Toolhelp)", processos > 10, $"{processos} nomes");
-        }
-        catch (Exception e) { Conferir("sonda: ConsentStore", false, e.Message); }
-
-        foreach (var cap in new[] { Consentimento.Camera, Consentimento.Microfone })
-        {
-            var v = VigiaDeChave.Abrir(Consentimento.Raiz + "\\" + cap, () => { });
-            Conferir($"sonda: notificação armada em {cap} (REG_NOTIFY_THREAD_AGNOSTIC)", v is { Valida: true }, v == null ? "chave ausente ou erro" : $"erro {v.UltimoErro}");
-            v?.Dispose();
-        }
-
-        // o aviso chega e rearma: numa chave de rascunho da própria ilha (criada e apagada aqui), nunca no ConsentStore
-        const string pai = @"Software\Ilha", rascunho = pai + @"\autoteste-privacidade";
-        bool paiExistia;
-        using (var k = Microsoft.Win32.Registry.CurrentUser.OpenSubKey(pai)) paiExistia = k != null;
-        try
-        {
-            using (Microsoft.Win32.Registry.CurrentUser.CreateSubKey(rascunho)) { }
-            using var sinais = new System.Threading.SemaphoreSlim(0);
-            var vigia = VigiaDeChave.Abrir(rascunho, () => sinais.Release());
-            bool primeiro = false, segundo = false;
-            if (vigia != null)
-            {
-                using (var k = Microsoft.Win32.Registry.CurrentUser.OpenSubKey(rascunho, true)) k?.SetValue("LastUsedTimeStart", 1L, Microsoft.Win32.RegistryValueKind.QWord);
-                primeiro = sinais.Wait(2000);
-                using (var k = Microsoft.Win32.Registry.CurrentUser.OpenSubKey(rascunho, true)) k?.CreateSubKey("sub")?.SetValue("LastUsedTimeStop", 2L, Microsoft.Win32.RegistryValueKind.QWord);
-                segundo = sinais.Wait(2000);
-                vigia.Dispose();
-            }
-            Conferir("aviso do registro chega e rearma (chave de rascunho)", primeiro && segundo, $"primeiro {primeiro}, segundo (subchave) {segundo}");
-        }
-        catch (Exception e) { Conferir("aviso do registro (chave de rascunho)", false, e.Message); }
-        finally
-        {
-            try
-            {
-                Microsoft.Win32.Registry.CurrentUser.DeleteSubKeyTree(rascunho, false);
-                if (!paiExistia) Microsoft.Win32.Registry.CurrentUser.DeleteSubKey(pai, false);
-            }
-            catch { }
+            IReadOnlyCollection<uint> micAgora = Array.Empty<uint>(), camAgora = Array.Empty<uint>();
+            var uso = new UsoAoVivo((m, c) => { micAgora = m; camAgora = c; chegou.Set(); });
+            uso.Start();
+            bool leu = chegou.Wait(5000);
+            Conferir("sonda: microfones e câmera lidos pelas APIs do Windows (WASAPI e Media Foundation)", leu && uso.Microphones > 0,
+                $"{uso.Microphones} microfone(s), monitor de câmera {(uso.CameraOn ? "ligado" : "DESLIGADO")}, em uso agora: microfone [{string.Join(",", micAgora)}] câmera [{string.Join(",", camAgora)}]");
+            Conferir("sonda: monitor de câmera do Media Foundation liga", uso.CameraOn);
+            uso.Dispose();
         }
         return r.ToString().TrimEnd();
     }

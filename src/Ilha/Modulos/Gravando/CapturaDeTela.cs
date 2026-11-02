@@ -172,8 +172,8 @@ internal sealed class DetectorDeCaptura : IDisposable
     {
         var entradas = LerEntradas();
         HashSet<string>? processos = null;
-        bool Rodando(string exe) => (processos ??= DetectorDePrivacidade.Processos()).Contains(exe);
-        return Capturas.Decidir(entradas, DateTime.UtcNow, minimo, proprio, Rodando, ignorar, DetectorDePrivacidade.NomeDoPacote, out rever);
+        bool Rodando(string exe) => (processos ??= ProcessosDoConsent.Processos()).Contains(exe);
+        return Capturas.Decidir(entradas, DateTime.UtcNow, minimo, proprio, Rodando, ignorar, ProcessosDoConsent.NomeDoPacote, out rever);
     }
 
     public static List<EntradaConsent> LerEntradas()

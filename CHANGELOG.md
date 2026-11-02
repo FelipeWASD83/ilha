@@ -1,5 +1,25 @@
 # Changelog
 
+## 1.5.0 (02/11/2026)
+
+**New**
+- Monitor brightness: a tall slider next to the sound one, for the main monitor (over DDC/CI, the same setting as the
+  monitor's own menu). Drag it or use the mouse wheel over it. A monitor that does not answer gets no slider.
+- Camera and microphone in use: with the island closed, a ring around the time (green for the camera, orange for the
+  microphone); when the time is not showing, a dot. In the menu, a dot right after the time.
+
+**Changed**
+- The menu is rounder: every small entry is a ball with its name under it, the bigger blocks have rounded ends, the
+  gray is darker and has no lighter edge.
+- The top of the menu is aligned on one line (time, date, icons), the date is shorter so it is not cut, and settings
+  is a plain icon with no gray behind it. Recording moved next to settings, and Translator took its place.
+- Batteries: one device is a small ball, two share a 2x1 block and three or four a 2x2 block. The photos are bigger,
+  with a light gray outline instead of the gray backdrop, and the battery number has a cleaner font, centered.
+
+**Fixed**
+- The camera and microphone warning was not showing at all: Windows stopped recording that in the place the island
+  read (it had nothing since mid October). It now comes from the Windows audio and camera systems directly.
+
 ## 1.4.0 (02/11/2026)
 
 **New**

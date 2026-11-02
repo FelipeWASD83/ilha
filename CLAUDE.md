@@ -182,18 +182,36 @@ and the points that matter are here.
   island); test it with the cursor parked over the island, which is the real case.
 - **Battery tiles (1.2.0):** `bateria:<key>` items in the main menu (owner `fones`), shown while the device is on (G733
   by HID++), connected (AirPods) or listed by G HUB (mouse), removed when it goes; `bateriaNoMenu` turns them off.
-  Since 1.4.0 they are one tile, `baterias` (1x1 with one device, 2x2 with more, one device per line, up to 4), drawn
-  by the module with `BatteryPill` (`Desenho.cs`: green above 50, yellow, red at 25 and below, green while charging);
-  each line is a `Parts` area that opens its device. The AirPods show their emptier bud.
-- **Main menu (1.4.0, `Menu.cs`):** iPhone Control Center style, decided with him on 02/11/2026 from his mockup. An
-  `ItemDoMenu` has a size (`Cols` x `Rows`), and `Menu.Pack` puts each tile in the first free spot of the 4-column grid,
-  in `Ordem` (a later small tile fills an earlier hole). `Draw` replaces icon and name (sound slider, batteries),
-  `Drag` and `Wheel` act on the tile (the wheel reaches the card through `Atividade.Rolar(delta, noCartao)` with the
-  last mouse position), `Parts` are clickable areas inside it, `Corner` puts the entry as a round button in the top
-  right (settings), `IconSize` grows the icon (the limit ring) and `DetailSwatch` puts a color dot before the detail.
-  The tiles' radius (`RAIO_BLOCO`, 20) plus the card padding (18) is the radius of every expanded card, so the corners
-  are concentric. With his modules on 02/11/2026 the grid has 5 rows: twelve 1x1 tiles, then Sound (1x2), Translator
-  and Batteries (2x2), which leaves one empty cell under Translator.
+  Since 1.4.0 they are one tile, `baterias`, drawn by the module with `BatteryPill` (`Desenho.cs`: green above 50,
+  yellow, red at 25 and below, green while charging). Its size follows the devices (his rule on 02/11/2026): one = a
+  1x1 ball with the battery under it, two = 2x1 side by side, three or four = 2x2 one per line. Photos sit in a light
+  gray ring, no backdrop; each device is a `Parts` area that opens it. The AirPods show their emptier bud.
+- **Main menu (1.4.0, reworked in 1.5.0, `Menu.cs`):** iPhone Control Center style, decided with him on 02/11/2026
+  from his mockup and his phone. An `ItemDoMenu` has a size (`Cols` x `Rows`), and `Menu.Pack` puts each tile in the
+  first free spot of the 4-column grid, in `Ordem` (a later small tile fills an earlier hole). A 1x1 is a gray ball
+  (58 DIP) with the name under it; bigger blocks have corners of half a column (`RAIO_BLOCO`, 42), so their ends match
+  the balls. The menu's card radius is that plus the padding (60, concentric); other cards keep 38. No lighter rim,
+  gray at 6% white. `Draw` replaces icon and name (sliders, batteries), `Drag` and `Wheel` act on the tile (the wheel
+  reaches the card through `Atividade.Rolar(delta, noCartao)` with the last mouse position), `Parts` are clickable
+  areas inside it, `Corner` puts the entry as a plain icon in the top right (settings at the edge, recording next to
+  it), `IconSize` grows the icon (the limit ring) and `DetailSwatch` puts a color dot before the detail. The header
+  centers time, date, the privacy dots and the corner icons on one line by the glyphs' middle (`Meio`), not the text
+  boxes. `MenuSlider` is the tall slider (sound, brightness): relative drag, a tap changes nothing. With his modules
+  the grid has 5 rows: twelve balls, then Sound and Brightness (1x2) and Batteries (2x1 with two devices, which
+  leaves two empty cells under it; 2x2 with three or four, none).
+- **Camera and microphone (1.5.0, `Modulos/Privacidade`):** the ConsentStore stopped getting these times on Windows
+  26300 (newest entries 15/10 and 18/10/2026), which is why nothing showed. `UsoAoVivo` now reads the capture sessions
+  of every microphone (WASAPI, Active = recording) and the Media Foundation sensor activity monitor (cameras), on one
+  MTA thread fed by system notices, no polling; names come from Toolhelp (no handle opened, anti-cheat). Tested on
+  02/11/2026 with ffmpeg holding the mic and the webcam. Kaspersky asks before letting a new program use the mic and
+  holds it until answered: in a test, a program waiting on that prompt is not recording yet. The screen capture
+  detector (Gravando) still reads the ConsentStore, through `RegistroDeConsentimento.cs`; whether Windows still
+  writes its keys was not checked. The pill: a ring around the time (green camera, orange microphone) when the time
+  shows, the dot on the side when it does not; only the privacy activity left = the idle pill with the time and the
+  ring. The menu draws its own dots after the time (the core's card dots skip it).
+- **Brightness (1.5.0, `Modulos/Brilho`):** the primary monitor over DDC/CI, VCP 0x10 (`dxva2`), on its own thread;
+  a drag sends only the newest value. On 02/11/2026 the ASUS XG34WCDMTG answered. No answer = no tile. The self test
+  only reads, never writes.
 - **ALTURA_MAX (640 DIP)** bounds the shape visuals of the island: a card taller than it loses the bottom of its body.
 - **Low battery alerts (1.1.0, `BatteryAlerts.cs`, `GHub.cs`, `ModuloFones.cs`):** a level (50, 25, 10, 5, 1 by
   default, `limiaresBateria` in the settings) fires when a reading goes from above it to at or below it, once per level

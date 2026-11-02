@@ -470,26 +470,24 @@ internal sealed class ModuloFones : Modulo
         });
     }
 
-    /// <summary>The photo's box (DIP).</summary>
-    private const float PHOTO = 32;
+    /// <summary>The photo's box (DIP) and the light gray ring around it.</summary>
+    private const float PHOTO = 36, RING = 48;
 
-    /// <summary>
-    /// One device: a 1x1 tile; two or more: 2x2, one per line. (2x1 with two side by side left three empty cells next
-    /// to the tall sound slider; 2x2 leaves one.)
-    /// </summary>
-    internal static (int Cols, int Rows) TileSize(int devices) => devices <= 1 ? (1, 1) : (2, 2);
+    /// <summary>One device: 1x1 (a ball, the battery under it); two: 2x1, side by side; three or four: 2x2, one per line.</summary>
+    internal static (int Cols, int Rows) TileSize(int devices) => devices <= 1 ? (1, 1) : devices == 2 ? (2, 1) : (2, 2);
 
-    /// <summary>Where each device goes inside the tile (relative to it): the whole tile, or lines from the top (up to 4).</summary>
+    /// <summary>Where each device goes inside the tile (relative to it): the whole cell, two halves, or lines (up to 4).</summary>
     internal static List<System.Drawing.RectangleF> TileSlots(int devices, System.Drawing.SizeF size)
     {
         var slots = new List<System.Drawing.RectangleF>();
         if (devices <= 0) return slots;
-        if (devices == 1)
+        if (devices <= 2)
         {
-            slots.Add(new(0, 0, size.Width, size.Height));
+            float w = size.Width / devices;
+            for (int i = 0; i < devices; i++) slots.Add(new(i * w, 0, w, size.Height));
             return slots;
         }
-        const float pad = 8;
+        const float pad = 10;
         int n = Math.Min(devices, 4);
         float h = (size.Height - 2 * pad) / n;
         for (int i = 0; i < n; i++) slots.Add(new(0, pad + i * h, size.Width, h));
@@ -511,18 +509,28 @@ internal sealed class ModuloFones : Modulo
             int? level = FooterLevel(f.BateriaApple, f.Bateria);
             if (_shown.Count == 1)
             {
-                // photo on top, battery under it
-                DrawPhoto(dc, p, new Vector2(s.X + s.Width / 2, s.Y + 5 + PHOTO / 2), f);
-                BatteryPill.Draw(dc, p, s.X + (s.Width - BatteryPill.W) / 2, s.Y + 43, level, f.Carregando);
+                // the menu's ball is the body: the photo in it, the battery under it (where a name would go)
+                var ball = Menu.Bola(s);
+                DrawPhoto(dc, p, new Vector2(ball.X + ball.Width / 2, ball.Y + ball.Height / 2), f, ball.Width - 6);
+                BatteryPill.Draw(dc, p, s.X + (s.Width - BatteryPill.Total) / 2, ball.Bottom + 6, level, f.Carregando);
+            }
+            else if (_shown.Count == 2)
+            {
+                // the photo on top, the battery under it, in each half
+                const float gap = 6;
+                float top = s.Y + (s.Height - RING - gap - BatteryPill.H) / 2;
+                DrawPhoto(dc, p, new Vector2(s.X + s.Width / 2, top + RING / 2), f, RING);
+                BatteryPill.Draw(dc, p, s.X + (s.Width - BatteryPill.Total) / 2, top + RING + gap, level, f.Carregando);
             }
             else
             {
                 // a line: photo, name, battery on the right
-                const float side = 12;
-                DrawPhoto(dc, p, new Vector2(s.X + side + PHOTO / 2, s.Y + s.Height / 2), f);
+                const float side = 14;
+                float ring = MathF.Min(RING - 6, s.Height - 4);
+                DrawPhoto(dc, p, new Vector2(s.X + side + ring / 2, s.Y + s.Height / 2), f, ring);
                 float px = s.Right - side - BatteryPill.Total;
                 BatteryPill.Draw(dc, p, px, s.Y + (s.Height - BatteryPill.H) / 2, level, f.Carregando);
-                float nx = s.X + side + PHOTO + 8;
+                float nx = s.X + side + ring + 8;
                 var m = p.Texto.Medir(MenuName(f), 12, Vortice.DirectWrite.FontWeight.Medium);
                 p.Texto.Desenhar(dc, MenuName(f), new Vector2(nx, s.Y + (s.Height - m.Y) / 2), 12, Cor.Branco, Vortice.DirectWrite.FontWeight.Medium, largura: px - nx - 6);
             }
@@ -549,19 +557,22 @@ internal sealed class ModuloFones : Modulo
     }
 
     /// <summary>
-    /// The photo centered on the point, over a faint round backdrop (a black device still reads on the dark tile); a
-    /// drawing while the photo loads.
+    /// The photo centered on the point inside a light gray ring (a black device still reads on the dark tile); a
+    /// drawing while the photo loads. The photo is decoded at PHOTO and shrinks with a smaller ring.
     /// </summary>
-    private static void DrawPhoto(Vortice.Direct2D1.ID2D1DeviceContext dc, Palco p, Vector2 centro, Fone f)
+    private static void DrawPhoto(Vortice.Direct2D1.ID2D1DeviceContext dc, Palco p, Vector2 center, Fone f, float ring)
     {
-        Icone.Circulo(dc, centro, PHOTO / 2 + 2, new Vortice.Mathematics.Color4(1, 1, 1, 0.07f));
         if (f.RetratoMenu != null)
         {
-            var tam = f.RetratoMenu.TamanhoDip(p.Escala);
-            f.RetratoMenu.Desenhar(dc, p.Escala, centro.X - tam.X / 2, centro.Y - tam.Y / 2);
+            var size = f.RetratoMenu.TamanhoDip(p.Escala);
+            float k = MathF.Min(1f, (ring - 8) / MathF.Max(size.X, size.Y));
+            if (k >= 0.999f) f.RetratoMenu.Desenhar(dc, p.Escala, center.X - size.X / 2, center.Y - size.Y / 2);
+            else f.RetratoMenu.DesenharEm(dc, p.Escala, center.X - size.X * k / 2, center.Y - size.Y * k / 2, size.X * k, size.Y * k);
         }
-        else if (f.Tipo == TipoAparelho.Mouse) Desenhos.Mouse(dc, p.G.Fabrica, centro, 24, Cor.Branco);
-        else Desenhos.Fone(dc, p.G.Fabrica, centro, 24, Cor.Branco);
+        else if (f.Tipo == TipoAparelho.Mouse) Desenhos.Mouse(dc, p.G.Fabrica, center, ring * 0.55f, Cor.Branco);
+        else Desenhos.Fone(dc, p.G.Fabrica, center, ring * 0.55f, Cor.Branco);
+        using var b = dc.CreateSolidColorBrush(new Vortice.Mathematics.Color4(1, 1, 1, 0.38f));
+        dc.DrawEllipse(new Vortice.Direct2D1.Ellipse(center, ring / 2 - 0.7f, ring / 2 - 0.7f), b, 1.4f);
     }
 
     // ------------------------------------------------------------------ low battery alerts

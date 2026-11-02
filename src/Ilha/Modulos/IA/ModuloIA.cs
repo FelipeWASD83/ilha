@@ -49,7 +49,8 @@ internal sealed class ModuloIA : Modulo
         });
         S.Menu.Adicionar(new ItemDoMenu
         {
-            Id = "tradutor", Nome = Lang.T("Tradutor", "Translator"), Ordem = 75, Abrir = () => _trad.AbrirParaDigitar(),
+            // where recording was before it moved to the menu's corner
+            Id = "tradutor", Nome = Lang.T("Tradutor", "Translator"), Ordem = 55, Abrir = () => _trad.AbrirParaDigitar(),
             Detalhe = () => "PT ↔ EN",
             Icone = (dc, palco, r) => DesenharIconeTradutor(dc, palco, r),
         });
@@ -74,8 +75,8 @@ internal sealed class ModuloIA : Modulo
         Icone.Linha(dc, P(4.5f, 11), P(7.5f, 4.5f), 1.4f * u, tinta, f);
         Icone.Linha(dc, P(7.5f, 4.5f), P(10.5f, 11), 1.4f * u, tinta, f);
         Icone.Linha(dc, P(5.6f, 8.9f), P(9.4f, 8.9f), 1.3f * u, tinta, f);
-        // a gap in the tile's own gray between the two bubbles
-        Icone.Retangulo(dc, r.X + 8 * u, r.Y + 8 * u, 16 * u, 13 * u, 4.5f * u, new Vortice.Mathematics.Color4(0.085f, 0.085f, 0.085f, 1f));
+        // a gap in the ball's own gray between the two bubbles
+        Icone.Retangulo(dc, r.X + 8 * u, r.Y + 8 * u, 16 * u, 13 * u, 4.5f * u, new Vortice.Mathematics.Color4(0.06f, 0.06f, 0.06f, 1f));
         Icone.Retangulo(dc, r.X + 9 * u, r.Y + 9 * u, 14 * u, 11 * u, 3.5f * u, Cor.Branco);
         Icone.Triangulo(dc, f, P(17.5f, 19.5f), P(21, 19.5f), P(21.5f, 23), Cor.Branco);
         Icone.Linha(dc, P(16, 10.6f), P(16, 12.2f), 1.3f * u, tinta, f);

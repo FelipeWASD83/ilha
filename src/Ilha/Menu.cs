@@ -24,7 +24,10 @@ internal sealed class ItemDoMenu
     public int Cols = 1, Rows = 1;
     /// <summary>Side of the icon box (DIP). A bigger icon (the limit ring with its number inside) needs no detail line.</summary>
     public float IconSize = 24;
-    /// <summary>Draws the whole tile (the sound slider, the batteries) instead of icon and name; the rect is the tile.</summary>
+    /// <summary>
+    /// Draws the tile's content (the sound slider, the batteries) instead of icon and name; the rect is the whole cell
+    /// area. The menu has already drawn the gray body: a ball on top for a 1x1, a rounded block for bigger ones.
+    /// </summary>
     public Action<ID2D1DeviceContext, Palco, System.Drawing.RectangleF>? Draw;
     /// <summary>
     /// Dragging inside the tile: the position relative to the tile's corner, the tile's size and true on release. A press
@@ -35,7 +38,7 @@ internal sealed class ItemDoMenu
     public Func<int, bool>? Wheel;
     /// <summary>Clickable parts of a drawn tile (each device in the batteries tile), relative to the tile.</summary>
     public Func<System.Drawing.SizeF, IReadOnlyList<(System.Drawing.RectangleF Area, Action Open)>>? Parts;
-    /// <summary>A round button in the top-right corner, next to the date (settings), instead of a tile.</summary>
+    /// <summary>A plain icon in the top-right corner, next to the date (settings, recording), instead of a tile.</summary>
     public bool Corner;
     /// <summary>A small color dot before the detail line (the color picker's last color).</summary>
     public Func<Vortice.Mathematics.Color4?>? DetailSwatch;
@@ -76,8 +79,9 @@ internal sealed class MenuDaIlha
 
 /// <summary>
 /// O menu principal: abre pelo atalho da ilha ou pelo clique sem nada em andamento, e o "&lt;" das telas internas
-/// volta para ele. Hora e data em cima, as configurações no canto e uma grade de blocos (1x1 com ícone e nome, ou
-/// maiores e desenhados pelo módulo, como o volume e as baterias), no estilo da Central de Controle do iPhone.
+/// volta para ele. Hora e data em cima, os ícones do canto (configurações, gravação) e uma grade no estilo da Central
+/// de Controle do iPhone: cada entrada 1x1 é uma bola com o nome embaixo, as maiores (volume, brilho, baterias) são
+/// blocos de cantos redondos desenhados pelo módulo.
 /// </summary>
 internal sealed class Menu : Atividade
 {
@@ -85,28 +89,35 @@ internal sealed class Menu : Atividade
     public override string Nome => "Menu";
 
     private const int COLUNAS = 4;
-    private const float LADO = 84, ALTO = 66, VAO = 8, CABECALHO = 58, CANTO = 34;
-    /// <summary>Corner radius of the tiles; the card's own radius is this plus its padding, so the corners line up.</summary>
-    internal const float RAIO_BLOCO = 20;
-    private static readonly Vortice.Mathematics.Color4 FundoBloco = new(1, 1, 1, 0.085f);
-    private static readonly Vortice.Mathematics.Color4 BordaBloco = new(1, 1, 1, 0.07f);
+    private const float LADO = 84, ALTO = 86, VAO = 8, CABECALHO = 50, BOLA = 58, CANTO = 34, CANTO_ICONE = 22;
+    /// <summary>The header's center line: the time's digits, the date, the dots and the corner icons sit on it.</summary>
+    private const float LINHA = 19;
+    /// <summary>
+    /// Corner radius of the bigger blocks: half a column, so their ends have the same curve as the balls. The menu's card
+    /// uses this plus its padding, so the corners are concentric.
+    /// </summary>
+    internal const float RAIO_BLOCO = LADO / 2;
+    private static readonly Vortice.Mathematics.Color4 FundoBloco = new(1, 1, 1, 0.06f);
 
     private readonly MenuDaIlha _menu;
+    private readonly Indicadores? _indicadores;
     private readonly System.Windows.Forms.Timer _minuto = new() { Interval = 5_000 };
     private int _desenhado = -1;
     private string _assinatura = "";
     // the tiles of the scene on screen, for the mouse wheel
     private List<(ItemDoMenu Item, System.Drawing.RectangleF Area)> _blocos = new();
 
-    public Menu(MenuDaIlha menu)
+    public Menu(MenuDaIlha menu, Indicadores? indicadores = null)
     {
         _menu = menu;
+        _indicadores = indicadores;
         _menu.Mudou += () =>
         {
             // entrou, saiu ou mudou de tamanho um bloco: a grade muda; só o conteúdo mudou: redesenha
             if (Assinatura(_menu.Itens) != _assinatura) MudouTamanho();
             else Redesenhar();
         };
+        if (_indicadores != null) _indicadores.Mudou += Redesenhar;
         // só roda enquanto o menu está na tela, e só redesenha quando o minuto vira
         _minuto.Tick += (_, _) =>
         {
@@ -158,12 +169,19 @@ internal sealed class Menu : Atividade
         return new(col * (LADO + VAO), CABECALHO + row * (ALTO + VAO), w * LADO + (w - 1) * VAO, h * ALTO + (h - 1) * VAO);
     }
 
+    private static bool Simples(ItemDoMenu i) => i.Cols <= 1 && i.Rows <= 1;
+
+    /// <summary>The ball of a 1x1 tile: centered at the top of its cell, with the name under it.</summary>
+    internal static System.Drawing.RectangleF Bola(System.Drawing.RectangleF celula) =>
+        new(celula.X + (celula.Width - BOLA) / 2, celula.Y, BOLA, BOLA);
+
     protected override Cena Montar(Palco p, Forma f)
     {
         _minuto.Start();
         var todos = _menu.Itens;
         _assinatura = Assinatura(todos);
-        var cantos = todos.Where(i => i.Corner).ToList();
+        // the first corner entry sits at the right edge: settings (the highest order) last in the menu, first here
+        var cantos = todos.Where(i => i.Corner).OrderByDescending(i => i.Ordem).ToList();
         var itens = todos.Where(i => !i.Corner).ToList();
         var (lugares, linhas) = Pack(itens.Select(i => (i.Cols, i.Rows)).ToList());
         var blocos = itens.Select((it, k) => (it, Area(lugares[k].Col, lugares[k].Row, it))).ToList();
@@ -173,13 +191,7 @@ internal sealed class Menu : Atividade
         var c = p.NovaCena(new Vector2(largura, altura));
         p.Desenho(c, Vector2.Zero, c.Tamanho, (dc, t) =>
         {
-            var agora = DateTime.Now;
-            _desenhado = agora.Minute;
-            var cultura = Lang.Culture;
-            p.Texto.Desenhar(dc, agora.ToString("HH:mm", cultura), new Vector2(-1, -6), 38, Cor.Branco, FontWeight.Medium, tabular: true);
-            float dataAte = largura - cantos.Count * (CANTO + 8);
-            p.Texto.Desenhar(dc, agora.ToString(Lang.T("dddd, d 'de' MMMM", "dddd, MMMM d"), cultura), new Vector2(112, 6), 14, Cor.Secundario, FontWeight.Normal, largura: dataAte - 112 - 4);
-            for (int k = 0; k < cantos.Count; k++) DesenharCanto(dc, p, cantos[k], AreaDoCanto(k, largura));
+            DesenharCabecalho(dc, p, largura, cantos);
             if (itens.Count == 0)
             {
                 p.Texto.Desenhar(dc, Lang.T("Nenhum módulo com entrada no menu.", "No module has a menu entry."), new Vector2(0, CABECALHO), 12, Cor.Secundario, FontWeight.Normal);
@@ -187,7 +199,7 @@ internal sealed class Menu : Atividade
             }
             foreach (var (item, r) in blocos)
             {
-                Bloco(dc, r, FundoBloco);
+                Fundo(dc, Simples(item) ? Bola(r) : r, Simples(item));
                 try
                 {
                     if (item.Draw != null) item.Draw(dc, p, r);
@@ -222,6 +234,47 @@ internal sealed class Menu : Atividade
         return c;
     }
 
+    /// <summary>
+    /// Time, the camera and microphone dots, date and the corner icons, all centered on one line (the digits' middle,
+    /// not the text boxes': a text box has room above and below the glyphs).
+    /// </summary>
+    private void DesenharCabecalho(ID2D1DeviceContext dc, Palco p, float largura, IReadOnlyList<ItemDoMenu> cantos)
+    {
+        var agora = DateTime.Now;
+        _desenhado = agora.Minute;
+        var cultura = Lang.Culture;
+        const float HORA = 34, DATA = 14;
+        string hora = agora.ToString("HH:mm", cultura);
+        var mh = p.Texto.Medir(hora, HORA, FontWeight.Medium, tabular: true);
+        p.Texto.Desenhar(dc, hora, new Vector2(-1, LINHA - Meio(HORA)), HORA, Cor.Branco, FontWeight.Medium, tabular: true);
+        float x = mh.X + 10;
+        // camera (green) and microphone (orange) in use: dots right after the time
+        if (_indicadores is { Algum: true } ind)
+        {
+            const float PONTO = 8, VAO_PONTO = 5;
+            if (ind.Microfone) { Icone.Circulo(dc, new Vector2(x + PONTO / 2, LINHA), PONTO / 2, Cor.Laranja); x += PONTO + VAO_PONTO; }
+            if (ind.Camera) { Icone.Circulo(dc, new Vector2(x + PONTO / 2, LINHA), PONTO / 2, Cor.Verde); x += PONTO + VAO_PONTO; }
+            x += 5;
+        }
+        float dataAte = largura - cantos.Count * (CANTO + 4) - 6;
+        // the short weekday ("seg., 2 de novembro"): the long one got cut by the corner icons
+        p.Texto.Desenhar(dc, agora.ToString(Lang.T("ddd, d 'de' MMMM", "ddd, MMMM d"), cultura), new Vector2(x, LINHA - Meio(DATA, minusculas: true)),
+            DATA, Cor.Secundario, FontWeight.Normal, largura: MathF.Max(20, dataAte - x));
+        for (int k = 0; k < cantos.Count; k++)
+        {
+            var r = AreaDoCanto(k, largura);
+            var icone = new System.Drawing.RectangleF(r.X + (r.Width - CANTO_ICONE) / 2, LINHA - CANTO_ICONE / 2, CANTO_ICONE, CANTO_ICONE);
+            try { cantos[k].Icone?.Invoke(dc, p, icone); }
+            catch (Exception e) { Log.Escrever($"menu: ícone de {cantos[k].Id}: {e.Message}"); }
+        }
+    }
+
+    /// <summary>
+    /// From the top of a text box to the middle of its glyphs (Segoe UI Variable: baseline at 1.08 em; digits and capitals
+    /// 0.70 em tall, lowercase 0.50 em, so a mostly lowercase line has its middle a bit lower).
+    /// </summary>
+    private static float Meio(float tamanho, bool minusculas = false) => tamanho * (1.08f - (minusculas ? 0.29f : 0.35f));
+
     public override bool Rolar(int delta, Vector2? noCartao)
     {
         if (noCartao is not { } l) return false;
@@ -234,60 +287,53 @@ internal sealed class Menu : Atividade
         return false;
     }
 
-    /// <summary>The corner buttons line up from the right edge, in the menu's order (the first one at the edge).</summary>
+    /// <summary>The corner icons line up from the right edge (the first one at the edge); the area is what takes the click.</summary>
     private static System.Drawing.RectangleF AreaDoCanto(int k, float largura) =>
-        new(largura - CANTO - k * (CANTO + 8), -2, CANTO, CANTO);
+        new(largura - CANTO - k * (CANTO + 4), LINHA - CANTO / 2, CANTO, CANTO);
 
-    private static void DesenharCanto(ID2D1DeviceContext dc, Palco p, ItemDoMenu item, System.Drawing.RectangleF r)
+    /// <summary>The gray body: a ball for a 1x1 tile, a block with half-column corners for a bigger one.</summary>
+    internal static void Fundo(ID2D1DeviceContext dc, System.Drawing.RectangleF r, bool bola)
     {
-        var centro = new Vector2(r.X + r.Width / 2, r.Y + r.Height / 2);
-        Icone.Circulo(dc, centro, r.Width / 2, new Vortice.Mathematics.Color4(1, 1, 1, 0.12f));
-        try { item.Icone?.Invoke(dc, p, new System.Drawing.RectangleF(centro.X - 10, centro.Y - 10, 20, 20)); }
-        catch (Exception e) { Log.Escrever($"menu: ícone de {item.Id}: {e.Message}"); }
-    }
-
-    /// <summary>The tile's rounded body with a faint edge (the glass rim of the iPhone controls, without the blur).</summary>
-    internal static void Bloco(ID2D1DeviceContext dc, System.Drawing.RectangleF r, Vortice.Mathematics.Color4 cor)
-    {
-        Icone.Retangulo(dc, r.X, r.Y, r.Width, r.Height, RAIO_BLOCO, cor);
-        using var b = dc.CreateSolidColorBrush(BordaBloco);
-        var rr = new RoundedRectangle(new System.Drawing.RectangleF(r.X + 0.5f, r.Y + 0.5f, r.Width - 1, r.Height - 1), RAIO_BLOCO - 0.5f, RAIO_BLOCO - 0.5f);
-        dc.DrawRoundedRectangle(rr, b, 1f);
+        if (bola) { Icone.Circulo(dc, new Vector2(r.X + r.Width / 2, r.Y + r.Height / 2), r.Width / 2, FundoBloco); return; }
+        Icone.Retangulo(dc, r.X, r.Y, r.Width, r.Height, MathF.Min(RAIO_BLOCO, MathF.Min(r.Width, r.Height) / 2), FundoBloco);
     }
 
     private static void DesenharPadrao(ID2D1DeviceContext dc, Palco p, ItemDoMenu item, System.Drawing.RectangleF r)
     {
-        float ic = Math.Clamp(item.IconSize, 12, 40);
-        var area = new System.Drawing.RectangleF(r.X + r.Width / 2 - ic / 2, r.Y + 21 - ic / 2, ic, ic);
+        float ic = Math.Clamp(item.IconSize, 12, BOLA - 10);
+        // the icon in the middle of the ball (1x1) or of the upper part of a bigger block; the name under the ball
+        var corpo = Simples(item) ? Bola(r) : new System.Drawing.RectangleF(r.X, r.Y, r.Width, r.Height - 30);
+        var area = new System.Drawing.RectangleF(corpo.X + (corpo.Width - ic) / 2, corpo.Y + (corpo.Height - ic) / 2, ic, ic);
         try { item.Icone?.Invoke(dc, p, area); }
         catch (Exception e) { Log.Escrever($"menu: ícone de {item.Id}: {e.Message}"); }
         if (item.Icone == null) Icone.Retangulo(dc, area.X + 3, area.Y + 3, ic - 6, ic - 6, 5, Cor.Fraco);
         string? detalhe = null;
         try { detalhe = item.Detalhe?.Invoke(); } catch { }
-        Centrado(dc, p, item.Nome, r, r.Y + (detalhe == null ? 40 : 36), 12, Cor.Branco, FontWeight.Medium);
+        float y = corpo.Bottom + 5;
+        Centrado(dc, p, item.Nome, r, y, 12, Cor.Branco, FontWeight.Medium);
         if (detalhe == null) return;
         Vortice.Mathematics.Color4? amostra = null;
         try { amostra = item.DetailSwatch?.Invoke(); } catch { }
-        Centrado(dc, p, detalhe, r, r.Y + 51, 10.5f, Cor.Secundario, FontWeight.Normal, amostra);
+        Centrado(dc, p, detalhe, r, y + 15, 10.5f, Cor.Secundario, FontWeight.Normal, amostra);
     }
 
     private static void Centrado(ID2D1DeviceContext dc, Palco p, string texto, System.Drawing.RectangleF r, float y, float tam,
         Vortice.Mathematics.Color4 cor, FontWeight peso, Vortice.Mathematics.Color4? amostra = null)
     {
-        const float BOLA = 7, ESPACO = 4;
-        float extra = amostra == null ? 0 : BOLA + ESPACO;
+        const float BOLINHA = 7, ESPACO = 4;
+        float extra = amostra == null ? 0 : BOLINHA + ESPACO;
         var m = p.Texto.Medir(texto, tam, peso);
-        float l = MathF.Min(m.X, r.Width - 8 - extra);
+        float l = MathF.Min(m.X, r.Width - 4 - extra);
         float x = r.X + (r.Width - l - extra) / 2;
         if (amostra is { } a)
         {
-            var centro = new Vector2(x + BOLA / 2, y + m.Y / 2);
-            Icone.Circulo(dc, centro, BOLA / 2, a);
+            var centro = new Vector2(x + BOLINHA / 2, y + m.Y / 2);
+            Icone.Circulo(dc, centro, BOLINHA / 2, a);
             // a dark color on the black card still shows its edge
             using var b = dc.CreateSolidColorBrush(new Vortice.Mathematics.Color4(1, 1, 1, 0.35f));
-            dc.DrawEllipse(new Ellipse(centro, BOLA / 2, BOLA / 2), b, 0.8f);
+            dc.DrawEllipse(new Ellipse(centro, BOLINHA / 2, BOLINHA / 2), b, 0.8f);
         }
-        p.Texto.Desenhar(dc, texto, new Vector2(x + extra, y), tam, cor, peso, largura: r.Width - 8 - extra);
+        p.Texto.Desenhar(dc, texto, new Vector2(x + extra, y), tam, cor, peso, largura: r.Width - 4 - extra);
     }
 
     private static void Abrir(string id, Action abrir)
@@ -297,4 +343,61 @@ internal sealed class Menu : Atividade
     }
 
     public override void Dispose() => _minuto.Dispose();
+}
+
+/// <summary>
+/// The tall iPhone slider of the menu (sound, brightness): fills white from the bottom up to the level (gray when it is
+/// off, like muted), with the icon and the number near the bottom, dark over the fill and white over the empty part.
+/// Dragged relative to where it was, so a tap changes nothing.
+/// </summary>
+internal sealed class MenuSlider
+{
+    private float _y, _start;
+    private bool _on, _moved;
+
+    /// <summary>A drag is going on (from the press to the release).</summary>
+    public bool Ativo => _on;
+
+    public static void Draw(ID2D1DeviceContext dc, Palco p, System.Drawing.RectangleF r, float level, bool dim,
+        Action<ID2D1DeviceContext, Vector2, Vortice.Mathematics.Color4> icon, string text)
+    {
+        float top = r.Bottom - r.Height * Math.Clamp(level, 0, 1);
+        float radius = MathF.Min(Menu.RAIO_BLOCO, r.Width / 2);
+        if (r.Bottom - top > 0.5f)
+        {
+            dc.PushAxisAlignedClip(new System.Drawing.RectangleF(r.X, top, r.Width, r.Bottom - top), AntialiasMode.PerPrimitive);
+            Icone.Retangulo(dc, r.X, r.Y, r.Width, r.Height, radius, dim ? new Vortice.Mathematics.Color4(1, 1, 1, 0.45f) : Cor.Branco);
+            Content(dc, p, r, new Vortice.Mathematics.Color4(0, 0, 0, 0.82f), icon, text);
+            dc.PopAxisAlignedClip();
+        }
+        dc.PushAxisAlignedClip(new System.Drawing.RectangleF(r.X, r.Y, r.Width, top - r.Y), AntialiasMode.PerPrimitive);
+        Content(dc, p, r, Cor.Branco, icon, text);
+        dc.PopAxisAlignedClip();
+    }
+
+    private static void Content(ID2D1DeviceContext dc, Palco p, System.Drawing.RectangleF r, Vortice.Mathematics.Color4 color,
+        Action<ID2D1DeviceContext, Vector2, Vortice.Mathematics.Color4> icon, string text)
+    {
+        const float ICON = 26;
+        icon(dc, new Vector2(r.X + (r.Width - ICON) / 2, r.Bottom - 62), color);
+        var m = p.Texto.Medir(text, 11.5f, FontWeight.SemiBold, tabular: true);
+        p.Texto.Desenhar(dc, text, new Vector2(r.X + (r.Width - m.X) / 2, r.Bottom - 30), 11.5f, color, FontWeight.SemiBold, tabular: true);
+    }
+
+    /// <summary>The new level for this drag position, or null when it should not change (a tap, or no move yet).</summary>
+    public float? Drag(Vector2 pos, float height, bool released, float current)
+    {
+        if (!_on)
+        {
+            _on = true;
+            _moved = false;
+            _y = pos.Y;
+            _start = current;
+        }
+        // the dead zone only guards a tap: once it moved, coming back to the starting point gives the starting level
+        _moved |= MathF.Abs(pos.Y - _y) > 2;
+        float level = Volume.Logica.Arrastado(_start, _y - pos.Y, height);
+        if (released) _on = false;
+        return _moved && MathF.Abs(level - current) > 0.001f ? level : null;
+    }
 }

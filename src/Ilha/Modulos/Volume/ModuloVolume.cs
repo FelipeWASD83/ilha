@@ -87,62 +87,23 @@ internal sealed class ModuloVolume : Modulo
 
     // ---------------------------------------------------------------- the menu's slider
 
-    private float _arrasteY, _arrasteNivel;
-    private bool _arrastando, _arrasteMoveu;
+    private readonly MenuSlider _slider = new();
 
-    /// <summary>
-    /// Fills white from the bottom up to the volume (gray when muted), with the speaker and the number near the bottom:
-    /// dark over the fill, white over the empty part.
-    /// </summary>
     private void DesenharNoMenu(Vortice.Direct2D1.ID2D1DeviceContext dc, Palco p, System.Drawing.RectangleF r)
     {
         var a = _audio;
         bool tem = a is { TemAparelho: true }, mudo = a?.Mudo ?? false;
-        float nivel = tem ? a!.Escala : 0;
-        float topo = r.Bottom - r.Height * nivel;
-        var cheio = new System.Drawing.RectangleF(r.X, topo, r.Width, r.Bottom - topo);
-        if (cheio.Height > 0.5f)
-        {
-            dc.PushAxisAlignedClip(cheio, Vortice.Direct2D1.AntialiasMode.PerPrimitive);
-            Icone.Retangulo(dc, r.X, r.Y, r.Width, r.Height, Menu.RAIO_BLOCO, mudo ? new Vortice.Mathematics.Color4(1, 1, 1, 0.45f) : Cor.Branco);
-            Conteudo(dc, p, r, new Vortice.Mathematics.Color4(0, 0, 0, 0.82f), mudo);
-            dc.PopAxisAlignedClip();
-        }
-        dc.PushAxisAlignedClip(new System.Drawing.RectangleF(r.X, r.Y, r.Width, topo - r.Y), Vortice.Direct2D1.AntialiasMode.PerPrimitive);
-        Conteudo(dc, p, r, Cor.Branco, mudo);
-        dc.PopAxisAlignedClip();
+        MenuSlider.Draw(dc, p, r, tem ? a!.Escala : 0, mudo,
+            (d, pos, cor) => Desenhos.AltoFalante(d, p.G.Fabrica, pos, 26 / 24f, cor, Logica.Ondas(_audio?.Escala ?? 0, mudo), mudo),
+            DetalheDoMenu() ?? "");
     }
 
-    private void Conteudo(Vortice.Direct2D1.ID2D1DeviceContext dc, Palco p, System.Drawing.RectangleF r, Vortice.Mathematics.Color4 cor, bool mudo)
-    {
-        const float ICONE = 26;
-        Desenhos.AltoFalante(dc, p.G.Fabrica, new Vector2(r.X + (r.Width - ICONE) / 2, r.Bottom - 52), ICONE / 24f, cor,
-            Logica.Ondas(_audio?.Escala ?? 0, mudo), mudo);
-        string texto = DetalheDoMenu() ?? "";
-        var m = p.Texto.Medir(texto, 11, Vortice.DirectWrite.FontWeight.SemiBold, tabular: true);
-        p.Texto.Desenhar(dc, texto, new Vector2(r.X + (r.Width - m.X) / 2, r.Bottom - 22), 11, cor, Vortice.DirectWrite.FontWeight.SemiBold, tabular: true);
-    }
-
-    /// <summary>Relative, like the iPhone: the level moves with the finger from where it was; a tap changes nothing.</summary>
     private void ArrastarNoMenu(Vector2 pos, System.Drawing.SizeF tamanho, bool soltou)
     {
         if (_audio is not { TemAparelho: true } a) return;
-        if (!_arrastando)
-        {
-            _arrastando = true;
-            _arrasteMoveu = false;
-            _arrasteY = pos.Y;
-            _arrasteNivel = a.Escala;
-        }
-        // the dead zone only guards a tap: once it moved, coming back to the starting point gives the starting level
-        _arrasteMoveu |= MathF.Abs(pos.Y - _arrasteY) > 2;
-        float nivel = Logica.Arrastado(_arrasteNivel, _arrasteY - pos.Y, tamanho.Height);
-        if (_arrasteMoveu && MathF.Abs(nivel - a.Escala) > 0.001f)
-        {
-            a.DefinirEscala(nivel);
-            if (a.Mudo && nivel > 0) a.DefinirMudo(false);
-        }
-        if (soltou) _arrastando = false;
+        if (_slider.Drag(pos, tamanho.Height, soltou, a.Escala) is not float nivel) return;
+        a.DefinirEscala(nivel);
+        if (a.Mudo && nivel > 0) a.DefinirMudo(false);
     }
 
     private int _rodaMenu;

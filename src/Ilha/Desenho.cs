@@ -122,7 +122,7 @@ internal static class Bitmaps
 /// </summary>
 internal static class BatteryPill
 {
-    public const float W = 34, H = 16, NUB = 2.5f;
+    public const float W = 38, H = 18, NUB = 2.5f;
     /// <summary>The whole width, the little cap on the right included.</summary>
     public const float Total = W + 1 + NUB;
 
@@ -134,24 +134,25 @@ internal static class BatteryPill
 
     public static void Draw(ID2D1DeviceContext dc, Palco p, float x, float y, int? level, bool charging)
     {
-        const float r = 5f, size = 11f;
-        Icone.Retangulo(dc, x + W + 1, y + H / 2 - 3, NUB, 6, 1.2f, new Color4(1, 1, 1, 0.35f));
-        Icone.Retangulo(dc, x, y, W, H, r, new Color4(1, 1, 1, 0.24f));
+        // SemiBold (Bold smeared at this size) and centered on the digits' middle, not on the text box
+        const float r = 6f, size = 12f;
+        Icone.Retangulo(dc, x + W + 1, y + H / 2 - 3.5f, NUB, 7, 1.2f, new Color4(1, 1, 1, 0.35f));
+        Icone.Retangulo(dc, x, y, W, H, r, new Color4(1, 1, 1, 0.22f));
         string text = level is int lv ? Math.Clamp(lv, 0, 100).ToString() : "–";
-        var m = p.Texto.Medir(text, size, FontWeight.Bold, tabular: true);
-        var pos = new Vector2(x + (W - m.X) / 2, y + (H - m.Y) / 2 - 0.5f);
+        var m = p.Texto.Medir(text, size, FontWeight.SemiBold, tabular: true);
+        var pos = new Vector2(x + (W - m.X) / 2, y + H / 2 - size * 0.73f);
         float full = level is int v ? W * Math.Clamp(v, 0, 100) / 100f : 0;
         if (full > 0)
         {
             dc.PushAxisAlignedClip(new System.Drawing.RectangleF(x, y, full, H), AntialiasMode.PerPrimitive);
             Icone.Retangulo(dc, x, y, W, H, r, Color(level!.Value, charging));
-            p.Texto.Desenhar(dc, text, pos, size, new Color4(0, 0, 0, 0.88f), FontWeight.Bold, tabular: true);
+            p.Texto.Desenhar(dc, text, pos, size, new Color4(0, 0, 0, 0.85f), FontWeight.SemiBold, tabular: true);
             dc.PopAxisAlignedClip();
         }
         if (full < W)
         {
             dc.PushAxisAlignedClip(new System.Drawing.RectangleF(x + full, y - 2, W - full + 1, H + 4), AntialiasMode.PerPrimitive);
-            p.Texto.Desenhar(dc, text, pos, size, Cor.Branco, FontWeight.Bold, tabular: true);
+            p.Texto.Desenhar(dc, text, pos, size, Cor.Branco, FontWeight.SemiBold, tabular: true);
             dc.PopAxisAlignedClip();
         }
     }

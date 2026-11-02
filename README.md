@@ -60,7 +60,8 @@ Each one is turned on and off in the settings window (or in `config.json` → `m
 |---|---|---|
 | Media | what is playing, cover art, visualizer, controls, drag to seek, mouse wheel = volume | |
 | Volume | level when it changes; in the card, switch the audio output and the mixer (volume and mute per app) | |
-| Privacy | green dot (camera) and orange dot (microphone) with who is using them | |
+| Privacy | camera (green) or microphone (orange) in use: a ring around the time on the pill, or a dot when the time is not showing; a dot next to the time in the menu; the card says who is using them | |
+| Brightness | the main monitor's brightness as a slider in the menu, over DDC/CI (no tile if the monitor does not answer) | |
 | Timer | timer, stopwatch and pomodoro; type `25m`, `1h30`, `90s` | `Ctrl + Alt + R` |
 | PC usage | shows up when the processor, graphics card or memory is maxed out; card with everything | `Ctrl + Alt + U` |
 | Claude Code | shows up only while working or asking for attention; notice when done, approve or deny permission | |
@@ -71,7 +72,7 @@ Each one is turned on and off in the settings window (or in `config.json` → `m
 | Claude limit | session and weekly usage and when it resets (from the Claude Code status line) | |
 | Calculator | math, units and live exchange rates | `Ctrl + Alt + K` |
 | AI | chat with GPT and Claude | `Ctrl + Alt + J` |
-| Translator | translates the selected text in any program | `Ctrl + Alt + T` |
+| Translator | translates the selected text in any program, or a text typed from the menu | `Ctrl + Alt + T` |
 | Air | the air conditioner through the `ar-do-quarto` server, in the menu; tells you when the air changes | `Ctrl + Alt + A` |
 | Headphones | photo and battery of the headphones when they connect, and a warning when the battery falls to 50%, 25%, 10%, 5% and 1% (AirPods: 50%, 20%, 10% and under 10%); the Logitech G502 X Plus mouse too, read from G HUB | G HUB running for the mouse |
 | Screenshot | thumbnail of the screenshot, draggable into another program | |

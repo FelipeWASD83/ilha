@@ -24,7 +24,9 @@ internal sealed class Ilha : IDisposable
     private const float COMPACTA_A = 36, COMPACTA_FOLGA = 12, COMPACTA_MIN = 168;
     private const float PREVIA_L = 14, PREVIA_A = 4;
     private const float BOLHA = 36, VAO = 14;
-    private const float CARTAO_FOLGA = 18, CARTAO_MIN = 340, RAIO_EXPANDIDA = Menu.RAIO_BLOCO + CARTAO_FOLGA, RAIO_ALERTA = 28;
+    private const float CARTAO_FOLGA = 18, CARTAO_MIN = 340, RAIO_EXPANDIDA = 38,
+        // the menu's card: its blocks' corner radius plus the padding, so the corners are concentric
+        RAIO_MENU = Menu.RAIO_BLOCO + CARTAO_FOLGA, RAIO_ALERTA = 28;
     private const float OMBRO = 7;
     private const float SOMBRA = 30;
     private const float PONTO = 7, PONTO_VAO = 5;
@@ -133,7 +135,12 @@ internal sealed class Ilha : IDisposable
         set
         {
             _indicadores = value;
-            if (value != null) value.Mudou += () => Aplicar();
+            if (value != null) value.Mudou += () =>
+            {
+                // the ring around the time is drawn in the clock surfaces
+                foreach (var s in _relogios.ToArray()) s.Redesenhar();
+                Aplicar();
+            };
         }
     }
     private Estado _estado = Estado.Oculta;
@@ -1257,18 +1264,35 @@ internal sealed class Ilha : IDisposable
             var f = _foco;
             bool voltar = f != _painel && _painel != null && !_ctx.Competitivo;
             return Cartao(Estado.Expandida, $"exp:{f.GetHashCode()}:{(voltar ? 1 : 0)}:{f.Versao}",
-                voltar ? () => ComVoltar(f.Criar(_p, Forma.Expandida)) : () => f.Criar(_p, Forma.Expandida), RAIO_EXPANDIDA);
+                voltar ? () => ComVoltar(f.Criar(_p, Forma.Expandida)) : () => f.Criar(_p, Forma.Expandida), f.Tipo == "menu" ? RAIO_MENU : RAIO_EXPANDIDA);
         }
         _expandida = false;
 
         if (_ctx.ConteudoEmTelaCheia && !_revelada && !_zonaDeSoltar)
             return new Plano(Estado.Oculta, Vector2.Zero, 0, null, null, false, null, null);
 
+        _anelNaPilula = false;
+        if (vis.Count == 1 && vis[0].Tipo == "privacidade" && _cfg.Relogio && !_ctx.Desktop && CorDoIndicador() != null)
+        {
+            // only the camera or microphone in use: the idle pill with the time, the ring around it; a click opens the card
+            var a = vis[0];
+            float l = OCIOSA_L, h = OCIOSA_A;
+            if (_sobre) { l += PREVIA_L * 0.6f; h += PREVIA_A * 0.6f; }
+            string ch = $"cmp:privacidade-relogio:{a.Versao}";
+            TamanhoDaCena(_vagaCorpo, ch, () => ComRelogio(_p.NovaCena(new Vector2(OCIOSA_L, OCIOSA_A)), (0, OCIOSA_L)), out var criar);
+            _anelNaPilula = true;
+            _extraPontos = 0;
+            return new Plano(Estado.Compacta, new Vector2(l, h), h / 2, ch, criar, false, null, null);
+        }
+
         if (vis.Count > 0)
         {
             var a = vis[0];
             var meio = _cfg.Relogio && !_ctx.Desktop ? a.MeioLivreCompacta : null;
-            bool relogio = meio is { } mv && mv.Ate - mv.De >= LarguraDoRelogio() + 10;
+            // with the ring the time needs a little more room; without the room, the dots on the side say it instead
+            float precisa = LarguraDoRelogio() + (CorDoIndicador() != null ? ANEL_FOLGA * 2 + 6 : 10);
+            bool relogio = meio is { } mv && mv.Ate - mv.De >= precisa;
+            _anelNaPilula = relogio && CorDoIndicador() != null;
             string ch = $"cmp:{a.GetHashCode()}:{(relogio ? 1 : 0)}:{a.Versao}";
             var tam = TamanhoDaCena(_vagaCorpo, ch, relogio ? () => ComRelogio(a.Criar(_p, Forma.Compacta), meio!.Value) : () => a.Criar(_p, Forma.Compacta), out var criar);
             float l = MathF.Max(a.LarguraCompactaMinima ?? COMPACTA_MIN, tam.X + COMPACTA_FOLGA * 2), h = COMPACTA_A;
@@ -1332,6 +1356,15 @@ internal sealed class Ilha : IDisposable
 
     private float LarguraDoRelogio() => _p.Texto.Medir("00:00", 13, Vortice.DirectWrite.FontWeight.Medium, tabular: true).X;
 
+    private const float ANEL_FOLGA = 8, ANEL_A = 22;
+
+    /// <summary>The ring's color when the camera (green) or the microphone (orange) is in use; null when none, or hidden.</summary>
+    private Vortice.Mathematics.Color4? CorDoIndicador() =>
+        _indicadores is { Algum: true } i && !_ctx.Competitivo && !_cfg.Pausada ? (i.Camera ? Cor.Verde : Cor.Laranja) : null;
+
+    /// <summary>The compact pill shows the time with the ring around it (the dots on the side would repeat it).</summary>
+    private bool _anelNaPilula;
+
     /// <summary>Põe a hora no trecho vazio do meio da cena compacta (fonte sem serifa, discreta).</summary>
     private Cena ComRelogio(Cena cena, (float De, float Ate) meio)
     {
@@ -1343,6 +1376,14 @@ internal sealed class Ilha : IDisposable
             string h = agora.ToString("HH:mm");
             var m = _p.Texto.Medir(h, 13, Vortice.DirectWrite.FontWeight.Medium, tabular: true);
             _p.Texto.Desenhar(dc, h, new Vector2((t.X - m.X) / 2, (t.Y - m.Y) / 2), 13, Cor.Secundario, Vortice.DirectWrite.FontWeight.Medium, tabular: true);
+            if (CorDoIndicador() is { } cor)
+            {
+                // camera or microphone in use: a ring around the time (green for the camera, orange for the microphone)
+                float l = m.X + ANEL_FOLGA * 2, a = ANEL_A;
+                var anel = new Vortice.Direct2D1.RoundedRectangle(new System.Drawing.RectangleF((t.X - l) / 2, (t.Y - a) / 2, l, a), a / 2, a / 2);
+                using var b = dc.CreateSolidColorBrush(cor);
+                dc.DrawRoundedRectangle(anel, b, 1.6f);
+            }
         });
         _relogios.Add(s);
         cena.AoSoltar += () => _relogios.Remove(s);
@@ -1525,12 +1566,13 @@ internal sealed class Ilha : IDisposable
         return n == 0 ? 0 : n * PONTO + (n - 1) * PONTO_VAO;
     }
 
-    // a própria atividade de privacidade já mostra as bolinhas; no modo competitivo elas ficam escondidas
+    // a própria atividade de privacidade já mostra as bolinhas; no modo competitivo elas ficam escondidas. A hora com o
+    // anel em volta já avisa (compacta), e o menu põe as bolinhas do lado da hora dele
     private bool PontosDevemAparecer(Estado e, Atividade? principal) =>
         _indicadores?.Algum == true && !_ctx.Competitivo && !_cfg.Pausada
         && e is Estado.Compacta or Estado.Expandida or Estado.Alerta
-        && (e != Estado.Compacta || Visiveis().FirstOrDefault()?.Tipo != "privacidade")
-        && !(e == Estado.Expandida && principal?.Tipo == "privacidade");
+        && (e != Estado.Compacta || Visiveis().FirstOrDefault()?.Tipo != "privacidade" && !_anelNaPilula)
+        && !(e == Estado.Expandida && principal?.Tipo is "privacidade" or "menu");
 
     private void PosicionarPontos(Estado e, Vector2 corpoPx, float topo, float cx, bool animar)
     {

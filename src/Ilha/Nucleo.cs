@@ -49,7 +49,7 @@ internal sealed class Nucleo : IDisposable
         _vis = new JanelaVisual();
         _toque = new JanelaToque();
         Ilha = new Ilha(_g, Config, _vis, _toque);
-        Ilha.DefinirPainel(new Menu(_menu));
+        Ilha.DefinirPainel(new Menu(_menu, _indicadores));
         AdicionarItensDoNucleo();
         Aquecer();
         Demonstracao = new Demonstracao(Ilha);

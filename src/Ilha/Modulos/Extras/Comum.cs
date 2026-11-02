@@ -222,6 +222,17 @@ internal sealed class Retrato
             dc.FillRoundedRectangle(ref rr, pincel);
         }
     }
+
+    /// <summary>Draws it scaled into the rectangle (DIP), smoothed: for a photo shown smaller than it was decoded.</summary>
+    public unsafe void DesenharEm(ID2D1DeviceContext dc, float escala, float x, float y, float largura, float altura)
+    {
+        var props = new BitmapProperties1(new Vortice.DCommon.PixelFormat(Vortice.DXGI.Format.B8G8R8A8_UNorm, Vortice.DCommon.AlphaMode.Premultiplied), 96f * escala, 96f * escala, BitmapOptions.None);
+        fixed (byte* d = Dados)
+        {
+            using var bmp = dc.CreateBitmap(new SizeI(Largura, Altura), (IntPtr)d, (uint)(Largura * 4), props);
+            Bitmaps.Draw(dc, bmp, x, y, largura, altura, BitmapInterpolationMode.Linear);
+        }
+    }
 }
 
 /// <summary>Arquivo que outro programa ainda está escrevendo: espera ele soltar (abrir negando escrita só passa quando ninguém escreve).</summary>
