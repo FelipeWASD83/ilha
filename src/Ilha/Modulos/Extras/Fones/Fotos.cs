@@ -21,7 +21,7 @@ internal static class Fotos
     private static readonly HashSet<string> Opcionais = new(StringComparer.Ordinal)
     {
         "apple", "sony", "samsung", "bose", "jbl", "beats", "hyperx", "razer", "steelseries", "logitech", "corsair",
-        "nothing", "g", "preto", "branco", "lilas", "azul", "rosa", "vermelho",
+        "nothing", "g", "preto", "branco", "lilas", "azul", "rosa", "vermelho", "roxo", "menta",
     };
 
     private static readonly Dictionary<string, string> Sinonimos = new(StringComparer.Ordinal)

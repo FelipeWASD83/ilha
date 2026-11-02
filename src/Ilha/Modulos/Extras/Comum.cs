@@ -286,6 +286,15 @@ internal static class Desenhos
         Icone.Circulo(dc, new Vector2(c.X + 7f * u, c.Y - 2.5f * u), 1.1f * u, furo);
     }
 
+    public static void Mouse(ID2D1DeviceContext dc, ID2D1Factory1 f, Vector2 c, float lado, Color4 cor)
+    {
+        float u = lado / 24f;
+        Icone.Retangulo(dc, c.X - 7 * u, c.Y - 11 * u, 14 * u, 22 * u, 7 * u, cor);
+        var furo = new Color4(0f, 0f, 0f, 1f);
+        Icone.Retangulo(dc, c.X - 0.8f * u, c.Y - 9 * u, 1.6f * u, 6 * u, 0.8f * u, furo);
+        Icone.Retangulo(dc, c.X - 7 * u, c.Y - 3.4f * u, 14 * u, 1.4f * u, 0.5f * u, furo);
+    }
+
     public static void Bluetooth(ID2D1DeviceContext dc, ID2D1Factory1 f, Vector2 c, float lado, Color4 cor)
     {
         float u = lado / 24f, e = 1.9f * u;

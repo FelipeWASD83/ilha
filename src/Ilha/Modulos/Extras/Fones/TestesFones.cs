@@ -18,6 +18,7 @@ internal static class TestesFones
         "samsung-galaxy-buds4-pro.png", "bose-qc-ultra-fones-2.png", "bose-qc-ultra-earbuds-2.png", "jbl-tune-770nc.png",
         "beats-studio-pro.png", "beats-powerbeats-pro-2.png", "hyperx-cloud-iii-wireless.png", "razer-blackshark-v2-pro.png",
         "steelseries-arctis-nova-pro-wireless.png", "logitech-g-pro-x-2-lightspeed.png", "corsair-hs80-rgb-wireless.png", "nothing-ear.png",
+        "g502-x-plus-preto.png", "g502-x-plus-roxo.png", "g502-x-plus-branco.png", "g502-x-plus-menta.png",
     };
 
     private static byte[] Anuncio(ushort modelo, byte estado, byte pecas, byte estojo)
@@ -40,6 +41,8 @@ internal static class TestesFones
             Lang.Set("en");
             r.Conferir("english: subtitles and battery labels", ModuloFones.Subtitulo(true, false, null, false) == "Connected · reading the battery"
                 && ModuloFones.Partes(null, 63, true, true).Single() == ("estimate", 63, true));
+            r.Conferir("english: low battery lines", ModuloFones.TextoBateriaBaixa(20, 20, "left", true) == "Left earbud · Battery at 20%"
+                && ModuloFones.TextoBateriaBaixa(1, 1, null, false) == "Battery almost empty: 1%");
             return r.ToString();
         }
         finally { Lang.Set(idioma); }
@@ -125,6 +128,10 @@ internal static class TestesFones
         Foto("Nothing Ear (a)", "nothing-ear.png");
         Foto("G733", "g733-preto.png");
         Foto("G733", "g733-lilas.png", variante: "lilas");
+        Foto("G502 X PLUS", "g502-x-plus-preto.png");
+        Foto("G502 X PLUS", "g502-x-plus-roxo.png", variante: "roxo");
+        Foto("G502 X PLUS", "g502-x-plus-branco.png", variante: "branco");
+        Foto("G502 X PLUS", "g502-x-plus-menta.png", variante: "menta");
         Foto("DualSense Edge Wireless Controller", null);
         Foto("Teclado K380", null);
         Foto("Fone Qualquer", "airpods-pro-3.png", new Dictionary<string, string> { ["qualquer"] = "airpods-pro-3.png" });
@@ -145,6 +152,59 @@ internal static class TestesFones
         r.Conferir("partes do alerta dos AirPods", partes.Select(x => x.Rotulo + x.Pct + (x.Carregando ? "+" : "")).SequenceEqual(new[] { "E80+", "D90", "estojo60+" }));
         r.Conferir("parte única do G733", ModuloFones.Partes(null, 63, true, true).Single() == ("estimada", 63, true) && ModuloFones.Partes(null, null, false, false).Count == 0);
         r.Conferir("subtítulos", ModuloFones.Subtitulo(true, false, null, false) == "Conectado · lendo a bateria" && ModuloFones.Subtitulo(false, true, null, false) == "Ligado · bateria estimada pela tensão");
+
+        // ---- alertas de bateria baixa
+        var al = new BatteryAlerts();
+        int? F(int pct, bool carregando = false) => al.Feed("x", pct, carregando);
+        r.Conferir("alerta: primeira leitura alta não avisa", F(80) == null);
+        r.Conferir("alerta: 52 nada, 49 cruza o 50, 48 não repete", F(52) == null && F(49) == 50 && F(48) == null);
+        r.Conferir("alerta: 25", F(30) == null && F(25) == 25);
+        r.Conferir("alerta: queda grande avisa só o nível mais baixo cruzado", F(8) == 10);
+        r.Conferir("alerta: 5, depois 4 sem repetir, depois 1", F(5) == 5 && F(4) == null && F(1) == 1);
+        r.Conferir("alerta: carregando zera, e a descarga seguinte avisa de novo", F(1, true) == null && F(40, true) == null && F(40) == null && F(24) == 25);
+        var al2 = new BatteryAlerts();
+        int? G(int pct) => al2.Feed("y", pct, false);
+        r.Conferir("alerta: oscilar em volta do nível não repete até subir a margem", G(30) == null && G(24) == 25 && G(26) == null && G(24) == null && G(31) == null && G(24) == 25);
+        r.Conferir("alerta: primeira leitura já baixa avisa uma vez, pelo nível mais baixo acima dela",
+            new BatteryAlerts().Feed("a", 8, false) == 10 && new BatteryAlerts().Feed("a", 3, false) == 5 && new BatteryAlerts().Feed("a", 40, false) == null);
+        r.Conferir("alerta: cada bateria tem a sua conta", new BatteryAlerts().Feed("a", 60, false) == null && al2.Feed("outra", 8, false) == 10);
+        r.Conferir("alerta: níveis dos AirPods (de 10 em 10)", BatteryAlerts.Coarse(BatteryAlerts.DefaultLevels).SequenceEqual(new[] { 50, 20, 10, 0 }));
+        var al3 = new BatteryAlerts();
+        int? A(int pct) => al3.Feed("ap", pct, false, coarse: true);
+        var sequencia = new[] { A(60), A(50), A(40), A(30), A(20), A(10), A(0) };
+        r.Conferir("alerta: AirPods avisam em 50, 20, 10 e 0 (abaixo de 10)", sequencia.SequenceEqual(new int?[] { null, 50, null, null, 20, 10, 0 }), string.Join(",", sequencia.Select(x => x?.ToString() ?? "-")));
+        r.Conferir("alerta: níveis do texto da configuração", BatteryAlerts.ParseLevels("50, 25 10; 5%,1").SequenceEqual(new[] { 50, 25, 10, 5, 1 })
+            && BatteryAlerts.ParseLevels("abc").SequenceEqual(BatteryAlerts.DefaultLevels) && BatteryAlerts.ParseLevels("").SequenceEqual(BatteryAlerts.DefaultLevels)
+            && BatteryAlerts.ParseLevels("30,200,-4").SequenceEqual(new[] { 30 }));
+        r.Conferir("alerta: nível configurado de outro jeito", new BatteryAlerts(new[] { 30 }).Feed("z", 40, false) == null);
+        var al4 = new BatteryAlerts(new[] { 30 });
+        al4.Feed("z", 40, false);
+        r.Conferir("alerta: só o nível configurado", al4.Feed("z", 29, false) == 30);
+        r.Conferir("textos do alerta", ModuloFones.TextoBateriaBaixa(25, 25, null, false) == "Bateria em 25%"
+            && ModuloFones.TextoBateriaBaixa(10, 10, null, false) == "Bateria baixa: 10%"
+            && ModuloFones.TextoBateriaBaixa(1, 1, null, false) == "Bateria quase no fim: 1%"
+            && ModuloFones.TextoBateriaBaixa(0, 0, "esquerdo", true) == "Fone esquerdo · Bateria quase no fim: <10%");
+
+        // ---- G HUB (formato que ele respondeu no PC em 01/11/2026)
+        using var lista = System.Text.Json.JsonDocument.Parse("""
+            {"path":"/devices/list","payload":{"deviceInfos":[
+              {"id":"dev00000000","deviceModel":"g733","displayName":"G733","pid":2814,"state":"ACTIVE"},
+              {"id":"dev00000001","deviceModel":"g502x_plus","displayName":"G502 X PLUS","state":"ACTIVE"},
+              {"id":"dev00000002","deviceModel":"receiver","displayName":"Receiver"}]}}
+            """);
+        var dispositivos = GHubClient.ParseDeviceList(lista.RootElement);
+        r.Conferir("G HUB: lista de aparelhos", dispositivos.Count == 3 && dispositivos[1] == ("dev00000001", "g502x_plus", "G502 X PLUS"));
+        using var bateria = System.Text.Json.JsonDocument.Parse("""
+            {"path":"/battery/dev00000001/state","result":{"code":"SUCCESS"},"payload":{"deviceId":"dev00000001","percentage":98,"charging":true,"mileage":38.0}}
+            """);
+        var rato = GHubClient.ParseBattery(bateria.RootElement, dispositivos[1]);
+        r.Conferir("G HUB: bateria do mouse", rato is { IsMouse: true, IsG733: false, Percent: 98, Charging: true, HoursLeft: 38.0 });
+        using var semBateria = System.Text.Json.JsonDocument.Parse("""{"path":"/battery/dev00000002/state","result":{"code":"NO_SUCH_PATH"}}""");
+        r.Conferir("G HUB: aparelho sem bateria (o receptor) fica de fora", GHubClient.ParseBattery(semBateria.RootElement, dispositivos[2]) == null);
+        using var fone = System.Text.Json.JsonDocument.Parse("""{"path":"/battery/dev00000000/state","result":{"code":"SUCCESS"},"payload":{"percentage":49,"charging":false,"mileage":9.27}}""");
+        r.Conferir("G HUB: bateria do G733", GHubClient.ParseBattery(fone.RootElement, dispositivos[0]) is { IsG733: true, Percent: 49, Charging: false });
+        using var lixo = System.Text.Json.JsonDocument.Parse("""{"path":"/battery/x/state","result":{"code":"SUCCESS"},"payload":{"percentage":250}}""");
+        r.Conferir("G HUB: porcentagem sem sentido é recusada", GHubClient.ParseBattery(lixo.RootElement, dispositivos[0]) == null);
 
         // ---- sondas de verdade, só leitura (a consulta do G733 é uma pergunta de leitura de tensão)
         r.Tentar("Bluetooth", () =>
@@ -191,6 +251,12 @@ internal static class TestesFones
                 }
             }
             if (achados == 0) r.Sonda("G733: receptor não está ligado no PC");
+        });
+        r.Tentar("G HUB", () =>
+        {
+            var todos = GHubClient.ReadAll().GetAwaiter().GetResult();
+            if (todos == null) { r.Sonda("G HUB: não respondeu (fechado?)"); return; }
+            foreach (var d in todos) r.Sonda($"G HUB: {d.Name} ({d.Model}) {d.Percent}%{(d.Charging ? ", carregando" : "")}{(d.HoursLeft is double h ? $", ~{h:0.#} h" : "")}");
         });
         r.Tentar("fotos", () =>
         {

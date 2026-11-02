@@ -9,7 +9,7 @@ using Windows.Devices.Enumeration;
 
 namespace Ilha.Extras;
 
-internal enum TipoAparelho { Fone, Controle, Outro }
+internal enum TipoAparelho { Fone, Controle, Outro, Mouse }
 
 /// <summary>O que se sabe de um aparelho Bluetooth pareado.</summary>
 internal sealed record AparelhoBluetooth(string Id, string Nome, ulong Endereco, TipoAparelho Tipo, ushort? Fabricante, ushort? Produto);

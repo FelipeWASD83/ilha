@@ -165,6 +165,19 @@ and the points that matter are here.
   3 and 4 count; `quns` and the window class go to the log when they change). A transitional or empty foreground whose
   previous window is gone, hidden or minimized is the desktop (closing the browser left a stale context). On the
   desktop the island is plain dark: no border, no clock, and the border goes off whenever the probe pauses.
+- **Low battery alerts (1.1.0, `BatteryAlerts.cs`, `GHub.cs`, `ModuloFones.cs`):** a level (50, 25, 10, 5, 1 by
+  default, `limiaresBateria` in the settings) fires when a reading goes from above it to at or below it, once per level
+  and per discharge; a big drop fires only the lowest level crossed; the first reading of a battery fires only if it is
+  already at 10% or less; charging starts over and a level only fires again after the battery went up by 5 points (10 for
+  AirPods). AirPods report in steps of 10, so their levels are the configured ones rounded down to a multiple of 10 (50,
+  20, 10, 0, where 0 means "under 10%"); each bud has its own count (a bud charging in the case is left out) and the alert
+  names the lower one. G733: the percentage comes from G HUB when it answers (the exact number; without it the voltage
+  curve, `~` estimate), and only while the HID++ side says the headset is on. The mouse (`g502` in the G HUB model) is read
+  only through G HUB (`ws://localhost:9010`, subprotocol `json`, `Origin: file://`, GET `/devices/list` and
+  `/battery/<id>/state` every 60 s; format of 01/11/2026, undocumented by Logitech, so any failure is just "no reading").
+  The alert is `Importante` (passes Do Not Disturb, which reads "alarms only" all the time on his PC, and full screen
+  content); competitive games still silence it. Mouse photos: `g502-x-plus-<preto|roxo|branco|menta>.png` in
+  `imagens/fones` (outside git, source in `FONTES.md`), color in `corMouse`.
 - **Pointer (1.0.3):** `NativeWindow` registers its window class with no cursor (`GetClassLongPtr(GCL_HCURSOR)` was 0),
   so over the touch window Windows left the pointer as the window below had it, and it vanished when that one hid
   it. `JanelaToque` answers `WM_SETCURSOR` (client area) with the arrow.

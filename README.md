@@ -73,7 +73,7 @@ Each one is turned on and off in the settings window (or in `config.json` → `m
 | AI | chat with GPT and Claude | `Ctrl + Alt + J` |
 | Translator | translates the selected text in any program | `Ctrl + Alt + T` |
 | Air | the air conditioner through the `ar-do-quarto` server, in the menu; tells you when the air changes | `Ctrl + Alt + A` |
-| Headphones | photo and battery of the headphones when they connect | |
+| Headphones | photo and battery of the headphones when they connect, and a warning when the battery falls to 50%, 25%, 10%, 5% and 1% (AirPods: 50%, 20%, 10% and under 10%); the Logitech G502 X Plus mouse too, read from G HUB | G HUB running for the mouse |
 | Screenshot | thumbnail of the screenshot, draggable into another program | |
 | Render | notice when After Effects or Media Encoder finishes | |
 | Notifications | Windows notifications on the island (experimental, off) | |

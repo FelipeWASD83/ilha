@@ -1,5 +1,20 @@
 # Changelog
 
+## 1.1.0 (01/11/2026)
+
+**New**
+- Low battery alerts for the headphones and the mouse: the island warns when the battery falls past 50%, 25%, 10%,
+  5% and 1% (each level once per discharge; charging starts over). The levels are in the settings.
+- AirPods report in steps of 10, so for them the alerts come at 50%, 20%, 10% and "under 10%". Each earbud counts on
+  its own and the alert says which one is lower; an earbud charging in the case does not count.
+- Logitech G502 X Plus mouse: battery read from G HUB (it has to be running), with its photo (black, purple, white or
+  mint, chosen in the settings) in the alert.
+- The G733 percentage now comes from G HUB when it is running, the exact number G HUB shows; without G HUB it keeps
+  the estimate from the voltage.
+
+**Changed**
+- Low battery alerts go through Do Not Disturb and over full screen content (competitive games still silence them).
+
 ## 1.0.3 (01/11/2026)
 
 **Fixed**

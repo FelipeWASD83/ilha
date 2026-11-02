@@ -36,6 +36,9 @@ internal sealed class ModuloFones : Modulo
         public BateriaApple? BateriaApple;
         public int? Bateria;
         public bool Carregando;
+        public bool Mouse;
+        // the percentage comes from G HUB (exact), not from the voltage curve
+        public bool PorGHub;
     }
 
     private const float L = 380, A = 60, CAIXA = 52;
@@ -50,25 +53,38 @@ internal sealed class ModuloFones : Modulo
     private readonly List<(Superficie S, Fone F)> _vivos = new();
     private bool _parado;
 
+    // low battery alerts (levels from the config) and the G HUB reader (mouse, exact G733 percentage)
+    private BatteryAlerts _alerts = new();
+    private readonly System.Windows.Forms.Timer _ghubTimer = new();
+    private bool _ghubBusy;
+    private (int Percent, bool Charging, long At)? _ghubG733;
+    private readonly Dictionary<string, Fone> _mice = new();
+
     public override Type? TipoConfig => typeof(ConfigFones);
 
     protected override void Iniciar(JsonObject cfg)
     {
         _cfg = Ler<ConfigFones>(cfg);
         _rajadas.Tick += (_, _) => Rajada();
+        _ghubTimer.Tick += (_, _) => PollGHub();
+        _alerts = new BatteryAlerts(BatteryAlerts.ParseLevels(_cfg.LimiaresBateria));
         _varredura = new VarreduraApple(BateriaAppleChegou);
         _bt = new VigiaBluetooth(BluetoothMudou);
         _bt.Iniciar();
         if (_cfg.G733) IniciarG733();
+        ProgramGHub();
     }
 
     public override void ConfigMudou(JsonObject cfg)
     {
         bool g733Antes = _cfg.G733;
+        string niveisAntes = _cfg.LimiaresBateria;
         _cfg = Ler<ConfigFones>(cfg);
         if (_cfg.G733 && !g733Antes) IniciarG733();
         else if (!_cfg.G733 && g733Antes) PararG733();
+        if (_cfg.LimiaresBateria != niveisAntes) _alerts = new BatteryAlerts(BatteryAlerts.ParseLevels(_cfg.LimiaresBateria));
         ProgramarRajadas();
+        ProgramGHub();
     }
 
     public override void Parar()
@@ -76,12 +92,15 @@ internal sealed class ModuloFones : Modulo
         _parado = true;
         _rajadas.Stop();
         _rajadas.Dispose();
+        _ghubTimer.Stop();
+        _ghubTimer.Dispose();
         _varredura?.Dispose();
         _varredura = null;
         _bt?.Dispose();
         _bt = null;
         PararG733();
         _apple.Clear();
+        _mice.Clear();
         _vivos.Clear();
     }
 
@@ -121,7 +140,7 @@ internal sealed class ModuloFones : Modulo
         var arquivos = Fotos.Arquivos();
         if (f.Modelo is ushort m && ModelosApple.Foto(m) is string pelaApple && arquivos.Contains(pelaApple, StringComparer.OrdinalIgnoreCase))
             return pelaApple;
-        return Fotos.Escolher(f.Nome, arquivos, _cfg.Fotos, _cfg.CorG733);
+        return Fotos.Escolher(f.Nome, arquivos, _cfg.Fotos, f.Mouse ? _cfg.CorMouse : _cfg.CorG733);
     }
 
     /// <summary>Foto (e bateria do Windows) fora da interface; o alerta aparece quando ela fica pronta.</summary>
@@ -201,7 +220,28 @@ internal sealed class ModuloFones : Modulo
                 if (nova != null && nova != f.Foto) TrocarFoto(f, nova);
             }
             Atualizar(f);
+            FeedApple(f, b);
         }
+    }
+
+    /// <summary>
+    /// AirPods report in steps of 10. Each bud counts on its own and a bud charging in the case does not: the one that runs
+    /// out first is the one the alert names (no name when both are at the same level).
+    /// </summary>
+    private void FeedApple(Fone f, BateriaApple b)
+    {
+        var buds = new List<(string Side, int Pct)>();
+        if (b.Esquerdo is int l && !b.CarregandoEsquerdo) buds.Add((Lang.T("esquerdo", "left"), l));
+        if (b.Direito is int r && !b.CarregandoDireito) buds.Add((Lang.T("direito", "right"), r));
+        if (buds.Count == 0)
+        {
+            // both in the case charging (or nothing read): this only resets the levels
+            if (b.MenorFone is int any) _alerts.Feed(f.Chave, any, charging: true, coarse: true);
+            return;
+        }
+        var low = buds.OrderBy(x => x.Pct).First();
+        string? side = buds.Count == 2 && buds[0].Pct != buds[1].Pct ? low.Side : null;
+        FeedAlert(f, f.Chave, low.Pct, false, coarse: true, part: side);
     }
 
     private void TrocarFoto(Fone f, string foto)
@@ -268,8 +308,12 @@ internal sealed class ModuloFones : Modulo
         var m = r == null ? g.Estado.SemResposta() : g.Estado.Receber(r.Value);
         if (g.Estado.Ultima is { } u)
         {
-            g.Fone.Bateria = u.Porcentagem;
-            g.Fone.Carregando = u.Carregando;
+            // G HUB gives the exact number (the voltage curve is an estimate that can be a few points off)
+            var gh = _ghubG733;
+            bool fresh = gh is { } x && Environment.TickCount64 - x.At < 3L * Math.Max(30, _cfg.IntervaloGHubSegundos) * 1000 + 10_000;
+            g.Fone.Bateria = fresh ? gh!.Value.Percent : u.Porcentagem;
+            g.Fone.Carregando = fresh ? gh!.Value.Charging : u.Carregando;
+            g.Fone.PorGHub = fresh;
         }
         if (m == MudancaG733.Ligou)
         {
@@ -280,6 +324,146 @@ internal sealed class ModuloFones : Modulo
         }
         else if (m == MudancaG733.Desligou) Log.Escrever("fones: G733 desligou");
         else if (m == MudancaG733.Atualizou) Atualizar(g.Fone);
+
+        if (g.Estado.Ligado == true && g.Fone.Bateria is int pct) FeedAlert(g.Fone, "g733", pct, g.Fone.Carregando, coarse: false);
+        else if (g.Estado.Ligado != true) _alerts.Forget("g733");
+    }
+
+    // ------------------------------------------------------------------ G HUB (mouse and exact G733 percentage)
+
+    private void ProgramGHub()
+    {
+        if (_parado) return;
+        if (!_cfg.GHub || !(_cfg.Mouse || _cfg.G733)) { _ghubTimer.Stop(); _ghubG733 = null; return; }
+        int ms = Math.Max(30, _cfg.IntervaloGHubSegundos) * 1000;
+        if (_ghubTimer.Enabled && _ghubTimer.Interval == ms) return;
+        _ghubTimer.Interval = ms;
+        _ghubTimer.Start();
+        PollGHub();
+    }
+
+    private void PollGHub()
+    {
+        if (_parado || _ghubBusy || !_cfg.GHub) return;
+        _ghubBusy = true;
+        Task.Run(async () =>
+        {
+            var devices = await GHubClient.ReadAll().ConfigureAwait(false);
+            S.NaInterface(() =>
+            {
+                _ghubBusy = false;
+                if (!_parado) GHubRead(devices);
+            });
+        });
+    }
+
+    private void GHubRead(List<GHubDevice>? devices)
+    {
+        // G HUB closed (or no G733 in its list): the G733 goes back to the voltage curve
+        _ghubG733 = null;
+        if (devices == null) return;
+        foreach (var d in devices)
+        {
+            if (d.IsG733 && _cfg.G733) G733FromGHub(d);
+            else if (d.IsMouse && _cfg.Mouse) MouseRead(d);
+        }
+    }
+
+    private void G733FromGHub(GHubDevice d)
+    {
+        _ghubG733 = (d.Percent, d.Charging, Environment.TickCount64);
+        // only while the headset is on (the HID++ side says so); G HUB can keep the last value of a headset that is off
+        var on = _g733.Values.FirstOrDefault(x => x.Estado.Ligado == true);
+        if (on.Fone == null) return;
+        on.Fone.Bateria = d.Percent;
+        on.Fone.Carregando = d.Charging;
+        on.Fone.PorGHub = true;
+        Atualizar(on.Fone);
+        FeedAlert(on.Fone, "g733", d.Percent, d.Charging, coarse: false);
+    }
+
+    private void MouseRead(GHubDevice d)
+    {
+        if (!_mice.TryGetValue(d.Id, out var f))
+        {
+            _mice[d.Id] = f = new Fone
+            {
+                Chave = "ghub:" + d.Id, Nome = d.Name.Length > 0 ? d.Name : "G502 X PLUS", Tipo = TipoAparelho.Mouse, Mouse = true, PorGHub = true,
+            };
+            Log.Escrever($"fones: mouse {f.Nome} no G HUB, {d.Percent}%{(d.Charging ? " (carregando)" : "")}");
+        }
+        f.Bateria = d.Percent;
+        f.Carregando = d.Charging;
+        FeedAlert(f, f.Chave, d.Percent, d.Charging, coarse: false);
+    }
+
+    // ------------------------------------------------------------------ low battery alerts
+
+    private void FeedAlert(Fone f, string key, int percent, bool charging, bool coarse, string? part = null)
+    {
+        if (!_cfg.AlertasBateria) return;
+        if (_alerts.Feed(key, percent, charging, coarse) is not int level) return;
+        Log.Escrever($"fones: bateria de {f.Nome} em {percent}% (nível {level})");
+        if (Ignorado(f.Nome)) return;
+        ShowLowBattery(f, percent, level, part, coarse);
+    }
+
+    /// <summary>The photo (if the device has none loaded yet) comes first, out of the interface thread.</summary>
+    private void ShowLowBattery(Fone f, int percent, int level, string? part, bool coarse)
+    {
+        void Show() { if (!_parado) S.Ilha.Alertar(LowBatteryAlert(f, percent, level, part, coarse)); }
+        if (f.Retrato != null) { Show(); return; }
+        f.Foto ??= EscolherFoto(f);
+        if (f.Foto == null) { Show(); return; }
+        int px = Math.Max(1, (int)MathF.Round(CAIXA * S.Palco.Escala));
+        string foto = f.Foto;
+        Task.Run(() =>
+        {
+            var r = Retrato.DeArquivo(Path.Combine(Fotos.Pasta, foto), px, px, recortar: true);
+            S.NaInterface(() => { if (r != null) f.Retrato = r; Show(); });
+        });
+    }
+
+    private Alerta LowBatteryAlert(Fone f, int percent, int level, string? part, bool coarse) => new()
+    {
+        Tipo = "bateria",
+        Som = "alerta",
+        // he asked for these warnings, so they go through Do Not Disturb (it reads "alarms only" all the time on his PC)
+        // and over full screen content; competitive games still silence them
+        Importante = true,
+        Segundos = level <= 10 ? 7f : (float?)null,
+        Criar = p =>
+        {
+            var c = p.NovaCena(new Vector2(L, A));
+            p.Desenho(c, Vector2.Zero, c.Tamanho, (dc, t) => DesenharBateriaBaixa(p, dc, t, f, percent, level, part, coarse));
+            return c;
+        },
+    };
+
+    /// <summary>The line under the name: "Battery at 25%", "Low battery: 10%", "Battery almost empty: 1%".</summary>
+    internal static string TextoBateriaBaixa(int percent, int level, string? part, bool coarse)
+    {
+        string n = coarse && percent == 0 ? "<10%" : percent + "%";
+        string quem = part == null ? "" : Lang.T($"Fone {part} · ", $"{char.ToUpperInvariant(part[0])}{part[1..]} earbud · ");
+        if (level <= 5) return quem + Lang.T("Bateria quase no fim: ", "Battery almost empty: ") + n;
+        if (level <= 10) return quem + Lang.T("Bateria baixa: ", "Low battery: ") + n;
+        return quem + Lang.T("Bateria em ", "Battery at ") + n;
+    }
+
+    private void DesenharBateriaBaixa(Palco p, Vortice.Direct2D1.ID2D1DeviceContext dc, Vector2 t, Fone f, int percent, int level, string? part, bool coarse)
+    {
+        var F = p.G.Fabrica;
+        DesenharImagem(p, dc, t, f);
+        var cor = percent <= 10 ? Cor.Vermelho : Cor.Laranja;
+        const float PASSO = 42;
+        float x0 = 64, largura = t.X - x0 - PASSO - 6;
+        p.Texto.Desenhar(dc, f.G733 ? "G733" : f.Nome, new Vector2(x0, 9), 16, Cor.Branco, largura: largura);
+        p.Texto.Desenhar(dc, TextoBateriaBaixa(percent, level, part, coarse), new Vector2(x0, 33), 12.5f, cor, FontWeight.Normal, largura: largura);
+        var c = new Vector2(t.X - PASSO / 2, t.Y / 2);
+        Icone.Anel(dc, F, c, 15, 3.4f, percent / 100f, cor);
+        string n = coarse && percent == 0 ? "<10" : percent.ToString();
+        var tn = p.Texto.Medir(n, 11, FontWeight.SemiBold, tabular: true);
+        p.Texto.Desenhar(dc, n, new Vector2(c.X - tn.X / 2, c.Y - tn.Y / 2), 11, Cor.Branco, tabular: true);
     }
 
     // ------------------------------------------------------------------ alerta
@@ -327,7 +511,8 @@ internal sealed class ModuloFones : Modulo
         return carregando ? Lang.T("Conectado · carregando", "Connected · charging") : Lang.T("Conectado", "Connected");
     }
 
-    private void Desenhar(Palco p, Vortice.Direct2D1.ID2D1DeviceContext dc, Vector2 t, Fone f)
+    /// <summary>The photo of the device, or a drawn icon when there is no photo.</summary>
+    private void DesenharImagem(Palco p, Vortice.Direct2D1.ID2D1DeviceContext dc, Vector2 t, Fone f)
     {
         var F = p.G.Fabrica;
         if (f.Retrato != null)
@@ -341,14 +526,21 @@ internal sealed class ModuloFones : Modulo
             var centro = new Vector2(26, t.Y / 2);
             if (f.Tipo == TipoAparelho.Controle) Desenhos.Controle(dc, F, centro, 28, Cor.Branco);
             else if (f.Tipo == TipoAparelho.Fone) Desenhos.Fone(dc, F, centro, 28, Cor.Branco);
+            else if (f.Tipo == TipoAparelho.Mouse) Desenhos.Mouse(dc, F, centro, 28, Cor.Branco);
             else Desenhos.Bluetooth(dc, F, centro, 24, Cor.Azul);
         }
-        var partes = Partes(f.BateriaApple, f.Bateria, f.Carregando, f.G733);
+    }
+
+    private void Desenhar(Palco p, Vortice.Direct2D1.ID2D1DeviceContext dc, Vector2 t, Fone f)
+    {
+        var F = p.G.Fabrica;
+        DesenharImagem(p, dc, t, f);
+        var partes = Partes(f.BateriaApple, f.Bateria, f.Carregando, f.G733 && !f.PorGHub);
         const float PASSO = 42;
         float larguraPartes = partes.Count * PASSO;
         float x0 = 64, largura = t.X - x0 - larguraPartes - 6;
         p.Texto.Desenhar(dc, f.G733 ? Lang.T("G733 conectado", "G733 connected") : f.Nome, new Vector2(x0, 9), 16, Cor.Branco, largura: largura);
-        p.Texto.Desenhar(dc, Subtitulo(f.Apple, f.G733, f.BateriaApple, f.Carregando), new Vector2(x0, 33), 12.5f, Cor.Secundario, FontWeight.Normal, largura: largura);
+        p.Texto.Desenhar(dc, Subtitulo(f.Apple, f.G733 && !f.PorGHub, f.BateriaApple, f.Carregando), new Vector2(x0, 33), 12.5f, Cor.Secundario, FontWeight.Normal, largura: largura);
         for (int i = 0; i < partes.Count; i++)
         {
             var (rotulo, pct, carregando) = partes[i];
@@ -397,4 +589,22 @@ public sealed class ConfigFones
     [JsonPropertyName("g733")] public bool G733 { get; set; } = true;
     [Label("Intervalo da bateria do G733 (minutos)", "G733 battery interval (minutes)")]
     [JsonPropertyName("intervaloG733Minutos")] public int IntervaloG733Minutos { get; set; } = 5;
+    [Label("Alertas de bateria baixa", "Low battery alerts")]
+    [Help("Avisa quando a bateria cai por cada nível. Os AirPods informam de 10 em 10: lá vira 50, 20, 10 e abaixo de 10",
+        "Warns when the battery falls past each level. AirPods report in steps of 10: there it becomes 50, 20, 10 and under 10")]
+    [JsonPropertyName("alertasBateria")] public bool AlertasBateria { get; set; } = true;
+    [Label("Níveis do alerta (%)", "Alert levels (%)")]
+    [Help("Separados por vírgula", "Separated by commas")]
+    [JsonPropertyName("limiaresBateria")] public string LimiaresBateria { get; set; } = "50, 25, 10, 5, 1";
+    [Label("Ler a bateria pelo G HUB", "Read the battery from G HUB")]
+    [Help("O mouse G502 X Plus e a porcentagem exata do G733 vêm do G HUB, que precisa estar aberto",
+        "The G502 X Plus mouse and the exact G733 percentage come from G HUB, which has to be running")]
+    [JsonPropertyName("ghub")] public bool GHub { get; set; } = true;
+    [Label("Mouse G502 X Plus", "G502 X Plus mouse")]
+    [JsonPropertyName("mouse")] public bool Mouse { get; set; } = true;
+    [Label("Cor do mouse (foto)", "Mouse color (photo)")]
+    [Help("preto, roxo, branco ou menta", "preto, roxo, branco or menta (black, purple, white or mint)")]
+    [JsonPropertyName("corMouse")] public string CorMouse { get; set; } = "preto";
+    [Label("Intervalo do G HUB (segundos)", "G HUB interval (seconds)")]
+    [JsonPropertyName("intervaloGHubSegundos")] public int IntervaloGHubSegundos { get; set; } = 60;
 }
