@@ -54,8 +54,8 @@ internal sealed class ModuloMidia : Modulo
         _cfg = Ler<ConfigMidia>(cfg);
         _atv = new AtividadeMidia
         {
-            AoAnterior = () => Comando(s => s.TrySkipPreviousAsync()),
-            AoProxima = () => Comando(s => s.TrySkipNextAsync()),
+            AoAnterior = () => { _atv?.MarkSkip(-1); Comando(s => s.TrySkipPreviousAsync()); },
+            AoProxima = () => { _atv?.MarkSkip(1); Comando(s => s.TrySkipNextAsync()); },
             AoTocarPausar = TocarOuPausar,
             AoBuscar = Buscar,
         };

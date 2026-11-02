@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.0.2 (01/11/2026)
+
+**New**
+- Song change animation: the old cover and title slide out and fade while the new ones come in from the other side
+  (to the left for the next song, to the right for the previous one); on the pill and in the bubble the cover also
+  shrinks out and pops back in.
+- Claude Code steps on the pill change smoothly: the old step goes up and fades while the new one comes from below.
+
 ## 1.0.1 (01/11/2026)
 
 **Changed**

@@ -88,6 +88,44 @@ internal sealed class AtividadeClaude : Atividade
 
     private PedidoPermissao? PedidoDe(Sessao? s) => s?.Pedidos.FirstOrDefault();
 
+    // what the pill shows: step, project and color; a change animates instead of just being redrawn
+    private readonly record struct CompactLine(string Status, string Project, Color4 Color);
+    private readonly List<(Palco P, Cena Cena, Superficie Surface)> _compactLayers = new();
+    private CompactLine? _compactShown;
+
+    private CompactLine? CompactNow()
+    {
+        var s = Mostrada;
+        if (s == null) return null;
+        var cor = PedidoDe(s) != null ? Cor.Coral : s.Fase is Fase.Terminou or Fase.Parada ? Cor.Secundario : Cor.Branco;
+        return new CompactLine(Status(s), Projeto(s), cor);
+    }
+
+    private static void DrawCompact(Palco p, ID2D1DeviceContext dc, Vector2 t, CompactLine line)
+    {
+        var tam = p.Texto.Medir(line.Status, 13);
+        float l = MathF.Min(tam.X, 160);
+        p.Texto.Desenhar(dc, line.Status, new Vector2(t.X - l, (t.Y - tam.Y) / 2), 13, line.Color, largura: 160);
+        float sobra = t.X - l - 8 - 34;
+        if (sobra > 24)
+        {
+            var tp = p.Texto.Medir(line.Project, 13, FontWeight.Normal);
+            float lp = MathF.Min(tp.X, sobra);
+            p.Texto.Desenhar(dc, line.Project, new Vector2(t.X - l - 8 - lp, (t.Y - tp.Y) / 2), 13, Cor.Secundario, FontWeight.Normal, largura: sobra);
+        }
+    }
+
+    /// <summary>The step text on the pill changed: the old one goes up and fades, the new one comes from below.</summary>
+    private void AnimateCompactChange()
+    {
+        var now = CompactNow();
+        var old = _compactShown;
+        _compactShown = now;
+        if (old is not { } o || now is not { } n || o == n || o.Status == n.Status && o.Project == n.Project) return;
+        foreach (var (p, cena, surface) in _compactLayers.ToArray())
+            ContentSwap.Play(p, cena, surface, (dc, t) => DrawCompact(p, dc, t, o), new Vector2(0, -1), 14, 300);
+    }
+
     /// <summary>Chamado pelo módulo a cada mudança: liga, desliga, troca a logo e redesenha só o que mudou.</summary>
     public void Atualizar()
     {
@@ -103,8 +141,8 @@ internal sealed class AtividadeClaude : Atividade
         AjustarLogo(s);
         if (!Ativa) { _assinatura = Assinatura(); Ligar(); return; }
         var a = Assinatura();
-        if (a != _assinatura) { _assinatura = a; MudouTamanho(); }
-        else Redesenhar();
+        if (a != _assinatura) { _assinatura = a; _compactShown = CompactNow(); MudouTamanho(); }
+        else { AnimateCompactChange(); Redesenhar(); }
     }
 
     private string Assinatura()
@@ -200,24 +238,14 @@ internal sealed class AtividadeClaude : Atividade
             {
                 var c = p.NovaCena(new Vector2(LARGURA_COMPACTA, 24));
                 NovaLogo(p, c, Vector2.Zero, 24);
-                p.Desenho(c, Vector2.Zero, c.Tamanho, (dc, t) =>
+                var texto = p.Desenho(c, Vector2.Zero, c.Tamanho, (dc, t) =>
                 {
-                    var s = Mostrada;
-                    if (s == null) return;
-                    string st = Status(s);
-                    var tam = p.Texto.Medir(st, 13);
-                    float l = MathF.Min(tam.X, 160);
-                    var cor = PedidoDe(s) != null ? Cor.Coral : s.Fase is Fase.Terminou or Fase.Parada ? Cor.Secundario : Cor.Branco;
-                    p.Texto.Desenhar(dc, st, new Vector2(t.X - l, (t.Y - tam.Y) / 2), 13, cor, largura: 160);
-                    float sobra = t.X - l - 8 - 34;
-                    if (sobra > 24)
-                    {
-                        string pr = Projeto(s);
-                        var tp = p.Texto.Medir(pr, 13, FontWeight.Normal);
-                        float lp = MathF.Min(tp.X, sobra);
-                        p.Texto.Desenhar(dc, pr, new Vector2(t.X - l - 8 - lp, (t.Y - tp.Y) / 2), 13, Cor.Secundario, FontWeight.Normal, largura: sobra);
-                    }
+                    if (CompactNow() is { } line) DrawCompact(p, dc, t, line);
                 });
+                var item = (p, c, texto);
+                _compactLayers.Add(item);
+                c.AoSoltar += () => _compactLayers.Remove(item);
+                _compactShown = CompactNow();
                 return c;
             }
             default:

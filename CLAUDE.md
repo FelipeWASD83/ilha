@@ -165,6 +165,12 @@ and the points that matter are here.
   3 and 4 count; `quns` and the window class go to the log when they change). A transitional or empty foreground whose
   previous window is gone, hidden or minimized is the desktop (closing the browser left a stale context). On the
   desktop the island is plain dark: no border, no clock, and the border goes off whenever the probe pauses.
+- **Content swap (1.0.2, `ContentSwap.cs`):** a change of content without a change of size (a new song, a new
+  Claude Code step) no longer just redraws: the old content is drawn once into a temporary layer above the live one,
+  slides out and fades while the live layer (already redrawn) slides in, all in the compositor; the temporary layer is
+  registered in the scene, so a scene released mid-swap releases it too. Media uses it for the cover and the card
+  header (direction from the last skip button, 4 s window), Claude Code for the step text on the pill (up). A change
+  that alters the size still goes through the core scene transition (fade, scale and blur).
 - **Discreet hook (1.0.1):** `Ilha.Discreto` (static `Func<bool>?`, null in the public build) lets a private module
   keep other people's text off the screen: notifications show only "New notification", and alerts with `Privado` are
   dropped, even from the queue, while it returns true. A hook that throws counts as discreet.

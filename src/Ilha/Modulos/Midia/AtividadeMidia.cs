@@ -62,6 +62,12 @@ internal sealed class AtividadeMidia : Atividade
         public required SpriteVisual[] Visuais;
     }
     private readonly List<Barras> _barras = new();
+
+    // layers that change with the track: the cover on the pill and the bubble, the cover + text on the card
+    private enum TrackLayer { Cover, CompactCover, Header }
+    private readonly List<(Palco P, Cena Cena, Superficie Surface, TrackLayer Kind)> _trackLayers = new();
+    private int _skipDirection = 1;
+    private long _skipAt;
     private readonly List<Superficie> _linhas = new();
     private ImplicitAnimationCollection? _implicitas;
 
@@ -102,6 +108,9 @@ internal sealed class AtividadeMidia : Atividade
 
     public void Definir(string titulo, string artista, Capa? capa, Color4? cor)
     {
+        bool newTrack = (_titulo.Length > 0 || _artista.Length > 0) && (titulo.Length > 0 || artista.Length > 0)
+            && (titulo != _titulo || artista != _artista);
+        if (newTrack) AnimateTrackChange();
         _titulo = titulo;
         _artista = artista;
         _capa = capa;
@@ -110,6 +119,55 @@ internal sealed class AtividadeMidia : Atividade
             foreach (var v in b.Visuais)
                 if (v.Brush is CompositionColorBrush cb) cb.Color = Cor.Wr(_acento);
         Redesenhar();
+    }
+
+    /// <summary>
+    /// The old cover and text leave towards one side while the new ones come from the other: "next" pushes to the left,
+    /// "previous" to the right (a skip pressed in the last 4 s decides; otherwise it is the next one).
+    /// </summary>
+    private void AnimateTrackChange()
+    {
+        int dir = Environment.TickCount64 - _skipAt < 4000 ? _skipDirection : 1;
+        string oldTitle = _titulo, oldArtist = _artista;
+        var oldCover = _capa;
+        foreach (var (p, cena, surface, kind) in _trackLayers.ToArray())
+        {
+            switch (kind)
+            {
+                case TrackLayer.Cover:
+                    ContentSwap.Play(p, cena, surface, (dc, t) => Capa.Desenhar(dc, p, oldCover, 0, 0, 22, 6), new Vector2(-dir, 0), 6, pop: true);
+                    break;
+                case TrackLayer.CompactCover:
+                    ContentSwap.Play(p, cena, surface, (dc, t) => Capa.Desenhar(dc, p, oldCover, 1, 1, 22, 6), new Vector2(-dir, 0), 6, pop: true);
+                    break;
+                default:
+                    ContentSwap.Play(p, cena, surface, (dc, t) => DrawHeader(p, dc, oldTitle, oldArtist, oldCover), new Vector2(-dir, 0), 22, 320);
+                    break;
+            }
+        }
+    }
+
+    /// <summary>The module calls this when a skip button is pressed, so the swap goes the right way.</summary>
+    public void MarkSkip(int direction)
+    {
+        _skipDirection = direction < 0 ? -1 : 1;
+        _skipAt = Environment.TickCount64;
+    }
+
+    private void RegisterTrackLayer(Palco p, Cena c, Superficie s, TrackLayer kind)
+    {
+        var item = (p, c, s, kind);
+        _trackLayers.Add(item);
+        c.AoSoltar += () => _trackLayers.Remove(item);
+    }
+
+    private void DrawHeader(Palco p, ID2D1DeviceContext dc, string title, string artist, Capa? cover)
+    {
+        Capa.Desenhar(dc, p, cover, 0, 0, 64, 14);
+        string t = title.Length > 0 ? title : Lang.T("Sem título", "Untitled");
+        p.Texto.Desenhar(dc, t, new Vector2(78, 7), 16, Cor.Branco, largura: LARGURA - 78 - 32);
+        if (artist.Length > 0)
+            p.Texto.Desenhar(dc, artist, new Vector2(78, 31), 13, Cor.Secundario, FontWeight.Normal, largura: LARGURA - 78);
     }
 
     public void DefinirEstado(bool tocando, bool podeAnterior, bool podeProxima, bool podeTocarPausar, bool podeBuscar)
@@ -270,13 +328,15 @@ internal sealed class AtividadeMidia : Atividade
             case Forma.Bolha:
             {
                 var c = p.NovaCena(new Vector2(22, 22));
-                p.Desenho(c, Vector2.Zero, c.Tamanho, (dc, t) => Capa.Desenhar(dc, p, _capa, 0, 0, 22, 6));
+                var s = p.Desenho(c, Vector2.Zero, c.Tamanho, (dc, t) => Capa.Desenhar(dc, p, _capa, 0, 0, 22, 6));
+                RegisterTrackLayer(p, c, s, TrackLayer.Cover);
                 return c;
             }
             case Forma.Compacta:
             {
                 var c = p.NovaCena(new Vector2(COMPACTA_L, 24));
-                p.Desenho(c, Vector2.Zero, new Vector2(CAPA_COMPACTA, 24), (dc, t) => Capa.Desenhar(dc, p, _capa, 1, 1, 22, 6));
+                var s = p.Desenho(c, Vector2.Zero, new Vector2(CAPA_COMPACTA, 24), (dc, t) => Capa.Desenhar(dc, p, _capa, 1, 1, 22, 6));
+                RegisterTrackLayer(p, c, s, TrackLayer.CompactCover);
                 Visualizador(p, c, new Vector2(InicioDoVisualizador, 4), 16);
                 return c;
             }
@@ -288,14 +348,8 @@ internal sealed class AtividadeMidia : Atividade
     private Cena MontarCartao(Palco p)
     {
         var c = p.NovaCena(new Vector2(LARGURA, Y_BOTOES + A_BOTOES));
-        p.Desenho(c, Vector2.Zero, new Vector2(LARGURA, 72), (dc, t) =>
-        {
-            Capa.Desenhar(dc, p, _capa, 0, 0, 64, 14);
-            string titulo = _titulo.Length > 0 ? _titulo : Lang.T("Sem título", "Untitled");
-            p.Texto.Desenhar(dc, titulo, new Vector2(78, 7), 16, Cor.Branco, largura: LARGURA - 78 - 32);
-            if (_artista.Length > 0)
-                p.Texto.Desenhar(dc, _artista, new Vector2(78, 31), 13, Cor.Secundario, FontWeight.Normal, largura: LARGURA - 78);
-        });
+        var cabecalho = p.Desenho(c, Vector2.Zero, new Vector2(LARGURA, 72), (dc, t) => DrawHeader(p, dc, _titulo, _artista, _capa));
+        RegisterTrackLayer(p, c, cabecalho, TrackLayer.Header);
         Visualizador(p, c, new Vector2(LARGURA - 4 * 5.5f + 2.5f, 10), 18);
 
         var linha = p.Desenho(c, new Vector2(0, Y_LINHA), new Vector2(LARGURA, A_LINHA), (dc, t) => DesenharLinha(p, dc, t));
