@@ -22,7 +22,7 @@ internal sealed class AtividadeClaude : Atividade
     // aparece e some a cada pedido: abrir o cartão toda vez seria barulho (permissão e fim já têm alerta próprio)
     public override bool AnunciaChegada => false;
 
-    private enum Modo { Normal, Modelos, Esforcos, Mensagem }
+    private enum Modo { Normal, Modelos, Esforcos, Permissoes, Mensagem }
     private enum Logo { Nada, Loop, Bola, Pulso }
 
     private readonly Servicos S;
@@ -276,11 +276,15 @@ internal sealed class AtividadeClaude : Atividade
                 // 5 levels and Back in the grid, then the Ultracode switch on its own row
                 altura = YUltracode(y) + 28;
                 break;
+            case Modo.Permissoes:
+                // the 5 modes and Back: three rows
+                altura = y + 22 + 3 * 34;
+                break;
             case Modo.Mensagem:
                 altura = y + 64;
                 break;
             default:
-                altura = y + (pedido != null ? 82 : 46) + 34 + (_aviso != null ? 20 : 0) + (outras.Count > 0 ? 8 + outras.Count * 22 : 0);
+                altura = y + (pedido != null ? 82 : 46) + 68 + (_aviso != null ? 20 : 0) + (outras.Count > 0 ? 8 + outras.Count * 22 : 0);
                 break;
         }
 
@@ -344,6 +348,20 @@ internal sealed class AtividadeClaude : Atividade
                     Interruptor(p, dc, new RectangleF(0, YUltracode(y), L, 28), lido?.Ultracode ?? false, lido != null);
                     break;
                 }
+                case Modo.Permissoes:
+                {
+                    p.Texto.Desenhar(dc, Lang.T("Modo de permissão", "Permission mode"), new Vector2(0, y), 13, Cor.Secundario, FontWeight.Normal);
+                    var ops = ModosDePermissao.Nomes;
+                    string? atual = ModosDePermissao.DoBotao(lido?.Permissao);
+                    for (int i = 0; i <= ops.Length; i++)
+                    {
+                        bool voltar = i == ops.Length;
+                        bool marcado = !voltar && ops[i] == atual;
+                        Chip(p, dc, Grade(i, y + 22), voltar ? Lang.T("Voltar", "Back") : ModosDePermissao.Rotulo(ops[i]), marcado ? Marcado : Cor.Fraco,
+                            voltar ? Cor.Secundario : Cor.Branco, false);
+                    }
+                    break;
+                }
                 case Modo.Mensagem:
                 {
                     Icone.Retangulo(dc, 0, y, L, 34, 10, Cor.Fraco);
@@ -376,10 +394,13 @@ internal sealed class AtividadeClaude : Atividade
                     string tm = lm?.Modelo is { Length: > 0 } mo ? mo : _lendo ? Lang.T("Lendo…", "Reading…") : Lang.T("Modelo", "Model");
                     string te = lm != null && BotaoDoModelo.Rotulo(lm.Nivel, lm.Ultracode, lm.Esforco) is { } es ? CaberEsforco(p, es, CHIP_ESFORCO.Width - 32)
                         : _lendo ? "…" : Lang.T("Esforço", "Effort");
+                    string tperm = ModosDePermissao.DoBotao(lm?.Permissao) is { } modo ? ModosDePermissao.Rotulo(modo)
+                        : lm?.Permissao is { Length: > 0 } outro ? outro : _lendo ? "…" : Lang.T("Permissões", "Permissions");
                     Chip(p, dc, CHIP_MODELO with { Y = yy }, tm, Cor.Fraco, Cor.Branco, true);
                     Chip(p, dc, CHIP_ESFORCO with { Y = yy }, te, Cor.Fraco, Cor.Branco, true);
-                    Chip(p, dc, CHIP_MENSAGEM with { Y = yy }, Lang.T("Mensagem", "Message"), Cor.Fraco, Cor.Branco, false);
-                    yy += 34;
+                    Chip(p, dc, CHIP_PERMISSAO with { Y = yy + 34 }, tperm, Cor.Fraco, Cor.Branco, true);
+                    Chip(p, dc, CHIP_MENSAGEM with { Y = yy + 34 }, Lang.T("Mensagem", "Message"), Cor.Fraco, Cor.Branco, false);
+                    yy += 68;
                     if (_aviso != null)
                     {
                         p.Texto.Desenhar(dc, _aviso, new Vector2(0, yy - 2), 12, _avisoErro ? Cor.Vermelho : Cor.Secundario, FontWeight.Normal, largura: L);
@@ -432,6 +453,17 @@ internal sealed class AtividadeClaude : Atividade
                     botoes.Add(new Botao { Area = new RectangleF(0, YUltracode(y), L, 28), Acao = AlternarUltracode });
                     break;
                 }
+                case Modo.Permissoes:
+                {
+                    int n = ModosDePermissao.Nomes.Length;
+                    for (int i = 0; i <= n; i++)
+                    {
+                        int k = i;
+                        Action a = i == n ? () => { _modo = Modo.Normal; Atualizar(); } : () => EscolherPermissao(ModosDePermissao.Nomes[k]);
+                        botoes.Add(new Botao { Area = Grade(i, y + 22), Acao = a });
+                    }
+                    break;
+                }
                 case Modo.Mensagem:
                     botoes.Add(new Botao { Area = new RectangleF(0, y, L, 34), Acao = AbrirMensagem });
                     break;
@@ -458,8 +490,9 @@ internal sealed class AtividadeClaude : Atividade
                     else yy += 46;
                     botoes.Add(new Botao { Area = CHIP_MODELO with { Y = yy }, Acao = () => AbrirLista(Modo.Modelos) });
                     botoes.Add(new Botao { Area = CHIP_ESFORCO with { Y = yy }, Acao = () => AbrirLista(Modo.Esforcos) });
-                    botoes.Add(new Botao { Area = CHIP_MENSAGEM with { Y = yy }, Acao = AbrirMensagem });
-                    yy += 34 + (_aviso != null ? 20 : 0);
+                    botoes.Add(new Botao { Area = CHIP_PERMISSAO with { Y = yy + 34 }, Acao = () => AbrirLista(Modo.Permissoes) });
+                    botoes.Add(new Botao { Area = CHIP_MENSAGEM with { Y = yy + 34 }, Acao = AbrirMensagem });
+                    yy += 68 + (_aviso != null ? 20 : 0);
                     if (outras.Count > 0)
                     {
                         yy += 8;
@@ -480,10 +513,11 @@ internal sealed class AtividadeClaude : Atividade
 
     private static RectangleF Grade(int i, float y0) => new((i % 2) * 176, y0 + (i / 2) * 34, 164, 28);
 
-    // model, effort and message chips of the normal card (340 wide with 8 px gaps); the effort one is wider for "Alto · Ultracode"
-    private static readonly RectangleF CHIP_MODELO = new(0, 0, 112, 26);
-    private static readonly RectangleF CHIP_ESFORCO = new(120, 0, 128, 26);
-    private static readonly RectangleF CHIP_MENSAGEM = new(256, 0, 84, 26);
+    // the normal card's chips two by two (340 wide, 12 px gap): model and effort, then permission mode and message
+    private static readonly RectangleF CHIP_MODELO = new(0, 0, 164, 26);
+    private static readonly RectangleF CHIP_ESFORCO = new(176, 0, 164, 26);
+    private static readonly RectangleF CHIP_PERMISSAO = new(0, 0, 164, 26);
+    private static readonly RectangleF CHIP_MENSAGEM = new(176, 0, 164, 26);
     private static readonly Color4 Marcado = new(0.85f, 0.47f, 0.34f, 0.35f);
 
     /// <summary>Top of the Ultracode row in the effort list: under the 3 grid rows (5 levels and Back), with a small gap.</summary>
@@ -613,6 +647,21 @@ internal sealed class AtividadeClaude : Atividade
             if (r.Painel?.Nome != null) _lidos[r.Painel.Nome] = (r.Painel, _agora());
             string feito = (r.Painel != null ? BotaoDoModelo.Rotulo(r.Painel.Nivel, r.Painel.Ultracode, r.Painel.Esforco) : null) ?? BotaoDoModelo.Rotulos[nivel];
             Avisar(r.Ok ? Lang.T("Esforço: ", "Effort: ") + feito : r.Erro ?? Lang.T("Não deu para trocar o esforço.", "Couldn't switch the effort."), !r.Ok);
+        }));
+    }
+
+    /// <summary>Switches the session's permission mode in the app (the same menu as its button next to the prompt).</summary>
+    private void EscolherPermissao(string modo)
+    {
+        var s = Mostrada;
+        _modo = Modo.Normal;
+        if (s == null || Alvo(s) is not { } alvo) { Atualizar(); return; }
+        Avisar(Lang.T("Trocando para ", "Switching to ") + ModosDePermissao.Rotulo(modo) + "…", false);
+        _ponte.Permissao(alvo, modo, r => S.NaInterface(() =>
+        {
+            if (r.Painel?.Nome != null) _lidos[r.Painel.Nome] = (r.Painel, _agora());
+            string feito = ModosDePermissao.DoBotao(r.Painel?.Permissao) is { } m ? ModosDePermissao.Rotulo(m) : ModosDePermissao.Rotulo(modo);
+            Avisar(r.Ok ? Lang.T("Permissões: ", "Permissions: ") + feito : r.Erro ?? Lang.T("Não deu para trocar o modo.", "Couldn't switch the mode."), !r.Ok);
         }));
     }
 

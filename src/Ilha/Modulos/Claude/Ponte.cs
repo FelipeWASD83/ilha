@@ -37,6 +37,31 @@ internal sealed record RespostaPonte
 /// (0..4: Baixo, Médio, Alto, Extra, Máx; Low, Medium, High, Extra high, Max in English) plus Ultracode, a separate
 /// on/off toggle in the same submenu.
 /// </summary>
+/// <summary>
+/// The app's permission modes (read on 02/11/2026, the app in Portuguese): the button in each session is named after
+/// the mode ("Automático", "Ignorar permissões"...), and the menu items start with the same name plus a description.
+/// </summary>
+internal static class ModosDePermissao
+{
+    public static readonly string[] Nomes = { "Automático", "Manual", "Aceitar edições", "Plano", "Ignorar permissões" };
+
+    /// <summary>The label in the island, in the interface language.</summary>
+    public static string Rotulo(string nome) => nome switch
+    {
+        "Automático" => Lang.T("Automático", "Auto"),
+        "Aceitar edições" => Lang.T("Aceitar edições", "Accept edits"),
+        "Plano" => Lang.T("Plano", "Plan"),
+        "Ignorar permissões" => Lang.T("Ignorar permissões", "Bypass permissions"),
+        _ => nome,
+    };
+
+    public static bool EhBotao(string n) =>
+        Nomes.Contains(n) || n.StartsWith("Ignorar permiss", StringComparison.Ordinal) || n.StartsWith("Modo", StringComparison.Ordinal);
+
+    /// <summary>The mode a button name stands for (null when it is not one of the five).</summary>
+    public static string? DoBotao(string? n) => n == null ? null : Nomes.FirstOrDefault(m => n.StartsWith(m, StringComparison.Ordinal));
+}
+
 internal static class BotaoDoModelo
 {
     public static readonly string[] Niveis = { "Baixo", "Médio", "Alto", "Extra", "Máx" };
@@ -164,6 +189,9 @@ internal sealed class PonteClaudeApp : IDisposable
 
     public void Enviar(string alvo, string texto, Action<RespostaPonte> pronto) => Pedir(r => Mandar(r, alvo, texto), pronto, 15000);
 
+    /// <summary>The permission mode menu of a session: with `modo` null only lists the options (Opcoes), else picks that one.</summary>
+    public void Permissao(string alvo, string? modo, Action<RespostaPonte> pronto) => Pedir(r => ModoDePermissao(r, alvo, modo), pronto, 16000);
+
     private void Pedir(Func<AutomationElement, RespostaPonte> fazer, Action<RespostaPonte> pronto, int prazoMs)
     {
         Timer? prazo = null;
@@ -273,7 +301,7 @@ internal sealed class PonteClaudeApp : IDisposable
         public string? Modelo, Esforco, Permissao;
         public int? Nivel;
         public bool Ultracode, Foco;
-        public AutomationElement? BotaoModelo, Prompt;
+        public AutomationElement? BotaoModelo, Prompt, BotaoPermissao;
 
         public PainelLido Lido() => new(Nome, Modelo, Esforco, Nivel, Ultracode, Permissao, Foco);
     }
@@ -365,10 +393,10 @@ internal sealed class PonteClaudeApp : IDisposable
                 var (modelo, esforco, nivel, ultra) = BotaoDoModelo.Ler(n);
                 p.Modelo = modelo; p.Esforco = esforco; p.Nivel = nivel; p.Ultracode = ultra; p.BotaoModelo = b;
             }
-            else if (n.StartsWith("Ignorar permiss", StringComparison.Ordinal) || n.StartsWith("Modo", StringComparison.Ordinal))
+            else if (ModosDePermissao.EhBotao(n))
             {
                 var p = DoPainel(r);
-                if (p != null && p.Permissao == null) p.Permissao = n;
+                if (p != null && p.Permissao == null) { p.Permissao = n; p.BotaoPermissao = b; }
             }
         }
         foreach (var c in DoTipo(raiz, ControlType.Edit))
@@ -653,6 +681,56 @@ internal sealed class PonteClaudeApp : IDisposable
         if (agora is bool a && a != ligar)
             return new RespostaPonte { Ok = false, Painel = depois, Erro = Lang.T("O app não aceitou a troca do Ultracode.", "The app didn't accept the Ultracode change.") };
         return new RespostaPonte { Ok = true, Painel = depois };
+    }
+
+    /// <summary>
+    /// Opens the session's permission mode button (the one the app names after the mode, "Ignorar permissões" or "Modo
+    /// ..."), reads the options and, with a mode given, invokes the item with that name. The menu is closed either way.
+    /// </summary>
+    private static RespostaPonte ModoDePermissao(AutomationElement raiz, string alvo, string? modo)
+    {
+        var p = Escolher(Paineis(raiz), alvo);
+        if (p?.BotaoPermissao == null) return RespostaPonte.Falhou(p == null ? SEM_SESSAO : Lang.T("Não achei o botão de permissões dessa sessão no app.", "Couldn't find this session's permissions button in the app."));
+        ExpandCollapsePattern? exp = null;
+        AutomationElement[] antes = DoTipo(raiz, ControlType.Menu);
+        try
+        {
+            if (p.BotaoPermissao.TryGetCurrentPattern(ExpandCollapsePattern.Pattern, out object pat))
+            {
+                exp = (ExpandCollapsePattern)pat;
+                if (exp.Current.ExpandCollapseState != ExpandCollapseState.Expanded) exp.Expand();
+            }
+            else ((InvokePattern)p.BotaoPermissao.GetCurrentPattern(InvokePattern.Pattern)).Invoke();
+        }
+        catch (Exception e) { return RespostaPonte.Falhou(Lang.T("O botão de permissões não abriu: ", "The permissions button didn't open: ") + e.Message); }
+        // the menu that appeared (any new one), else one named after the button
+        var menu = Esperar(() => DoTipo(raiz, ControlType.Menu).FirstOrDefault(m => !antes.Any(a => Automation.Compare(a, m))), 1500)
+            ?? MenuChamado(raiz, p.Permissao ?? "");
+        if (menu == null) { FecharMenu(exp); return RespostaPonte.Falhou(Lang.T("O menu de permissões não abriu.", "The permissions menu didn't open.")); }
+        var itens = menu.FindAll(TreeScope.Descendants, new OrCondition(
+                new PropertyCondition(AutomationElement.ControlTypeProperty, ControlType.MenuItem),
+                new PropertyCondition(AutomationElement.ControlTypeProperty, ControlType.RadioButton)))
+            .Cast<AutomationElement>().OrderBy(e => e.Current.BoundingRectangle.Y).ToList();
+        var opcoes = itens.Select(i => i.Current.Name ?? "").Where(n => n.Length > 0).Distinct().ToList();
+        if (modo == null)
+        {
+            FecharMenu(exp);
+            if (exp == null) TeclaNoRenderizador(_janelaDoApp, 0x1B);
+            return new RespostaPonte { Ok = true, Painel = p.Lido(), Opcoes = opcoes };
+        }
+        var item = itens.FirstOrDefault(i => string.Equals(i.Current.Name, modo, StringComparison.OrdinalIgnoreCase))
+            ?? itens.FirstOrDefault(i => (i.Current.Name ?? "").StartsWith(modo, StringComparison.OrdinalIgnoreCase));
+        if (item == null)
+        {
+            FecharMenu(exp);
+            return new RespostaPonte { Ok = false, Erro = Lang.T($"O modo {modo} não está no menu do app.", $"The mode {modo} isn't in the app's menu."), Opcoes = opcoes };
+        }
+        if (item.TryGetCurrentPattern(InvokePattern.Pattern, out object inv)) ((InvokePattern)inv).Invoke();
+        else if (item.TryGetCurrentPattern(SelectionItemPattern.Pattern, out object sel)) ((SelectionItemPattern)sel).Select();
+        Thread.Sleep(400);
+        FecharMenu(exp);
+        Thread.Sleep(150);
+        return new RespostaPonte { Ok = true, Painel = Escolher(Paineis(raiz), alvo)?.Lido(), Opcoes = opcoes };
     }
 
     private static RespostaPonte Mandar(AutomationElement raiz, string alvo, string texto)

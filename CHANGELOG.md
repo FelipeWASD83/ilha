@@ -1,5 +1,20 @@
 # Changelog
 
+## 2.0.0 (02/11/2026)
+
+**New**
+- Recordings window: the island's own player for the latest videos and audios, a black window with rounded corners.
+  The list on the left (newest first, with a thumbnail and the length), the player on the right: video plays inside it,
+  audio shows its waveform lighting up as it plays. Space plays and pauses, the arrows seek and move through the list,
+  Esc closes. It opens from the "Recordings" button on both recorder cards and from the "Recording saved" notice.
+- While recording audio, the collapsed island turns into a live waveform with the time, like Voice Memos on the iPhone.
+- Permission mode on the Claude Code card: a fourth button with the session's mode (Auto, Manual, Accept edits, Plan,
+  Bypass permissions) that switches it in the Claude app.
+
+**Changed**
+- The Recording button (OBS) left the menu's top corner and became a button next to Wallpaper.
+- The Claude Code card's buttons are now two by two: model and effort, then permission mode and message.
+
 ## 1.9.0 (02/11/2026)
 
 **New**

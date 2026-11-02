@@ -817,7 +817,8 @@ internal sealed class Ilha : IDisposable
 
     private List<Atividade> Visiveis() => _atividades
         .Where(a => a.Ativa && Permitida(a))
-        .OrderBy(a => Prioridade(a.Tipo))
+        .OrderByDescending(a => a.NaFrente)
+        .ThenBy(a => Prioridade(a.Tipo))
         .ThenByDescending(a => a.Desde)
         .ToList();
 

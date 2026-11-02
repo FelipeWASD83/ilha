@@ -147,6 +147,8 @@ internal abstract class Atividade
     public abstract string Tipo { get; }
     public abstract string Nome { get; }
     public virtual bool PermitidaNoCompetitivo => false;
+    /// <summary>Takes the pill ahead of the priority list while true (an audio recording shows its waveform there).</summary>
+    public virtual bool NaFrente => false;
     public virtual bool TemExpandida => true;
     /// <summary>Ferramenta (calculadora, tradutor, IA): abre expandida pelo atalho mesmo sem estar "em andamento".</summary>
     public virtual bool EhFerramenta => false;

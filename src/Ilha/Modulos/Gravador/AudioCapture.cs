@@ -192,9 +192,43 @@ internal sealed class AudioCapture
         return (0, 0);
     }
 
+    private int _peakBits;
+
+    /// <summary>The loudest sample since the last call (0 to 1), and starts over: the pill's waveform reads it ~30 times a second.</summary>
+    public float TakePeak() => BitConverter.Int32BitsToSingle(Interlocked.Exchange(ref _peakBits, 0));
+
+    private unsafe void Measure(byte* p, int frames)
+    {
+        int count = frames * _format.Canais;
+        float peak = 0;
+        if (_format.Tipo == TipoAmostra.Float)
+        {
+            var s = (float*)p;
+            for (int i = 0; i < count; i++) { float a = MathF.Abs(s[i]); if (a > peak) peak = a; }
+        }
+        else if (_format.Bits == 16)
+        {
+            var s = (short*)p;
+            for (int i = 0; i < count; i++) { float a = MathF.Abs(s[i] / 32768f); if (a > peak) peak = a; }
+        }
+        else
+        {
+            // 24 and 32 bit integers: the top 16 bits of each sample are enough for a level
+            int bytes = _format.Bits / 8;
+            for (int i = 0; i < count; i++) { float a = MathF.Abs(*(short*)(p + i * bytes + bytes - 2) / 32768f); if (a > peak) peak = a; }
+        }
+        int seen;
+        do
+        {
+            seen = Volatile.Read(ref _peakBits);
+            if (BitConverter.Int32BitsToSingle(seen) >= peak) return;
+        } while (Interlocked.CompareExchange(ref _peakBits, BitConverter.SingleToInt32Bits(peak), seen) != seen);
+    }
+
     private unsafe void Place(IntPtr data, int frames, long wall, bool silent)
     {
         if (_file == null) return;
+        if (!silent) Measure((byte*)data, frames);
         long index = (long)Math.Round((wall - _startWall) * (_format.Taxa / 10_000_000.0));
         var (pad, skip) = Placement(_written, index, frames, _format.Taxa);
         if (pad > 0) WriteSilence(pad);
@@ -235,6 +269,28 @@ internal sealed class AudioCapture
         w.Write(0u);
         w.Flush();
         _dataStart = _file.Position;
+    }
+
+    /// <summary>
+    /// The RIFF and data sizes of a track whose writer never closed it (the island quit mid-recording), set from the file
+    /// length. Only the two size fields change. False when the file is not one of these WAVs.
+    /// </summary>
+    public static bool RepairHeader(string path)
+    {
+        using var f = new FileStream(path, FileMode.Open, FileAccess.ReadWrite, FileShare.Read);
+        var head = new byte[Math.Min(4096, (int)Math.Min(int.MaxValue, f.Length))];
+        int got = f.Read(head, 0, head.Length);
+        if (got < 44 || head[0] != 'R' || head[1] != 'I' || head[2] != 'F' || head[3] != 'F') return false;
+        int data = -1;
+        for (int i = 12; i + 8 <= got; i++)
+            if (head[i] == 'd' && head[i + 1] == 'a' && head[i + 2] == 't' && head[i + 3] == 'a') { data = i; break; }
+        if (data < 0) return false;
+        long len = f.Length;
+        f.Position = 4;
+        f.Write(BitConverter.GetBytes((uint)Math.Min(len - 8, uint.MaxValue)));
+        f.Position = data + 4;
+        f.Write(BitConverter.GetBytes((uint)Math.Min(len - data - 8, uint.MaxValue)));
+        return true;
     }
 
     /// <summary>Pads to the stop instant and writes the real sizes in the header (a file past 4 GB keeps the maximum).</summary>

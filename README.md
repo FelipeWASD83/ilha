@@ -64,12 +64,12 @@ Each one is turned on and off in the settings window (or in `config.json` → `m
 | Brightness | the main monitor's brightness as a slider in the menu, over DDC/CI (no tile if the monitor does not answer) | |
 | Timer | timer, stopwatch and pomodoro; type `25m`, `1h30`, `90s` | `Ctrl + Alt + R` |
 | PC usage | shows up when the processor, graphics card or memory is maxed out; card with everything | `Ctrl + Alt + U` |
-| Claude Code | shows up only while working or asking for attention; notice when done, approve or deny permission | |
+| Claude Code | shows up only while working or asking for attention; notice when done, approve or deny permission; in the card, the session's model, effort and permission mode (Auto, Manual, Accept edits, Plan, Bypass permissions), switched in the Claude app | |
 | Color picker | magnifier, exact pixel color in hex, RGB and HSL, history | `Ctrl + Alt + P` |
 | Shelf | files and folders kept on the island to drag out later (only the path, nothing is copied) | |
 | Quick note | one line with date and time in the Obsidian inbox (`arquivo` in the config) | `Ctrl + Alt + N` |
 | Recording | red dot and elapsed time when OBS is recording or an app captures the screen | |
-| Recorder | records from the menu: "Record video" (the screen, the webcam, or the screen with the webcam in a rounded corner with a shadow) and "Record audio" (microphone and/or the PC's sound), with the PC's sound and the microphone as switches. Video goes to `Videos\Ilha` as MP4, encoded on the NVIDIA card; audio to `Music\Ilha` as WAV. The island stays out of the recording. Video needs ffmpeg (`winget install Gyan.FFmpeg`) and an NVIDIA card | `Ctrl + Alt + G` (video) |
+| Recorder | records from the menu: "Record video" (the screen, the webcam, or the screen with the webcam in a rounded corner with a shadow) and "Record audio" (microphone and/or the PC's sound), with the PC's sound and the microphone as switches. Video goes to `Videos\Ilha` as MP4, encoded on the NVIDIA card; audio to `Music\Ilha` as WAV. The island stays out of the recording. While recording audio, the collapsed island shows a live waveform. "Recordings" (on both cards, or a click on the "Recording saved" notice) opens the island's own player window with the latest ones. Video needs ffmpeg (`winget install Gyan.FFmpeg`) and an NVIDIA card | `Ctrl + Alt + G` (video) |
 | Claude limit | session and weekly usage and when it resets (from the Claude Code status line) | |
 | Calculator | math, units and live exchange rates | `Ctrl + Alt + K` |
 | AI | chat with GPT and Claude | `Ctrl + Alt + J` |

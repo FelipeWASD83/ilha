@@ -47,6 +47,9 @@ internal static class BridgeProbe
                 case "esforco" when args.Length >= 3 && int.TryParse(args[2], out int level):
                     bridge.TrocarEsforco(args[1], level, Got);
                     break;
+                case "permissoes" when args.Length >= 2:
+                    bridge.Permissao(args[1], args.Length >= 3 ? args[2] : null, Got);
+                    break;
                 case "ultracode" when args.Length >= 3:
                     bridge.DefinirUltracode(args[1], args[2] is "on" or "ligar" or "1", Got);
                     break;
@@ -62,6 +65,7 @@ internal static class BridgeProbe
                 o.AppendLine($"ok={r.Ok} error={r.Erro}");
                 if (r.Painel is { } p) o.AppendLine($"panel: {Line(p)}");
                 foreach (var each in r.Paineis) o.AppendLine($"panel: {Line(each)}");
+                foreach (var opt in r.Opcoes ?? new()) o.AppendLine("option: " + opt);
                 code = r.Ok ? 0 : 1;
             }
         }
@@ -74,5 +78,5 @@ internal static class BridgeProbe
     }
 
     private static string Line(PainelLido p) =>
-        $"name={p.Nome} model={p.Modelo} effort={p.Esforco} level={p.Nivel} ultracode={p.Ultracode} focus={p.Foco}";
+        $"name={p.Nome} model={p.Modelo} effort={p.Esforco} level={p.Nivel} ultracode={p.Ultracode} permission={p.Permissao} focus={p.Foco}";
 }

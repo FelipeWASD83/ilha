@@ -45,11 +45,16 @@ internal sealed class RecorderModule : Modulo
         // Ctrl + Alt + G was free on his PC on 02/11/2026
         var key = S.Atalhos.Registrar("gravador", new Atalho { Mods = Nativo.MOD_CONTROL | Nativo.MOD_ALT, Tecla = 0x47 }, atv.Toggle);
         atv.HotkeyLabel = key != null ? Teclas.Nome(key) : null;
+        atv.RecoverLeftovers();
     }
 
     public override void ConfigMudou(JsonObject cfg) => _cfg = Ler<ConfigGravador>(cfg);
 
-    public override void Parar() => _atv?.Stop();
+    public override void Parar()
+    {
+        _atv?.Stop();
+        RecordingsWindow.CloseIfOpen();
+    }
 
     public override string Autoteste()
     {
@@ -116,6 +121,33 @@ internal sealed class RecorderModule : Modulo
             var c = FfmpegTools.ListCameras(ff);
             Check(true, "câmeras: " + (c.Count == 0 ? "nenhuma" : string.Join(", ", c.Select(x => x.Name + (x.Physical ? " (física)" : "")))));
         }
+        // a recording left in pieces: a microphone track whose header sizes were never written (the island quit) becomes
+        // the final WAV at the next start, and the waveform of that WAV can be read
+        if (ff != null)
+        {
+            string dir = Path.Combine(Path.GetTempPath(), $"ilha-teste-recuperar-{Environment.ProcessId}");
+            try
+            {
+                Directory.CreateDirectory(dir);
+                string b = Path.Combine(dir, "Gravação 2026-01-01 10-00-00");
+                var wav = new MemoryStream();
+                var w = new BinaryWriter(wav);
+                w.Write("RIFF"u8); w.Write(0u); w.Write("WAVE"u8); w.Write("fmt "u8); w.Write(16u);
+                w.Write((ushort)1); w.Write((ushort)1); w.Write(48000u); w.Write(96000u); w.Write((ushort)2); w.Write((ushort)16);
+                w.Write("data"u8); w.Write(0u);
+                for (int i = 0; i < 48000; i++) w.Write((short)(Math.Sin(i * 2 * Math.PI * 440 / 48000) * (i < 24000 ? 3000 : 12000)));
+                File.WriteAllBytes(b + ".microfone.wav", wav.ToArray());
+                File.SetLastWriteTime(b + ".microfone.wav", DateTime.Now.AddMinutes(-5));
+                var made = RecordingSession.RecoverOrphans(dir, dir, ff);
+                Check(made.Count == 1 && File.Exists(b + ".wav") && !File.Exists(b + ".microfone.wav"),
+                    "faixa sem tamanho no cabeçalho (ilha fechou no meio) vira o WAV final no próximo início");
+                var peaks = RecordingsWindow.WavePeaks(b + ".wav", 20, out var len);
+                Check(Math.Abs(len.TotalSeconds - 1) < 0.02 && peaks[^1] > peaks[0] * 1.5f, $"forma de onda do WAV: {len.TotalSeconds:F2} s, o fim mais alto que o começo");
+            }
+            catch (Exception e) { Check(false, "recuperação: " + e.Message); }
+            finally { try { Directory.Delete(dir, true); } catch { } }
+        }
+
         // the two menu icons (idle and recording) drawn with no window, for a look without opening the island
         try
         {

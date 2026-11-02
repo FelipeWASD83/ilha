@@ -53,6 +53,14 @@ internal sealed class RecordingSession
     public DateTime StartedUtc => new(_t0, DateTimeKind.Utc);
     public bool PcSound => _o.PcSound;
     public bool Mic => _o.Mic;
+
+    /// <summary>The loudest sample of every track since the last call (0 to 1).</summary>
+    public float TakePeak()
+    {
+        float p = 0;
+        foreach (var a in _audio) p = MathF.Max(p, a.TakePeak());
+        return p;
+    }
     /// <summary>ffmpeg ended by itself while recording (camera unplugged, out of disk...): raised on a worker thread.</summary>
     public event Action<string>? Died;
 
@@ -205,6 +213,59 @@ internal sealed class RecordingSession
         foreach (var a in _audio) a.Stop(DateTime.UtcNow.Ticks);
         foreach (var f in _audio.Select(a => a.Path).Append(_videoTemp).Append(_mask).Append(_shadow))
             if (f != null) { try { File.Delete(f); } catch { } }
+    }
+
+    private static readonly string[] TrackSuffixes = { ".som-do-pc.wav", ".microfone.wav", ".pc-sound.wav", ".microphone.wav" };
+
+    /// <summary>
+    /// Recordings left in pieces (the island closed mid-recording, the PC shut down): the tracks get their header sizes
+    /// back and are joined into the final file, like a normal stop. Pieces younger than a minute are left alone (they may
+    /// belong to a recording that is running). The pieces are deleted only when the final file came out. Returns the
+    /// final files made.
+    /// </summary>
+    public static List<string> RecoverOrphans(string videos, string audios, string? ffmpeg)
+    {
+        var made = new List<string>();
+        if (ffmpeg == null) return made;
+        foreach (var (folder, video) in new[] { (videos, true), (audios, false) })
+        {
+            if (!Directory.Exists(folder)) continue;
+            var bases = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var f in Directory.EnumerateFiles(folder))
+            {
+                string n = f;
+                string? b = TrackSuffixes.Concat(new[] { ".parcial.mkv" }).Where(s => n.EndsWith(s, StringComparison.OrdinalIgnoreCase))
+                    .Select(s => n[..^s.Length]).FirstOrDefault();
+                if (b != null && DateTime.Now - File.GetLastWriteTime(f) > TimeSpan.FromMinutes(1)) bases.Add(b);
+            }
+            foreach (var b in bases)
+            {
+                string final = b + (video ? ".mp4" : ".wav");
+                if (File.Exists(final)) continue;
+                string? mkv = video && File.Exists(b + ".parcial.mkv") ? b + ".parcial.mkv" : null;
+                if (video && mkv == null) continue;
+                var wavs = TrackSuffixes.Select(s => b + s).Where(File.Exists).ToList();
+                if (!video && wavs.Count == 0) continue;
+                try
+                {
+                    foreach (var w in wavs) AudioCapture.RepairHeader(w);
+                    var (exit, err) = FfmpegTools.Run(ffmpeg, FfmpegTools.FinishArgs(mkv, wavs, final), 30 * 60_000);
+                    if (exit == 0 && File.Exists(final) && new FileInfo(final).Length > 0)
+                    {
+                        foreach (var f in wavs.Append(mkv)) if (f != null) { try { File.Delete(f); } catch { } }
+                        Log.Escrever("gravador: recuperado " + final);
+                        made.Add(final);
+                    }
+                    else
+                    {
+                        try { if (File.Exists(final)) File.Delete(final); } catch { }
+                        Log.Escrever($"gravador: não recuperou {b} ({exit}): {err.Trim()}");
+                    }
+                }
+                catch (Exception e) { Log.Escrever($"gravador: recuperando {b}: {e.Message}"); }
+            }
+        }
+        return made;
     }
 
     public FinishResult Stop()

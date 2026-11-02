@@ -39,11 +39,22 @@ internal sealed class RecorderActivity : Atividade
     private bool _stopped;
     private readonly List<(RectangleF Area, string Mode)> _modePills = new();
 
+    // the live waveform on the pill while recording audio (like the iPhone's Voice Memos): the newest bar at the right
+    private const int WAVE_BARS = 22;
+    private const float WAVE_FLOOR = 0.12f;
+    private readonly float[] _history = new float[WAVE_BARS];
+    private readonly List<SpriteVisual[]> _waves = new();
+    private readonly System.Windows.Forms.Timer _waveTick = new() { Interval = 33 };
+    private ImplicitAnimationCollection? _implicit;
+
     public override string Tipo => "gravador";
     public override string Nome => Lang.T("Gravador", "Recorder");
     public override bool EhFerramenta => true;
     public override bool AnunciaChegada => false;
-    public override (float De, float Ate)? MeioLivreCompacta => (LABEL_END + 6, LC - TIME_SPACE);
+    private bool RecordingAudio => _phase == Phase.Recording && _kind == RecordKind.Audio;
+    // an audio recording takes the pill: the waveform is the point (his request on 02/11/2026)
+    public override bool NaFrente => RecordingAudio;
+    public override (float De, float Ate)? MeioLivreCompacta => RecordingAudio ? null : (LABEL_END + 6, LC - TIME_SPACE);
 
     /// <summary>The menu redraws its two tiles (the dot on the icon, the detail line).</summary>
     public event Action? MenuChanged;
@@ -62,6 +73,60 @@ internal sealed class RecorderActivity : Atividade
             if (Seconds() != _drawn) Redesenhar();
             MenuChanged?.Invoke();
         };
+        _waveTick.Tick += (_, _) => Wave();
+    }
+
+    // ------------------------------------------------------------------ waveform
+
+    private void EvaluateWave()
+    {
+        bool run = RecordingAudio && _waves.Count > 0;
+        if (run && !_waveTick.Enabled) _waveTick.Start();
+        else if (!run && _waveTick.Enabled) _waveTick.Stop();
+        if (!RecordingAudio) Array.Clear(_history);
+    }
+
+    /// <summary>One step: the newest level enters at the right and every bar moves one to the left.</summary>
+    private void Wave()
+    {
+        if (!RecordingAudio || _session == null) { EvaluateWave(); return; }
+        // the square root lifts quiet speech, which peaks well under full scale
+        float level = MathF.Min(1, MathF.Sqrt(_session.TakePeak()) * 1.15f);
+        Array.Copy(_history, 1, _history, 0, WAVE_BARS - 1);
+        _history[^1] = level;
+        foreach (var bars in _waves)
+            for (int i = 0; i < bars.Length; i++)
+                bars[i].Scale = new Vector3(1, WAVE_FLOOR + (1 - WAVE_FLOOR) * _history[i], 1);
+    }
+
+    private ImplicitAnimationCollection Implicit(Compositor c)
+    {
+        if (_implicit != null) return _implicit;
+        // each new Scale (30 a second) is eased in the compositor, so the bars move smoothly at the monitor's rate
+        var a = c.CreateVector3KeyFrameAnimation();
+        a.Target = "Scale";
+        a.InsertExpressionKeyFrame(1f, "this.FinalValue");
+        a.Duration = TimeSpan.FromMilliseconds(60);
+        var col = c.CreateImplicitAnimationCollection();
+        col["Scale"] = a;
+        return _implicit = col;
+    }
+
+    private void WaveBars(Palco p, Cena c, float x0, float x1, float height)
+    {
+        float step = (x1 - x0) / WAVE_BARS, w = MathF.Max(2, step * 0.55f);
+        var bars = new SpriteVisual[WAVE_BARS];
+        for (int i = 0; i < WAVE_BARS; i++)
+        {
+            var v = p.Bloco(c, new Vector2(x0 + i * step, (24 - height) / 2), new Vector2(w, height), new Color4(1, 1, 1, 0.92f));
+            v.CenterPoint = new Vector3(v.Size.X / 2, v.Size.Y / 2, 0);
+            v.Scale = new Vector3(1, WAVE_FLOOR + (1 - WAVE_FLOOR) * _history[i], 1);
+            v.ImplicitAnimations = Implicit(p.C);
+            bars[i] = v;
+        }
+        _waves.Add(bars);
+        c.AoSoltar += () => { _waves.Remove(bars); EvaluateWave(); };
+        EvaluateWave();
     }
 
     private bool Open => S.Ilha.Expandida == this;
@@ -92,8 +157,14 @@ internal sealed class RecorderActivity : Atividade
         _stopped = true;
         _second.Stop();
         if (Open) S.Ilha.Recolher();
-        // a recording in progress is closed properly even when the module turns off
-        if (_session != null && _phase == Phase.Recording) Task.Run(() => { try { _session.Stop(); } catch (Exception e) { Log.Escrever("gravador: " + e.Message); } });
+        // a recording in progress is finished here, waiting for it: the module also stops when the island quits, and a
+        // stop left to a background task died with the process (02/11/2026: an update closed the island mid-recording
+        // and left only the tracks, without the final file)
+        if (_session != null && _phase is Phase.Recording or Phase.Finishing)
+        {
+            Log.Escrever("gravador: a ilha está parando no meio de uma gravação; terminando antes");
+            try { if (_phase == Phase.Recording) _session.Stop(); } catch (Exception e) { Log.Escrever("gravador: " + e.Message); }
+        }
         S.Ilha.ForaDasCapturas(false);
         Desligar();
     }
@@ -115,13 +186,38 @@ internal sealed class RecorderActivity : Atividade
         _ => Lang.T("Áudio", "Audio"),
     };
 
+    /// <summary>Where videos and audios go: the configured folders, else Videos\Ilha and Music\Ilha.</summary>
+    internal (string Videos, string Audios) Folders()
+    {
+        var c = _cfg();
+        return (string.IsNullOrWhiteSpace(c.PastaVideos) ? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyVideos), "Ilha") : c.PastaVideos,
+            string.IsNullOrWhiteSpace(c.PastaAudios) ? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyMusic), "Ilha") : c.PastaAudios);
+    }
+
+    /// <summary>The island's own window with the latest recordings (the one just saved selected and playing).</summary>
+    public void OpenRecordings(string? select = null)
+    {
+        if (Open) S.Ilha.Recolher();
+        RecordingsWindow.Open(S, Folders, select);
+    }
+
+    /// <summary>At start: recordings left in pieces by a quit or a crash are joined in the background, and announced.</summary>
+    public void RecoverLeftovers()
+    {
+        var (videos, audios) = Folders();
+        string? ffmpeg = FfmpegTools.Find(_cfg().Ffmpeg);
+        Task.Run(() => RecordingSession.RecoverOrphans(videos, audios, ffmpeg)).ContinueWith(t => S.NaInterface(() =>
+        {
+            if (_stopped || t.IsFaulted || t.Result.Count == 0) return;
+            AlertSaved(t.Result[^1], Lang.T("Recuperada: a ilha tinha fechado no meio da gravação", "Recovered: the island had closed mid-recording"));
+        }));
+    }
+
     private RecordingOptions Options(RecordKind kind)
     {
         var c = _cfg();
         bool audio = kind == RecordKind.Audio;
-        string folder = audio
-            ? (string.IsNullOrWhiteSpace(c.PastaAudios) ? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyMusic), "Ilha") : c.PastaAudios)
-            : (string.IsNullOrWhiteSpace(c.PastaVideos) ? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyVideos), "Ilha") : c.PastaVideos);
+        string folder = audio ? Folders().Audios : Folders().Videos;
         return new RecordingOptions
         {
             Kind = kind,
@@ -213,6 +309,7 @@ internal sealed class RecorderActivity : Atividade
     private void Refresh()
     {
         MenuChanged?.Invoke();
+        EvaluateWave();
         string k = $"{_phase}|{_panel}|{_kind}|{_error != null}";
         if (k != _layout) { _layout = k; MudouTamanho(); }
         else Redesenhar();
@@ -258,7 +355,7 @@ internal sealed class RecorderActivity : Atividade
                     p.Texto.Desenhar(dc, name, new Vector2(46, 21), 12, Cor.Secundario, FontWeight.Normal, largura: t.X - 46);
                     if (note != null) p.Texto.Desenhar(dc, note, new Vector2(46, 39), 11.5f, Cor.Laranja, FontWeight.Normal, largura: t.X - 46);
                 });
-                c.Botoes.Add(new Botao { Area = new RectangleF(0, 0, c.Tamanho.X, c.Tamanho.Y), Acao = () => ShowInFolder(path) });
+                c.Botoes.Add(new Botao { Area = new RectangleF(0, 0, c.Tamanho.X, c.Tamanho.Y), Acao = () => OpenRecordings(path) });
                 return c;
             },
         });
@@ -289,10 +386,18 @@ internal sealed class RecorderActivity : Atividade
         });
     }
 
-    private static void ShowInFolder(string path)
+    private static readonly RectangleF RecordingsPillArea = new(L - 108, 0, 108, 22);
+
+    /// <summary>The "Recordings" pill at the top right of both cards: opens the island's own player window.</summary>
+    private static void RecordingsPill(ID2D1DeviceContext dc, Palco p)
     {
-        try { System.Diagnostics.Process.Start("explorer.exe", $"/select,\"{path}\""); }
-        catch (Exception e) { Log.Escrever("gravador: explorer: " + e.Message); }
+        var r = RecordingsPillArea;
+        Icone.Retangulo(dc, r.X, r.Y, r.Width, r.Height, r.Height / 2, ButtonBg);
+        // a small play triangle before the word
+        Icone.Triangulo(dc, p.G.Fabrica, new Vector2(r.X + 12, r.Y + 6.5f), new Vector2(r.X + 19.5f, r.Y + 11), new Vector2(r.X + 12, r.Y + 15.5f), Cor.Branco);
+        string label = Lang.T("Gravações", "Recordings");
+        var m = p.Texto.Medir(label, 12, FontWeight.Medium);
+        p.Texto.Desenhar(dc, label, new Vector2(r.X + 26, r.Y + (r.Height - m.Y) / 2), 12, Cor.Branco, FontWeight.Medium);
     }
 
     private static void OpenFolder(string folder)
@@ -386,6 +491,18 @@ internal sealed class RecorderActivity : Atividade
             {
                 var c = p.NovaCena(new Vector2(LC, 24));
                 Dot(p, c, new Vector2(6, 12), 5, DotColor, _phase == Phase.Recording);
+                if (RecordingAudio)
+                {
+                    // the waveform where the "REC" label and the clock would be, the time at the right
+                    WaveBars(p, c, 18, LC - TIME_SPACE + 2, 20);
+                    p.Desenho(c, Vector2.Zero, c.Tamanho, (dc, t) =>
+                    {
+                        string time = Time();
+                        var tm = p.Texto.Medir(time, 15, FontWeight.SemiBold, tabular: true);
+                        p.Texto.Desenhar(dc, time, new Vector2(t.X - tm.X, (t.Y - tm.Y) / 2), 15, Cor.Branco, FontWeight.SemiBold, tabular: true);
+                    });
+                    return c;
+                }
                 p.Desenho(c, Vector2.Zero, c.Tamanho, (dc, t) =>
                 {
                     string label = StateLabel();
@@ -457,6 +574,7 @@ internal sealed class RecorderActivity : Atividade
         {
             var cfg = _cfg();
             p.Texto.Desenhar(dc, Lang.T("Gravar vídeo", "Record video"), new Vector2(0, 0), 13, Cor.Secundario, largura: t.X);
+            RecordingsPill(dc, p);
             foreach (var (r, mode) in _modePills)
             {
                 bool on = cfg.Modo == mode || (mode == "tela" && cfg.Modo is not ("camera" or "telaCamera"));
@@ -479,6 +597,7 @@ internal sealed class RecorderActivity : Atividade
         c.Botoes.Add(new Botao { Area = new RectangleF(0, yRows, L, ROW), Acao = () => Flip(x => x.SomDoPc, (x, v) => x.SomDoPc = v) });
         c.Botoes.Add(new Botao { Area = new RectangleF(0, yRows + ROW, L, ROW), Acao = () => Flip(x => x.Microfone, (x, v) => x.Microfone = v) });
         c.Botoes.Add(new Botao { Area = new RectangleF(0, yButton, L, BUTTON_H), Acao = () => StartRecording(VideoKind(_cfg().Modo)) });
+        c.Botoes.Add(new Botao { Area = RecordingsPillArea, Acao = () => OpenRecordings() });
         return c;
     }
 
@@ -492,6 +611,7 @@ internal sealed class RecorderActivity : Atividade
         {
             var cfg = _cfg();
             p.Texto.Desenhar(dc, Lang.T("Gravar áudio", "Record audio"), new Vector2(0, 0), 13, Cor.Secundario, largura: t.X);
+            RecordingsPill(dc, p);
             SwitchRow(dc, p, yRows, Lang.T("Microfone", "Microphone"), cfg.AudioMicrofone, Icons.Mic);
             SwitchRow(dc, p, yRows + ROW, Lang.T("Som do PC", "PC sound"), cfg.AudioSomDoPc, Icons.Speaker);
             RecordButton(dc, p, yButton, Lang.T("Gravar", "Record"));
@@ -503,6 +623,7 @@ internal sealed class RecorderActivity : Atividade
         c.Botoes.Add(new Botao { Area = new RectangleF(0, yRows, L, ROW), Acao = () => Flip(x => x.AudioMicrofone, (x, v) => x.AudioMicrofone = v) });
         c.Botoes.Add(new Botao { Area = new RectangleF(0, yRows + ROW, L, ROW), Acao = () => Flip(x => x.AudioSomDoPc, (x, v) => x.AudioSomDoPc = v) });
         c.Botoes.Add(new Botao { Area = new RectangleF(0, yButton, L, BUTTON_H), Acao = () => StartRecording(RecordKind.Audio) });
+        c.Botoes.Add(new Botao { Area = RecordingsPillArea, Acao = () => OpenRecordings() });
         return c;
     }
 
@@ -528,7 +649,11 @@ internal sealed class RecorderActivity : Atividade
         p.Texto.Desenhar(dc, label, new Vector2(x + 22, y + (BUTTON_H - m.Y) / 2), 15, Cor.Branco, FontWeight.SemiBold);
     }
 
-    public override void Dispose() => _second.Dispose();
+    public override void Dispose()
+    {
+        _second.Dispose();
+        _waveTick.Dispose();
+    }
 }
 
 /// <summary>The recorder's icons, made of shapes only (the menu tiles and the card's switch rows).</summary>

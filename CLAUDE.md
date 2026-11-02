@@ -274,6 +274,27 @@ and the points that matter are here.
   `Core/Config.cs`. Cards: one composition visual per wallpaper, sliding with keyframe animations (Offset, Scale,
   Opacity); thumbnails from the Wallpaper Engine preview or the Windows thumbnail, decoded once on a background thread.
   Arrows and Enter reach the card through `Entrada.Navegar` (new: raised while the island only holds the keyboard).
+- **2.0.0 (02/11/2026), his requests:**
+  - **Recordings window** (`Gravador/RecordingsWindow.cs`): a WinForms borderless window (rounded corners and dark rim
+    through DWM, CS_DROPSHADOW) whose content is a second `DesktopWindowTarget` of the island's own compositor: two D2D
+    surfaces in pixels (`emPixels`, drawn scaled by the window's DPI, not by the island's size factor) and a video sprite
+    fed by Windows' `MediaPlayer.GetSurface`. The window must be shown before an item is selected (the tree is built in
+    `OnHandleCreated`; selecting first left the video with nowhere to draw). Audio items show peaks read straight from
+    the WAV. Opened from the "Gravações" pill on both cards and from the "Gravação salva" notice.
+  - **Waveform on the pill**: `Atividade.NaFrente` (new) puts an activity ahead of the priority list; the recorder uses
+    it only while recording audio. 22 composition bars fed ~30 times a second from `AudioCapture.TakePeak` (the loudest
+    sample since the last read), eased by implicit animations like the media bars.
+  - **Recovery**: the module stopping (the island quitting, an update) now finishes a recording synchronously; before,
+    the stop ran on a background task that died with the process. On 02/11/2026 an install closed the island 4.5 min
+    into his audio recording and only the tracks were left (recovered by hand). At start, `RecoverOrphans` joins
+    pieces older than a minute that have no final file (`AudioCapture.RepairHeader` sets the never-written RIFF/data
+    sizes first) and announces it; pieces are deleted only when the final file came out.
+  - **Permission mode** on the Claude card: `PonteClaudeApp.Permissao` opens the session's mode button (named after
+    the mode: "Automático", "Manual", "Aceitar edições", "Plano", "Ignorar permissões", `ModosDePermissao`) and invokes
+    the item. `--ponte-claude permissoes SESSION [MODE]` lists or switches from the command line. **Never switch the
+    permission mode of the session doing the work to test it**: on 02/11/2026 a test put this session in Auto, and
+    switching it back to bypass was (rightly) refused as self-elevation; that is his to do.
+  - The OBS recording entry left the top corner and became a ball next to the wallpaper entry (`Ordem` 59).
 - **Discreet menu entries (1.8.0):** `ItemDoMenu.CornerBottom` draws the icon small (14 DIP) with no ball, name or
   background in the menu's bottom-right corner (inside the last row when its right cells are empty, else on a strip under
   the grid). The private unlock entry uses it with a dim lock. Not seen on screen on 02/11/2026 (it only shows locked).
