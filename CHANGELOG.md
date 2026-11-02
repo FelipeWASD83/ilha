@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.8.1 (02/11/2026)
+
+**Changed**
+- New icons for the recorder's menu buttons: a silver camera with a blue glass lens (its small window turns red while
+  recording video) and a detailed studio microphone with its grille, cradle and stand (a red dot while recording audio).
+
 ## 1.8.0 (02/11/2026)
 
 **New**

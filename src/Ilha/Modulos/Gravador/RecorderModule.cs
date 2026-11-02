@@ -116,6 +116,14 @@ internal sealed class RecorderModule : Modulo
             var c = FfmpegTools.ListCameras(ff);
             Check(true, "câmeras: " + (c.Count == 0 ? "nenhuma" : string.Join(", ", c.Select(x => x.Name + (x.Physical ? " (física)" : "")))));
         }
+        // the two menu icons (idle and recording) drawn with no window, for a look without opening the island
+        try
+        {
+            var png = Path.Combine(Path.GetTempPath(), "ilha-icones-gravador.png");
+            IconPreview.Render(png);
+            Check(File.Exists(png), "ícones do menu desenhados em " + png);
+        }
+        catch (Exception e) { Check(false, "ícones do menu: " + e.Message); }
         // the PC's sound for half a second into a temporary WAV: the file is padded to the stop even in silence
         var tmp = Path.Combine(Path.GetTempPath(), $"ilha-teste-gravador-{Environment.ProcessId}.wav");
         try

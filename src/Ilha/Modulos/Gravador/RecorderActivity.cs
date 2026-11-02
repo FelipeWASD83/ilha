@@ -535,16 +535,92 @@ internal sealed class RecorderActivity : Atividade
 internal static class Icons
 {
     /// <summary>A video camera: the body and the lens cone; a red dot on it while recording video.</summary>
+    /// <summary>
+    /// The menu's camera, in the spirit of the iOS 18 camera icon: a silver body with a raised top, a deep blue glass
+    /// lens in a dark ring with a glint, and the small window at the top right, which turns red while recording video.
+    /// </summary>
     public static void Camera(ID2D1DeviceContext dc, ID2D1Factory1 f, System.Drawing.RectangleF r, bool live)
     {
-        Icone.Retangulo(dc, r.X + 1, r.Y + 6, 15, 12, 3, Cor.Branco);
-        Icone.Triangulo(dc, f, new Vector2(r.X + 15, r.Y + 12), new Vector2(r.X + 23, r.Y + 7.5f), new Vector2(r.X + 23, r.Y + 16.5f), Cor.Branco);
-        if (live) Icone.Circulo(dc, new Vector2(r.X + 8.5f, r.Y + 12), 3, Cor.Vermelho);
+        float x = r.X, y = r.Y;
+        var top = new Color4(0.94f, 0.94f, 0.96f, 1);
+        var bottom = new Color4(0.64f, 0.64f, 0.68f, 1);
+        using (var silver = Linear(dc, new Vector2(x, y + 4), new Vector2(x, y + 20.5f), top, bottom))
+        {
+            Rounded(dc, x + 7, y + 3.6f, 7, 4.4f, 1.6f, silver);
+            Rounded(dc, x + 1.2f, y + 6.4f, 21.6f, 14, 3.6f, silver);
+        }
+        // the seam under the raised top and the shadow line at the bottom of the body
+        Icone.Retangulo(dc, x + 1.2f, y + 9.6f, 21.6f, 0.6f, 0, new Color4(0, 0, 0, 0.16f));
+        var lens = new Vector2(x + 12, y + 13.6f);
+        Icone.Circulo(dc, lens, 5.9f, new Color4(0.10f, 0.10f, 0.11f, 1));
+        Icone.Circulo(dc, lens, 4.9f, new Color4(0.36f, 0.36f, 0.39f, 1));
+        using (var glass = Radial(dc, lens + new Vector2(-1.1f, -1.2f), 4.6f,
+                   new Color4(0.30f, 0.46f, 0.86f, 1), new Color4(0.03f, 0.05f, 0.14f, 1)))
+            dc.FillEllipse(new Ellipse(lens, 4.3f, 4.3f), glass);
+        Icone.Circulo(dc, lens, 1.6f, new Color4(0.02f, 0.02f, 0.05f, 0.9f));
+        Icone.Circulo(dc, lens + new Vector2(-1.7f, -1.8f), 1.05f, new Color4(1, 1, 1, 0.85f));
+        Icone.Circulo(dc, lens + new Vector2(1.9f, 1.8f), 0.5f, new Color4(1, 1, 1, 0.35f));
+        Icone.Circulo(dc, new Vector2(x + 19, y + 9.4f), 1.25f, live ? Cor.Vermelho : new Color4(0.27f, 0.27f, 0.30f, 1));
     }
 
-    /// <summary>A microphone: the capsule, the cradle and the stand; red capsule while recording audio.</summary>
-    public static void MicTile(ID2D1DeviceContext dc, ID2D1Factory1 f, System.Drawing.RectangleF r, bool live) =>
-        Mic(dc, f, new Vector2(r.X + 12, r.Y + 12), Cor.Branco, live ? Cor.Vermelho : Cor.Branco, 1.2f);
+    /// <summary>
+    /// The menu's recorder: a studio microphone with a silver capsule, its grille lines and middle band, the cradle and a
+    /// stand with a base. While recording audio a red dot shows at its top right.
+    /// </summary>
+    public static void MicTile(ID2D1DeviceContext dc, ID2D1Factory1 f, System.Drawing.RectangleF r, bool live)
+    {
+        float x = r.X, y = r.Y;
+        var light = new Color4(0.95f, 0.95f, 0.97f, 1);
+        var dark = new Color4(0.60f, 0.60f, 0.64f, 1);
+        using (var silver = Linear(dc, new Vector2(x + 8, y), new Vector2(x + 16, y), light, dark))
+            Rounded(dc, x + 8, y + 1.2f, 8, 13.6f, 4, silver);
+        var grille = new Color4(0.25f, 0.25f, 0.28f, 0.75f);
+        foreach (float gy in new[] { 4.4f, 6.2f, 8.0f })
+            Icone.Linha(dc, new Vector2(x + 9.3f, y + gy), new Vector2(x + 14.7f, y + gy), 0.7f, grille, f);
+        Icone.Retangulo(dc, x + 8, y + 9.6f, 8, 1.4f, 0, new Color4(0.38f, 0.38f, 0.42f, 1));
+        var metal = new Color4(0.82f, 0.82f, 0.86f, 1);
+        using (var g = f.CreatePathGeometry())
+        {
+            using (var sink = g.Open())
+            {
+                sink.BeginFigure(new Vector2(x + 5.4f, y + 7.6f), FigureBegin.Hollow);
+                sink.AddLine(new Vector2(x + 5.4f, y + 10.4f));
+                sink.AddArc(new ArcSegment
+                {
+                    Point = new Vector2(x + 18.6f, y + 10.4f), Size = new Vortice.Mathematics.Size(6.6f, 6.6f),
+                    SweepDirection = SweepDirection.CounterClockwise, ArcSize = ArcSize.Small,
+                });
+                sink.AddLine(new Vector2(x + 18.6f, y + 7.6f));
+                sink.EndFigure(FigureEnd.Open);
+                sink.Close();
+            }
+            using var b = dc.CreateSolidColorBrush(metal);
+            using var round = f.CreateStrokeStyle(new StrokeStyleProperties { StartCap = CapStyle.Round, EndCap = CapStyle.Round, LineJoin = LineJoin.Round });
+            dc.DrawGeometry(g, b, 1.7f, round);
+        }
+        Icone.Linha(dc, new Vector2(x + 12, y + 17), new Vector2(x + 12, y + 20.4f), 1.9f, metal, f);
+        using (var foot = Linear(dc, new Vector2(x, y + 20), new Vector2(x, y + 22.6f), light, dark))
+            Rounded(dc, x + 7, y + 20.2f, 10, 2.4f, 1.2f, foot);
+        if (live) Icone.Circulo(dc, new Vector2(x + 20.2f, y + 3.4f), 2.2f, Cor.Vermelho);
+    }
+
+    private static ID2D1LinearGradientBrush Linear(ID2D1DeviceContext dc, Vector2 a, Vector2 b, Color4 from, Color4 to)
+    {
+        using var stops = dc.CreateGradientStopCollection(new[] { new GradientStop { Position = 0, Color = from }, new GradientStop { Position = 1, Color = to } });
+        return dc.CreateLinearGradientBrush(new LinearGradientBrushProperties { StartPoint = a, EndPoint = b }, stops);
+    }
+
+    private static ID2D1RadialGradientBrush Radial(ID2D1DeviceContext dc, Vector2 center, float radius, Color4 inner, Color4 outer)
+    {
+        using var stops = dc.CreateGradientStopCollection(new[] { new GradientStop { Position = 0, Color = inner }, new GradientStop { Position = 1, Color = outer } });
+        return dc.CreateRadialGradientBrush(new RadialGradientBrushProperties { Center = center, RadiusX = radius, RadiusY = radius }, stops);
+    }
+
+    private static void Rounded(ID2D1DeviceContext dc, float x, float y, float w, float h, float radius, ID2D1Brush brush)
+    {
+        var rr = new RoundedRectangle(new System.Drawing.RectangleF(x, y, w, h), radius, radius);
+        dc.FillRoundedRectangle(ref rr, brush);
+    }
 
     public static void Mic(ID2D1DeviceContext dc, ID2D1Factory1 f, Vector2 c, Color4 color) => Mic(dc, f, c, color, color, 0.75f);
 
