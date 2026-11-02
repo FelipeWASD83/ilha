@@ -1,5 +1,18 @@
 # Changelog
 
+## 1.6.0 (02/11/2026)
+
+**New**
+- A Menu section in the settings: one box per entry of the main menu, to hide what you do not want there. A hidden
+  entry only leaves the menu; the module keeps working.
+
+**Changed**
+- Chubbier numbers: the menu's time, the pill's time and the batteries' percentage are bolder, and the sound and
+  brightness numbers are bigger and bold.
+- The menu is more compact: smaller balls and gaps, a smaller header.
+- The outline around the devices is thinner, and it is now also on the photo of the card that shows when a device
+  connects (or when you open it from the menu).
+
 ## 1.5.1 (02/11/2026)
 
 **Changed**

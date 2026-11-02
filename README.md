@@ -135,6 +135,7 @@ If there is a typo, the island tells you and keeps the previous settings.
 | `atrasoRecolherMs` | how long to wait after the mouse leaves before collapsing (default 600) |
 | `bordaAdaptativa` | the light border that shows up on a dark background (on by default) |
 | `relogio` | the time in the middle of the compact pill (on by default) |
+| `menuEscondido` | ids of the entries hidden from the main menu (the settings window's Menu section: one box per entry); the module keeps working |
 | `mola` | `amortecimento` (below 1 it overshoots and comes back) and `periodoMs` (speed) |
 | `desenharNaGpu` | draw text on the graphics card (uses about 110 MB more; applies after reopening) |
 | `pausada` | island paused |

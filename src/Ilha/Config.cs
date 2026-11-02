@@ -64,6 +64,8 @@ public sealed class Config
     [JsonPropertyName("bordaAdaptativa")] public bool BordaAdaptativa { get; set; } = true;
     // a hora no meio da pílula compacta, quando a atividade deixa o meio livre (nunca na área de trabalho)
     [JsonPropertyName("relogio")] public bool Relogio { get; set; } = true;
+    // menu entries hidden from the main menu (by id); the module keeps working, only its tile goes away
+    [JsonPropertyName("menuEscondido")] public List<string> MenuEscondido { get; set; } = new();
     // ordem entre as atividades; alerta não entra: ele sempre passa por cima de todas
     [JsonPropertyName("prioridades")] public List<string> Prioridades { get; set; } = new() { "volume", "claude", "ia", "timer", "midia", "uso" };
     // nome do .exe (com ou sem ".exe"), sem diferença de maiúscula

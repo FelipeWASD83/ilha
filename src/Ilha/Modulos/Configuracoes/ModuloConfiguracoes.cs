@@ -269,6 +269,24 @@ internal sealed class ModuloConfiguracoes : Modulo
             // in English: window title, module names (ModuloAttribute.English) and shortcut names follow the language
             Lang.Set("en");
             var modsEn = JanelaDeConfiguracoes.ModulosDaConfig(new Config());
+            // the Menu section: a box per entry; an entry hidden before but not listed now (module off) stays hidden
+            var cfgMenu = new Config { MenuEscondido = new List<string> { "mascote", "velho" } };
+            using (var j = JanelaDeConfiguracoes.ParaTeste(() => cfgMenu, lista, null, null, new[] { ("conversas", "Conversas"), ("mascote", "Mascote") }))
+            {
+                var caixas = j.MenuNaTela.ToList();
+                bool marcadas = caixas.Count == 2 && caixas[0].Mostrar.Checked && !caixas[1].Mostrar.Checked;
+                caixas[0].Mostrar.Checked = false;
+                caixas[1].Mostrar.Checked = true;
+                var escondidos = j.Coletar().MenuEscondido;
+                Conferir("menu section: boxes from the config, hiding and showing, unlisted hidden ids kept",
+                    marcadas && escondidos.OrderBy(x => x).SequenceEqual(new[] { "conversas", "velho" }), string.Join(",", escondidos));
+            }
+            var menuTeste = new MenuDaIlha();
+            menuTeste.Adicionar(new ItemDoMenu { Id = "a", Nome = "A", Abrir = () => { } });
+            menuTeste.Adicionar(new ItemDoMenu { Id = "b", Nome = "B", Abrir = () => { } });
+            menuTeste.Esconder(new[] { "B" });
+            Conferir("hidden menu entries leave the menu only (case does not matter)", menuTeste.Visiveis.Select(i => i.Id).SequenceEqual(new[] { "a" }) && menuTeste.Itens.Count == 2);
+
             using (var j = JanelaDeConfiguracoes.ParaTeste(() => new Config(), modsEn, null))
                 Conferir("em inglês, a janela e os nomes dos módulos e dos atalhos saem em inglês",
                     j.Text == "Ilha settings" && modsEn.Any(m => m.id == "configuracoes" && m.nome == "Settings window")

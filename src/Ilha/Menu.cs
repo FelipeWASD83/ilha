@@ -57,6 +57,20 @@ internal sealed class MenuDaIlha
 
     public IReadOnlyList<ItemDoMenu> Itens => _itens.OrderBy(i => i.Ordem).ThenBy(i => i.Nome, StringComparer.CurrentCulture).ToList();
 
+    private HashSet<string> _escondidos = new(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>The entries on screen: all but the ones hidden in the settings (`menuEscondido`).</summary>
+    public IReadOnlyList<ItemDoMenu> Visiveis => Itens.Where(i => !_escondidos.Contains(i.Id)).ToList();
+
+    /// <summary>The ids hidden from the menu (the settings window's "Menu" section); the menu redraws.</summary>
+    public void Esconder(IEnumerable<string>? ids)
+    {
+        var novo = new HashSet<string>(ids ?? Array.Empty<string>(), StringComparer.OrdinalIgnoreCase);
+        if (novo.SetEquals(_escondidos)) return;
+        _escondidos = novo;
+        Mudou?.Invoke();
+    }
+
     public void Adicionar(ItemDoMenu item)
     {
         item.Dono ??= Dono;
@@ -91,11 +105,11 @@ internal sealed class Menu : Atividade
     public override string Nome => "Menu";
 
     private const int COLUNAS = 4;
-    private const float LADO = 84, ALTO = 86, VAO = 8, CABECALHO = 54, BOLA = 58, CANTO = 34, CANTO_ICONE = 24;
+    private const float LADO = 80, ALTO = 80, VAO = 6, CABECALHO = 48, BOLA = 54, CANTO = 32, CANTO_ICONE = 24;
     /// <summary>The header's center line: the time's digits, the date, the dots and the corner icons sit on it.</summary>
-    private const float LINHA = 21;
+    private const float LINHA = 18;
     /// <summary>How far the header stays from the card's sides (the time and the corner icons were almost in the corners).</summary>
-    private const float MARGEM = 8;
+    private const float MARGEM = 6;
     /// <summary>The icons are drawn for a 24 DIP box and scaled up as a whole (some draw in fixed units).</summary>
     private const float ESCALA_ICONE = 28f / 24f;
     /// <summary>Corner radius of the bigger blocks: the balls' radius, so everything has the same curve.</summary>
@@ -117,7 +131,7 @@ internal sealed class Menu : Atividade
         _menu.Mudou += () =>
         {
             // entrou, saiu ou mudou de tamanho um bloco: a grade muda; só o conteúdo mudou: redesenha
-            if (Assinatura(_menu.Itens) != _assinatura) MudouTamanho();
+            if (Assinatura(_menu.Visiveis) != _assinatura) MudouTamanho();
             else Redesenhar();
         };
         if (_indicadores != null) _indicadores.Mudou += Redesenhar;
@@ -193,7 +207,7 @@ internal sealed class Menu : Atividade
     protected override Cena Montar(Palco p, Forma f)
     {
         _minuto.Start();
-        var todos = _menu.Itens;
+        var todos = _menu.Visiveis;
         _assinatura = Assinatura(todos);
         // the first corner entry sits at the right edge: settings (the highest order) last in the menu, first here
         var cantos = todos.Where(i => i.Corner).OrderByDescending(i => i.Ordem).ToList();
@@ -261,10 +275,10 @@ internal sealed class Menu : Atividade
         var agora = DateTime.Now;
         _desenhado = agora.Minute;
         var cultura = Lang.Culture;
-        const float HORA = 34, DATA = 14;
+        const float HORA = 32, DATA = 13.5f;
         string hora = agora.ToString("HH:mm", cultura);
-        var mh = p.Texto.Medir(hora, HORA, FontWeight.Medium, tabular: true);
-        p.Texto.Desenhar(dc, hora, new Vector2(MARGEM, LINHA - Meio(HORA)), HORA, Cor.Branco, FontWeight.Medium, tabular: true);
+        var mh = p.Texto.Medir(hora, HORA, FontWeight.SemiBold, tabular: true);
+        p.Texto.Desenhar(dc, hora, new Vector2(MARGEM, LINHA - Meio(HORA)), HORA, Cor.Branco, FontWeight.SemiBold, tabular: true);
         float x = MARGEM + mh.X + 10;
         // camera (green) and microphone (orange) in use: dots right after the time
         if (_indicadores is { Algum: true } ind)
@@ -331,12 +345,12 @@ internal sealed class Menu : Atividade
         if (item.Icone == null) Icone.Retangulo(dc, area.X + 3, area.Y + 3, ic - 6, ic - 6, 5, Cor.Fraco);
         string? detalhe = null;
         try { detalhe = item.Detalhe?.Invoke(); } catch { }
-        float y = corpo.Bottom + 5;
+        float y = corpo.Bottom + 4;
         Centrado(dc, p, item.Nome, r, y, 12, Cor.Branco, FontWeight.Medium);
         if (detalhe == null) return;
         Vortice.Mathematics.Color4? amostra = null;
         try { amostra = item.DetailSwatch?.Invoke(); } catch { }
-        Centrado(dc, p, detalhe, r, y + 15, 10.5f, Cor.Secundario, FontWeight.Normal, amostra);
+        Centrado(dc, p, detalhe, r, y + 14, 10.5f, Cor.Secundario, FontWeight.Normal, amostra);
     }
 
     private static void Centrado(ID2D1DeviceContext dc, Palco p, string texto, System.Drawing.RectangleF r, float y, float tam,
@@ -401,10 +415,10 @@ internal sealed class MenuSlider
     private static void Content(ID2D1DeviceContext dc, Palco p, System.Drawing.RectangleF r, Vortice.Mathematics.Color4 color,
         Action<ID2D1DeviceContext, Vector2, Vortice.Mathematics.Color4> icon, string text)
     {
-        const float ICON = 24;
-        icon(dc, new Vector2(r.X + (r.Width - ICON) / 2, r.Bottom - 58), color);
-        var m = p.Texto.Medir(text, 11, FontWeight.SemiBold, tabular: true);
-        p.Texto.Desenhar(dc, text, new Vector2(r.X + (r.Width - m.X) / 2, r.Bottom - 29), 11, color, FontWeight.SemiBold, tabular: true);
+        const float ICON = 24, SIZE = 12.5f;
+        icon(dc, new Vector2(r.X + (r.Width - ICON) / 2, r.Bottom - 56), color);
+        var m = p.Texto.Medir(text, SIZE, FontWeight.Bold, tabular: true);
+        p.Texto.Desenhar(dc, text, new Vector2(r.X + (r.Width - m.X) / 2, r.Bottom - 20 - SIZE * 0.73f), SIZE, color, FontWeight.Bold, tabular: true);
     }
 
     /// <summary>The new level for this drag position, or null when it should not change (a tap, or no move yet).</summary>

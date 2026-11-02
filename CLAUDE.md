@@ -186,17 +186,21 @@ and the points that matter are here.
   yellow, red at 25 and below, green while charging). Its size follows the devices (his rule on 02/11/2026): one = a
   1x1 ball with the battery under it, two = 2x1 side by side with the batteries under the block (`LabelBelow`), three
   or four = 2x2 one per line. No circle around the photos (he called it ugly on 02/11/2026): `Retrato.ComContorno`
-  bakes a light gray outline that follows the device's shape when the photo loads. Each device is a `Parts` area that
+  bakes a thin (1 DIP) light gray outline that follows the device's shape when the photo loads; `FotoComContorno`
+  is used for the menu and for the connected card alike. Each device is a `Parts` area that
   opens it. The AirPods show their emptier bud.
 - **Main menu (1.4.0, reworked in 1.5.0, `Menu.cs`):** iPhone Control Center style, decided with him on 02/11/2026
   from his mockup and his phone. An `ItemDoMenu` has a size (`Cols` x `Rows`), and `Menu.Pack` puts each tile in the
   first free spot of the 4-column grid, in `Ordem` (a later small tile fills an earlier hole). A 1x1 is a gray ball
-  (58 DIP) with the name under it. A bigger block's body (`Menu.Corpo`) runs from its first column's ball edge to its
-  last one's and from its first row's ball top to its last row's ball bottom, so every edge lines up with the balls;
-  its curve is the balls' radius (`RAIO_BLOCO`, 29). The card keeps 38 like every card (60 looked wrong to him). The
+  (54 DIP since 1.6.0, columns 80, gaps 6, rows 80: he asked for it more compact) with the name under it. A bigger
+  block's body (`Menu.Corpo`) runs from its first column's ball edge to its last one's and from its first row's ball
+  top to its last row's ball bottom, so every edge lines up with the balls; its curve is the balls' radius
+  (`RAIO_BLOCO`, half a ball). The card keeps 38 like every card (60 looked wrong to him). The
   card ends where the last thing drawn ends (a bottom row of blocks has no names). Icons are drawn for 24 DIP and
-  scaled by `ESCALA_ICONE` (28/24) with a transform, since some draw in fixed units. The header keeps `MARGEM` (8)
-  from the sides. No lighter rim, gray at 6% white. `Draw` replaces icon and name (sliders, batteries), `Drag` and `Wheel` act on the tile (the wheel
+  scaled by `ESCALA_ICONE` (28/24) with a transform, since some draw in fixed units. The header keeps `MARGEM` (6)
+  from the sides; the time is SemiBold, the batteries' and sliders' numbers Bold (he wanted them chubbier). No
+  lighter rim, gray at 6% white. `menuEscondido` (config) hides entries by id through `MenuDaIlha.Visiveis`; the
+  settings window's Menu section has a box per entry (settings itself is never listed, so it cannot be hidden). `Draw` replaces icon and name (sliders, batteries), `Drag` and `Wheel` act on the tile (the wheel
   reaches the card through `Atividade.Rolar(delta, noCartao)` with the last mouse position), `Parts` are clickable
   areas inside it, `Corner` puts the entry as a plain icon in the top right (settings at the edge, recording next to
   it), `IconSize` grows the icon (the limit ring) and `DetailSwatch` puts a color dot before the detail. The header

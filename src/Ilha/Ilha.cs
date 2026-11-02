@@ -1352,7 +1352,7 @@ internal sealed class Ilha : IDisposable
         return c;
     }
 
-    private float LarguraDoRelogio() => _p.Texto.Medir("00:00", 13, Vortice.DirectWrite.FontWeight.Medium, tabular: true).X;
+    private float LarguraDoRelogio() => _p.Texto.Medir("00:00", 13, Vortice.DirectWrite.FontWeight.SemiBold, tabular: true).X;
 
     private const float ANEL_FOLGA = 8, ANEL_A = 22;
 
@@ -1372,7 +1372,7 @@ internal sealed class Ilha : IDisposable
             var agora = DateTime.Now;
             _minutoDesenhado = agora.Minute;
             string h = agora.ToString("HH:mm");
-            var m = _p.Texto.Medir(h, 13, Vortice.DirectWrite.FontWeight.Medium, tabular: true);
+            var m = _p.Texto.Medir(h, 13, Vortice.DirectWrite.FontWeight.SemiBold, tabular: true);
             var cor = CorDoIndicador();
             if (cor is { } c)
             {
@@ -1381,7 +1381,7 @@ internal sealed class Ilha : IDisposable
                 Icone.Retangulo(dc, (t.X - l) / 2, (t.Y - a) / 2, l, a, a / 2, c);
             }
             _p.Texto.Desenhar(dc, h, new Vector2((t.X - m.X) / 2, (t.Y - m.Y) / 2), 13, cor != null ? Cor.Branco : Cor.Secundario,
-                cor != null ? Vortice.DirectWrite.FontWeight.SemiBold : Vortice.DirectWrite.FontWeight.Medium, tabular: true);
+                Vortice.DirectWrite.FontWeight.SemiBold, tabular: true);
         });
         _relogios.Add(s);
         cena.AoSoltar += () => _relogios.Remove(s);

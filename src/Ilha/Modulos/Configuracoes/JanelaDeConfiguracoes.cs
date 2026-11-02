@@ -29,7 +29,8 @@ internal sealed class JanelaDeConfiguracoes : Form
     /// </summary>
     public static void Mostrar(Func<Config> atual, Action<Config> salvar,
         IReadOnlyList<(string id, string nome, Type? tipoConfig, bool ligado)> modulos,
-        IReadOnlyDictionary<string, Atalho>? atalhosDosModulos = null)
+        IReadOnlyDictionary<string, Atalho>? atalhosDosModulos = null,
+        IReadOnlyList<(string Id, string Nome)>? itensDoMenu = null)
     {
         if (_aberta is { IsDisposed: false })
         {
@@ -37,7 +38,7 @@ internal sealed class JanelaDeConfiguracoes : Form
             _aberta.Activate();
             return;
         }
-        _aberta = new JanelaDeConfiguracoes(atual, salvar, modulos, atalhosDosModulos);
+        _aberta = new JanelaDeConfiguracoes(atual, salvar, modulos, atalhosDosModulos, itensDoMenu ?? Array.Empty<(string, string)>());
         _aberta.FormClosed += (_, _) => _aberta = null;
         _aberta.Show();
         _aberta.Activate();
@@ -117,6 +118,8 @@ internal sealed class JanelaDeConfiguracoes : Form
     private readonly List<string> _listaPrioridades = new();
     // Módulos
     private readonly List<ModuloNaTela> _modulos = new();
+    // Menu: one "show" box per entry of the main menu
+    private readonly List<(string Id, CheckBox Mostrar)> _menu = new();
 
     private sealed class ModuloNaTela
     {
@@ -131,7 +134,7 @@ internal sealed class JanelaDeConfiguracoes : Form
 
     private JanelaDeConfiguracoes(Func<Config> atual, Action<Config> salvar,
         IReadOnlyList<(string id, string nome, Type? tipoConfig, bool ligado)> modulos,
-        IReadOnlyDictionary<string, Atalho>? atalhosDosModulos)
+        IReadOnlyDictionary<string, Atalho>? atalhosDosModulos, IReadOnlyList<(string Id, string Nome)> itensDoMenu)
     {
         _atual = atual;
         _salvar = salvar;
@@ -160,6 +163,7 @@ internal sealed class JanelaDeConfiguracoes : Form
         MontarRodape();
         AdicionarSecao(Lang.T("Geral", "General"), MontarGeral());
         AdicionarSecao(Lang.T("Sons", "Sounds"), MontarSons());
+        AdicionarSecao("Menu", MontarMenu(itensDoMenu));
         AdicionarSecao(Lang.T("Atalhos", "Shortcuts"), MontarAtalhos(atalhosDosModulos));
         AdicionarSecao(Lang.T("Jogos competitivos", "Competitive games"), MontarJogos());
         AdicionarSecao(Lang.T("Prioridades", "Priorities"), MontarPrioridades());
@@ -326,6 +330,19 @@ internal sealed class JanelaDeConfiguracoes : Form
     }
 
     // ------------------------------------------------------------------ seções
+
+    /// <summary>The main menu's entries, each with a box to show or hide it (hidden, the module keeps working).</summary>
+    private Panel MontarMenu(IReadOnlyList<(string Id, string Nome)> itens)
+    {
+        var (s, col) = NovaSecao("Menu", Lang.T("O que aparece no menu principal da ilha. Escondida, a entrada some só do menu: o módulo continua funcionando.",
+            "What shows in the island's main menu. A hidden entry only leaves the menu: the module keeps working."));
+        var escondidos = new HashSet<string>(_inicio.MenuEscondido, StringComparer.OrdinalIgnoreCase);
+        if (itens.Count == 0)
+            col.Controls.Add(new Label { Text = Lang.T("Nenhuma entrada no menu agora.", "No menu entries right now."), AutoSize = true, ForeColor = Secundario });
+        foreach (var (id, nome) in itens)
+            _menu.Add((id, Marcar(col, nome, !escondidos.Contains(id))));
+        return s;
+    }
 
     private Panel MontarGeral()
     {
@@ -660,6 +677,11 @@ internal sealed class JanelaDeConfiguracoes : Form
             else c.AtalhosModulos[nome] = v;
         }
 
+        // the boxes on screen decide their entries; a hidden entry of a module that is off now (not listed) stays hidden
+        var naTela = _menu.Select(m => m.Id).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        c.MenuEscondido = _inicio.MenuEscondido.Where(id => !naTela.Contains(id))
+            .Concat(_menu.Where(m => !m.Mostrar.Checked).Select(m => m.Id)).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+
         c.JogosCompetitivos = _jogos.Items.Cast<string>().ToList();
         c.Prioridades = new List<string>(_listaPrioridades);
 
@@ -784,7 +806,10 @@ internal sealed class JanelaDeConfiguracoes : Form
 
     /// <summary>Monta a janela sem mostrar (o autoteste do módulo de configurações usa).</summary>
     internal static JanelaDeConfiguracoes ParaTeste(Func<Config> atual, IReadOnlyList<(string id, string nome, Type? tipoConfig, bool ligado)> modulos,
-        IReadOnlyDictionary<string, Atalho>? atalhos, Action<Config>? salvar = null) => new(atual, salvar ?? (_ => { }), modulos, atalhos);
+        IReadOnlyDictionary<string, Atalho>? atalhos, Action<Config>? salvar = null, IReadOnlyList<(string Id, string Nome)>? itensDoMenu = null) =>
+        new(atual, salvar ?? (_ => { }), modulos, atalhos, itensDoMenu ?? Array.Empty<(string, string)>());
+
+    internal IEnumerable<(string Id, CheckBox Mostrar)> MenuNaTela => _menu;
 
     /// <summary>Foto de cada aba sem mostrar a janela na tela (para conferir o visual no desenvolvimento).</summary>
     internal List<string> Fotografar(string pasta)

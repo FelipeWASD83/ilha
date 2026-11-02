@@ -156,9 +156,10 @@ internal sealed class ModuloFones : Modulo
         int px = Math.Max(1, (int)MathF.Round(CAIXA * S.Palco.Escala));
         string? foto = f.Foto;
         ulong endereco = f.Endereco;
+        float escala = S.Palco.Escala;
         Task.Run(() =>
         {
-            Retrato? r = foto == null ? null : Retrato.DeArquivo(Path.Combine(Fotos.Pasta, foto), px, px, recortar: true);
+            Retrato? r = foto == null ? null : FotoComContorno(foto, px, escala);
             int? bat = lerBateriaDoWindows && endereco != 0 ? NosPnp.BateriaDoAparelho(endereco) : null;
             S.NaInterface(() =>
             {
@@ -256,9 +257,10 @@ internal sealed class ModuloFones : Modulo
     {
         f.Foto = foto;
         int px = Math.Max(1, (int)MathF.Round(CAIXA * S.Palco.Escala));
+        float escala = S.Palco.Escala;
         Task.Run(() =>
         {
-            var r = Retrato.DeArquivo(Path.Combine(Fotos.Pasta, foto), px, px, recortar: true);
+            var r = FotoComContorno(foto, px, escala);
             if (r != null) S.NaInterface(() => { f.Retrato = r; Atualizar(f); });
         });
     }
@@ -437,11 +439,10 @@ internal sealed class ModuloFones : Modulo
         if (f.Foto == null) return;
         int px = Math.Max(1, (int)MathF.Round(PHOTO * S.Palco.Escala));
         string foto = f.Foto;
+        float escala = S.Palco.Escala;
         Task.Run(() =>
         {
-            // a light gray outline that follows the device's shape, so a black one still shows on the dark menu
-            int contorno = Math.Max(1, (int)MathF.Round(1.6f * S.Palco.Escala));
-            var r = Retrato.DeArquivo(Path.Combine(Fotos.Pasta, foto), px, px, recortar: true)?.ComContorno(contorno, 215, 0.6f);
+            var r = FotoComContorno(foto, px, escala);
             if (r != null) S.NaInterface(() => { f.RetratoMenu = r; S.Menu.Redesenhar(); });
         });
     }
@@ -471,6 +472,13 @@ internal sealed class ModuloFones : Modulo
             }).ToList(),
         });
     }
+
+    /// <summary>
+    /// A device photo fitted into `px` with a thin light gray outline that follows its shape, so a black device still
+    /// shows on the black island (the connected card and the menu). Runs off the interface thread.
+    /// </summary>
+    private static Retrato? FotoComContorno(string foto, int px, float escala) =>
+        Retrato.DeArquivo(Path.Combine(Fotos.Pasta, foto), px, px, recortar: true)?.ComContorno(Math.Max(1, (int)MathF.Round(1.0f * escala)), 215, 0.5f);
 
     /// <summary>The photo's box (DIP); the outline adds a little around it.</summary>
     private const float PHOTO = 46;
@@ -591,9 +599,10 @@ internal sealed class ModuloFones : Modulo
         if (f.Foto == null) { Show(); return; }
         int px = Math.Max(1, (int)MathF.Round(CAIXA * S.Palco.Escala));
         string foto = f.Foto;
+        float escala = S.Palco.Escala;
         Task.Run(() =>
         {
-            var r = Retrato.DeArquivo(Path.Combine(Fotos.Pasta, foto), px, px, recortar: true);
+            var r = FotoComContorno(foto, px, escala);
             S.NaInterface(() => { if (r != null) f.Retrato = r; Show(); });
         });
     }
@@ -657,9 +666,10 @@ internal sealed class ModuloFones : Modulo
                 if (f.Retrato == null && (f.Foto ??= EscolherFoto(f)) is string foto)
                 {
                     int px = Math.Max(1, (int)MathF.Round(CAIXA * S.Palco.Escala));
+                    float escala = S.Palco.Escala;
                     Task.Run(() =>
                     {
-                        var r = Retrato.DeArquivo(Path.Combine(Fotos.Pasta, foto), px, px, recortar: true);
+                        var r = FotoComContorno(foto, px, escala);
                         if (r != null) S.NaInterface(() => { f.Retrato = r; Atualizar(f); });
                     });
                 }

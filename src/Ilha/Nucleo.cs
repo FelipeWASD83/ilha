@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Reflection;
 using System.Windows.Forms;
 
@@ -49,6 +50,7 @@ internal sealed class Nucleo : IDisposable
         _vis = new JanelaVisual();
         _toque = new JanelaToque();
         Ilha = new Ilha(_g, Config, _vis, _toque);
+        _menu.Esconder(Config.MenuEscondido);
         Ilha.DefinirPainel(new Menu(_menu, _indicadores));
         AdicionarItensDoNucleo();
         Aquecer();
@@ -233,7 +235,9 @@ internal sealed class Nucleo : IDisposable
 
     /// <summary>A tela de configurações (menu do ícone e menu principal da ilha).</summary>
     public void AbrirConfiguracoes() =>
-        JanelaDeConfiguracoes.Mostrar(() => Config, c => c.Salvar(), JanelaDeConfiguracoes.ModulosDaConfig(Config), _atalhos.Padroes);
+        JanelaDeConfiguracoes.Mostrar(() => Config, c => c.Salvar(), JanelaDeConfiguracoes.ModulosDaConfig(Config), _atalhos.Padroes,
+            // settings never goes in the list: hiding it would leave no way back from the menu
+            _menu.Itens.Where(i => i.Id != "configuracoes").Select(i => (i.Id, i.Nome)).ToList());
 
     private void SalvarModulo(string id, object? dados)
     {
@@ -298,6 +302,7 @@ internal sealed class Nucleo : IDisposable
         bool atalho = nova.Atalho.Mods != Config.Atalho.Mods || nova.Atalho.Tecla != Config.Atalho.Tecla;
         bool idioma = Lang.Set(nova.Language);
         Config = nova;
+        _menu.Esconder(nova.MenuEscondido);
         _visib.TrocarConfig(nova);
         _visib.Avaliar();
         Ilha.TrocarConfig(nova);
