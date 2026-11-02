@@ -39,6 +39,8 @@ internal sealed class Visibilidade : IDisposable
     private readonly System.Windows.Forms.Timer _lento = new() { Interval = 3_000 };
     private readonly Dictionary<uint, string> _nomes = new();
     private uint _ultimoPid;
+    private int _ultimoQuns = -1;
+    private string _ultimaClasse = "";
     private readonly uint _meuPid = (uint)Environment.ProcessId;
     private Windows.UI.Shell.FocusSessionManager? _foco;
     private Config _cfg;
@@ -105,13 +107,29 @@ internal sealed class Visibilidade : IDisposable
         bool desktop = transitoria ? antes.Desktop : EhAreaDeTrabalho(h, classe, pid);
         string proc = transitoria ? antes.Processo : NomeDoProcesso(pid);
         IntPtr janela = transitoria ? antes.Janela : h;
+        // Closing the last window (Brave) can leave no foreground window at all: the old context would keep the closed
+        // window, and with it a stale full screen. A previous window that is gone, hidden or minimized means the desktop.
+        if (transitoria && !desktop && (janela == IntPtr.Zero || !Nativo.IsWindow(janela) || !Nativo.IsWindowVisible(janela) || Nativo.IsIconic(janela)))
+        {
+            desktop = true;
+            proc = "";
+            janela = IntPtr.Zero;
+        }
 
         Nativo.SHQueryUserNotificationState(out int quns);
         bool? np = LerNaoPerturbe();
         bool foco = false;
         try { foco = _foco?.IsFocusActive ?? false; } catch { }
 
-        bool telaCheia = quns is 2 or 3 or 4 || (!desktop && !Nativo.IsZoomed(janela) && CobreOMonitor(janela));
+        if (quns != _ultimoQuns || classe != _ultimaClasse)
+        {
+            _ultimoQuns = quns;
+            _ultimaClasse = classe;
+            Log.Escrever($"quns={quns} classe={classe}");
+        }
+        // quns 2 (QUNS_BUSY) stays on long after the full screen app is gone and turned the island off on the desktop and
+        // over regular windows: only the window rectangle, exclusive Direct3D (3) and presentation mode (4) count.
+        bool telaCheia = quns is 3 or 4 || (!desktop && !Nativo.IsZoomed(janela) && CobreOMonitor(janela));
         var novo = new Contexto
         {
             Janela = janela,

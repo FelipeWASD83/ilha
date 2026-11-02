@@ -239,13 +239,15 @@ internal sealed class AtividadeClaude : Atividade
         switch (_modo)
         {
             case Modo.Modelos:
-            case Modo.Esforcos:
             {
-                var ops = _modo == Modo.Modelos ? Modelos() : BotaoDoModelo.Rotulos.ToList();
-                int linhas = (ops.Count + 1 + 1) / 2;
+                int linhas = (Modelos().Count + 1 + 1) / 2;
                 altura = y + 22 + linhas * 34;
                 break;
             }
+            case Modo.Esforcos:
+                // 5 levels and Back in the grid, then the Ultracode switch on its own row
+                altura = YUltracode(y) + 28;
+                break;
             case Modo.Mensagem:
                 altura = y + 64;
                 break;
@@ -287,20 +289,31 @@ internal sealed class AtividadeClaude : Atividade
             switch (_modo)
             {
                 case Modo.Modelos:
-                case Modo.Esforcos:
                 {
-                    bool modelos = _modo == Modo.Modelos;
-                    p.Texto.Desenhar(dc, modelos ? Lang.T("Escolha o modelo", "Choose the model") : Lang.T("Escolha o esforço", "Choose the effort"), new Vector2(0, y), 13, Cor.Secundario, FontWeight.Normal);
-                    var ops = modelos ? Modelos() : BotaoDoModelo.Rotulos.ToList();
-                    string? atual = modelos ? lido?.Modelo : lido?.Nivel is int nv ? BotaoDoModelo.Rotulos[nv] : null;
+                    p.Texto.Desenhar(dc, Lang.T("Escolha o modelo", "Choose the model"), new Vector2(0, y), 13, Cor.Secundario, FontWeight.Normal);
+                    var ops = Modelos();
+                    string? atual = lido?.Modelo;
                     for (int i = 0; i <= ops.Count; i++)
                     {
                         var r = Grade(i, y + 22);
                         bool voltar = i == ops.Count;
                         string tx = voltar ? Lang.T("Voltar", "Back") : ops[i];
                         bool marcado = !voltar && atual != null && string.Equals(tx, atual, StringComparison.OrdinalIgnoreCase);
-                        Chip(p, dc, r, tx, marcado ? new Color4(0.85f, 0.47f, 0.34f, 0.35f) : Cor.Fraco, voltar ? Cor.Secundario : Cor.Branco, false);
+                        Chip(p, dc, r, tx, marcado ? Marcado : Cor.Fraco, voltar ? Cor.Secundario : Cor.Branco, false);
                     }
+                    break;
+                }
+                case Modo.Esforcos:
+                {
+                    p.Texto.Desenhar(dc, Lang.T("Escolha o esforço", "Choose the effort"), new Vector2(0, y), 13, Cor.Secundario, FontWeight.Normal);
+                    var ops = BotaoDoModelo.Rotulos;
+                    for (int i = 0; i <= ops.Length; i++)
+                    {
+                        bool voltar = i == ops.Length;
+                        bool marcado = !voltar && lido?.Nivel == i;
+                        Chip(p, dc, Grade(i, y + 22), voltar ? Lang.T("Voltar", "Back") : ops[i], marcado ? Marcado : Cor.Fraco, voltar ? Cor.Secundario : Cor.Branco, false);
+                    }
+                    Interruptor(p, dc, new RectangleF(0, YUltracode(y), L, 28), lido?.Ultracode ?? false, lido != null);
                     break;
                 }
                 case Modo.Mensagem:
@@ -333,10 +346,11 @@ internal sealed class AtividadeClaude : Atividade
                     // modelo, esforço e mensagem
                     var lm = sm.Nome.Length > 0 && _lidos.TryGetValue(sm.Nome, out var lx) ? lx.Painel : null;
                     string tm = lm?.Modelo is { Length: > 0 } mo ? mo : _lendo ? Lang.T("Lendo…", "Reading…") : Lang.T("Modelo", "Model");
-                    string te = lm?.Esforco is { Length: > 0 } es ? es : _lendo ? "…" : Lang.T("Esforço", "Effort");
-                    Chip(p, dc, new RectangleF(0, yy, 140, 26), tm, Cor.Fraco, Cor.Branco, true);
-                    Chip(p, dc, new RectangleF(148, yy, 100, 26), te, Cor.Fraco, Cor.Branco, true);
-                    Chip(p, dc, new RectangleF(256, yy, 84, 26), Lang.T("Mensagem", "Message"), Cor.Fraco, Cor.Branco, false);
+                    string te = lm != null && BotaoDoModelo.Rotulo(lm.Nivel, lm.Ultracode, lm.Esforco) is { } es ? CaberEsforco(p, es, CHIP_ESFORCO.Width - 32)
+                        : _lendo ? "…" : Lang.T("Esforço", "Effort");
+                    Chip(p, dc, CHIP_MODELO with { Y = yy }, tm, Cor.Fraco, Cor.Branco, true);
+                    Chip(p, dc, CHIP_ESFORCO with { Y = yy }, te, Cor.Fraco, Cor.Branco, true);
+                    Chip(p, dc, CHIP_MENSAGEM with { Y = yy }, Lang.T("Mensagem", "Message"), Cor.Fraco, Cor.Branco, false);
                     yy += 34;
                     if (_aviso != null)
                     {
@@ -368,17 +382,26 @@ internal sealed class AtividadeClaude : Atividade
             switch (_modo)
             {
                 case Modo.Modelos:
-                case Modo.Esforcos:
                 {
-                    bool modelos = _modo == Modo.Modelos;
-                    var ops = modelos ? Modelos() : BotaoDoModelo.Rotulos.ToList();
+                    var ops = Modelos();
                     for (int i = 0; i <= ops.Count; i++)
                     {
                         int k = i;
-                        Action a = i == ops.Count ? () => { _modo = Modo.Normal; Atualizar(); }
-                            : modelos ? () => EscolherModelo(ops[k]) : () => EscolherEsforco(k);
+                        Action a = i == ops.Count ? () => { _modo = Modo.Normal; Atualizar(); } : () => EscolherModelo(ops[k]);
                         botoes.Add(new Botao { Area = Grade(i, y + 22), Acao = a });
                     }
+                    break;
+                }
+                case Modo.Esforcos:
+                {
+                    int n = BotaoDoModelo.Rotulos.Length;
+                    for (int i = 0; i <= n; i++)
+                    {
+                        int k = i;
+                        Action a = i == n ? () => { _modo = Modo.Normal; Atualizar(); } : () => EscolherEsforco(k);
+                        botoes.Add(new Botao { Area = Grade(i, y + 22), Acao = a });
+                    }
+                    botoes.Add(new Botao { Area = new RectangleF(0, YUltracode(y), L, 28), Acao = AlternarUltracode });
                     break;
                 }
                 case Modo.Mensagem:
@@ -405,9 +428,9 @@ internal sealed class AtividadeClaude : Atividade
                         yy += 82;
                     }
                     else yy += 46;
-                    botoes.Add(new Botao { Area = new RectangleF(0, yy, 140, 26), Acao = () => AbrirLista(Modo.Modelos) });
-                    botoes.Add(new Botao { Area = new RectangleF(148, yy, 100, 26), Acao = () => AbrirLista(Modo.Esforcos) });
-                    botoes.Add(new Botao { Area = new RectangleF(256, yy, 84, 26), Acao = AbrirMensagem });
+                    botoes.Add(new Botao { Area = CHIP_MODELO with { Y = yy }, Acao = () => AbrirLista(Modo.Modelos) });
+                    botoes.Add(new Botao { Area = CHIP_ESFORCO with { Y = yy }, Acao = () => AbrirLista(Modo.Esforcos) });
+                    botoes.Add(new Botao { Area = CHIP_MENSAGEM with { Y = yy }, Acao = AbrirMensagem });
                     yy += 34 + (_aviso != null ? 20 : 0);
                     if (outras.Count > 0)
                     {
@@ -428,6 +451,33 @@ internal sealed class AtividadeClaude : Atividade
     }
 
     private static RectangleF Grade(int i, float y0) => new((i % 2) * 176, y0 + (i / 2) * 34, 164, 28);
+
+    // model, effort and message chips of the normal card (340 wide with 8 px gaps); the effort one is wider for "Alto · Ultracode"
+    private static readonly RectangleF CHIP_MODELO = new(0, 0, 112, 26);
+    private static readonly RectangleF CHIP_ESFORCO = new(120, 0, 128, 26);
+    private static readonly RectangleF CHIP_MENSAGEM = new(256, 0, 84, 26);
+    private static readonly Color4 Marcado = new(0.85f, 0.47f, 0.34f, 0.35f);
+
+    /// <summary>Top of the Ultracode row in the effort list: under the 3 grid rows (5 levels and Back), with a small gap.</summary>
+    private static float YUltracode(float y) => y + 22 + 3 * 34 + 6;
+
+    /// <summary>"Alto · Ultracode" when it fits in the chip, else "Alto · Ultra".</summary>
+    private static string CaberEsforco(Palco p, string texto, float largura) =>
+        p.Texto.Medir(texto, 13).X <= largura ? texto : texto.Replace(BotaoDoModelo.ULTRACODE, "Ultra");
+
+    /// <summary>The Ultracode row: name on the left, the state and a pill switch on the right (coral, knob right when on).</summary>
+    private static void Interruptor(Palco p, ID2D1DeviceContext dc, RectangleF r, bool ligado, bool conhecido)
+    {
+        Icone.Retangulo(dc, r.X, r.Y, r.Width, r.Height, r.Height / 2, ligado ? Marcado : Cor.Fraco);
+        var tam = p.Texto.Medir(BotaoDoModelo.ULTRACODE, 13);
+        p.Texto.Desenhar(dc, BotaoDoModelo.ULTRACODE, new Vector2(r.X + 12, r.Y + (r.Height - tam.Y) / 2), 13, Cor.Branco);
+        string estado = !conhecido ? Lang.T("não lido", "not read") : ligado ? Lang.T("ligado", "on") : Lang.T("desligado", "off");
+        var te = p.Texto.Medir(estado, 12, FontWeight.Normal);
+        float tw = 32, th = 18, tx = r.Right - 10 - tw, ty = r.Y + (r.Height - th) / 2;
+        p.Texto.Desenhar(dc, estado, new Vector2(tx - 8 - te.X, r.Y + (r.Height - te.Y) / 2), 12, Cor.Secundario, FontWeight.Normal);
+        Icone.Retangulo(dc, tx, ty, tw, th, th / 2, ligado ? Cor.Coral : new Color4(1f, 1f, 1f, 0.22f));
+        Icone.Circulo(dc, new Vector2(ligado ? tx + tw - th / 2 : tx + th / 2, ty + th / 2), th / 2 - 3, Cor.Branco);
+    }
 
     private static void Chip(Palco p, ID2D1DeviceContext dc, RectangleF r, string texto, Color4 fundo, Color4 cor, bool seta)
     {
@@ -533,7 +583,24 @@ internal sealed class AtividadeClaude : Atividade
         _ponte.TrocarEsforco(alvo, nivel, r => S.NaInterface(() =>
         {
             if (r.Painel?.Nome != null) _lidos[r.Painel.Nome] = (r.Painel, _agora());
-            Avisar(r.Ok ? Lang.T("Esforço: ", "Effort: ") + (r.Painel?.Esforco ?? BotaoDoModelo.Rotulos[nivel]) : r.Erro ?? Lang.T("Não deu para trocar o esforço.", "Couldn't switch the effort."), !r.Ok);
+            string feito = (r.Painel != null ? BotaoDoModelo.Rotulo(r.Painel.Nivel, r.Painel.Ultracode, r.Painel.Esforco) : null) ?? BotaoDoModelo.Rotulos[nivel];
+            Avisar(r.Ok ? Lang.T("Esforço: ", "Effort: ") + feito : r.Erro ?? Lang.T("Não deu para trocar o esforço.", "Couldn't switch the effort."), !r.Ok);
+        }));
+    }
+
+    /// <summary>Flips Ultracode from the state last read (unknown counts as off); the base level stays.</summary>
+    private void AlternarUltracode()
+    {
+        var s = Mostrada;
+        _modo = Modo.Normal;
+        if (s == null || Alvo(s) is not { } alvo) { Atualizar(); return; }
+        bool ligar = !(_lidos.TryGetValue(alvo, out var li) && li.Painel.Ultracode);
+        Avisar(ligar ? Lang.T("Ligando o Ultracode…", "Turning Ultracode on…") : Lang.T("Desligando o Ultracode…", "Turning Ultracode off…"), false);
+        _ponte.DefinirUltracode(alvo, ligar, r => S.NaInterface(() =>
+        {
+            if (r.Painel?.Nome != null) _lidos[r.Painel.Nome] = (r.Painel, _agora());
+            string feito = (r.Painel?.Ultracode ?? ligar) ? Lang.T("Ultracode ligado", "Ultracode on") : Lang.T("Ultracode desligado", "Ultracode off");
+            Avisar(r.Ok ? feito : r.Erro ?? Lang.T("Não deu para trocar o Ultracode.", "Couldn't switch Ultracode."), !r.Ok);
         }));
     }
 

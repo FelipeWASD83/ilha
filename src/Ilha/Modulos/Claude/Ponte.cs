@@ -14,7 +14,10 @@ using Condition = System.Windows.Automation.Condition;
 
 namespace Ilha.Claude;
 
-/// <summary>O que a ponte leu de um painel de sessão do app.</summary>
+/// <summary>
+/// O que a ponte leu de um painel de sessão do app. <see cref="Nivel"/> is the base effort level (0..4, Low to Max)
+/// and <see cref="Ultracode"/> is the separate toggle; <see cref="Esforco"/> is the app's text ("Alto · Ultracode").
+/// </summary>
 internal sealed record PainelLido(string? Nome, string? Modelo, string? Esforco, int? Nivel, bool Ultracode, string? Permissao, bool Foco);
 
 internal sealed record RespostaPonte
@@ -30,20 +33,64 @@ internal sealed record RespostaPonte
 }
 
 /// <summary>
-/// O botão do modelo do app: "Modelo: Opus 5.5 Alto · Ultracode" (lido em 01/11/2026). O esforço vai de 0 a 5:
-/// 0 a 4 são Baixo, Médio, Alto, Extra e Máx com o Ultracode desligado; 5 é o Ultracode ligado.
+/// O botão do modelo do app: "Modelo: Opus 5.5 Alto · Ultracode" (lido em 01/11/2026). The effort is a base level
+/// (0..4: Baixo, Médio, Alto, Extra, Máx; Low, Medium, High, Extra high, Max in English) plus Ultracode, a separate
+/// on/off toggle in the same submenu.
 /// </summary>
 internal static class BotaoDoModelo
 {
     public static readonly string[] Niveis = { "Baixo", "Médio", "Alto", "Extra", "Máx" };
-    public const int ULTRACODE = 5;
-    private static readonly string[] RotulosPt = { "Baixo", "Médio", "Alto", "Extra", "Máx", "Ultracode" };
-    private static readonly string[] LabelsEn = { "Low", "Medium", "High", "Extra", "Max", "Ultracode" };
-    /// <summary>Effort labels shown in the island, in the interface language (parsing the app's button uses <see cref="Niveis"/>).</summary>
+    public const string ULTRACODE = "Ultracode";
+    private static readonly string[] RotulosPt = { "Baixo", "Médio", "Alto", "Extra", "Máx" };
+    private static readonly string[] LabelsEn = { "Low", "Medium", "High", "Extra", "Max" };
+    /// <summary>Effort labels shown in the island, in the interface language (parsing the app's button uses <see cref="IndiceDoNivel"/>).</summary>
     public static string[] Rotulos => Lang.English ? LabelsEn : RotulosPt;
+
+    // every name the app may give each level, accent-free and lowercase (Portuguese and English)
+    private static readonly string[][] Apelidos =
+    {
+        new[] { "baixo", "low" },
+        new[] { "medio", "medium" },
+        new[] { "alto", "high" },
+        new[] { "extra", "extra alto", "extra high", "xhigh", "x-high", "x high" },
+        new[] { "max", "maximo", "maximum" },
+    };
 
     public static bool EhBotao(string nome) =>
         nome.StartsWith("Modelo: ", StringComparison.Ordinal) || nome.StartsWith("Model: ", StringComparison.Ordinal);
+
+    /// <summary>The model menu is named after the button; matched by prefix because the name changes when Ultracode flips.</summary>
+    public static bool EhMenuDoModelo(string nome) =>
+        nome.StartsWith("Modelo:", StringComparison.Ordinal) || nome.StartsWith("Model:", StringComparison.Ordinal);
+
+    public static bool EhEsforco(string nome) =>
+        SemAcento(nome).StartsWith("esforco", StringComparison.Ordinal) || SemAcento(nome).StartsWith("effort", StringComparison.Ordinal);
+
+    /// <summary>The Ultracode toggle: "Ultracode", maybe followed by a badge ("Ultracode Beta").</summary>
+    public static bool EhUltracode(string nome)
+    {
+        string n = SemAcento(nome.Trim());
+        return n == "ultracode" || n.StartsWith("ultracode ", StringComparison.Ordinal);
+    }
+
+    /// <summary>The effort text as the app writes it: base name plus " · Ultracode" when the toggle is on.</summary>
+    public static string? Juntar(string? baseNome, bool ultra) =>
+        baseNome is { Length: > 0 } b ? (ultra ? b + " · " + ULTRACODE : b) : ultra ? ULTRACODE : null;
+
+    /// <summary>The base part of an effort text ("Alto · Ultracode" gives "Alto"; "Ultracode" alone gives null).</summary>
+    public static string? BaseDe(string? esforco)
+    {
+        if (esforco == null) return null;
+        string b = esforco.Split('·')[0].Trim();
+        return b.Length == 0 || EhUltracode(b) ? null : b;
+    }
+
+    /// <summary>The effort shown in the island, in the interface language ("Alto · Ultracode", "High · Ultracode").</summary>
+    public static string? Rotulo(int? nivel, bool ultra, string? esforcoDoApp = null)
+    {
+        string? b = nivel is int k && k >= 0 && k < Rotulos.Length ? Rotulos[k] : BaseDe(esforcoDoApp);
+        return Juntar(b, ultra);
+    }
 
     public static string SemAcento(string s)
     {
@@ -55,29 +102,31 @@ internal static class BotaoDoModelo
 
     public static int IndiceDoNivel(string nome)
     {
-        string n = SemAcento(nome.Trim());
-        for (int k = 0; k < Niveis.Length; k++) if (SemAcento(Niveis[k]) == n) return k;
+        string n = Regex.Replace(SemAcento(nome.Trim()), @"\s+", " ");
+        for (int k = 0; k < Apelidos.Length; k++) if (Array.IndexOf(Apelidos[k], n) >= 0) return k;
         return -1;
     }
 
-    /// <summary>(modelo, esforço como o app mostra, nível 0 a 5, ultracode).</summary>
+    /// <summary>(modelo, esforço como o app mostra, nível base 0 a 4, ultracode).</summary>
     public static (string Modelo, string? Esforco, int? Nivel, bool Ultracode) Ler(string nome)
     {
         int dois = nome.IndexOf(':');
         string texto = dois >= 0 ? nome[(dois + 1)..].Trim() : nome.Trim();
         var partes = texto.Split('·').Select(p => p.Trim()).Where(p => p.Length > 0).ToList();
         if (partes.Count == 0) return ("", null, null, false);
-        bool ultra = partes.Skip(1).Any(p => SemAcento(p) == "ultracode");
+        bool ultra = partes.Skip(1).Any(EhUltracode);
         string modelo = partes[0];
         string? baseNome = null;
         int? nivelBase = null;
-        int esp = modelo.LastIndexOf(' ');
-        if (esp > 0)
+        var palavras = modelo.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        // two-word names first ("Extra high"), so "high" alone is not read as High
+        for (int n = Math.Min(2, palavras.Length - 1); n >= 1 && nivelBase == null; n--)
         {
-            int k = IndiceDoNivel(modelo[(esp + 1)..]);
-            if (k >= 0) { baseNome = modelo[(esp + 1)..]; nivelBase = k; modelo = modelo[..esp]; }
+            string fim = string.Join(' ', palavras[^n..]);
+            int k = IndiceDoNivel(fim);
+            if (k >= 0) { baseNome = fim; nivelBase = k; modelo = string.Join(' ', palavras[..^n]); }
         }
-        return (modelo, ultra ? "Ultracode" : baseNome, ultra ? ULTRACODE : nivelBase, ultra);
+        return (modelo, Juntar(baseNome, ultra), nivelBase, ultra);
     }
 }
 
@@ -107,7 +156,11 @@ internal sealed class PonteClaudeApp : IDisposable
 
     public void TrocarModelo(string alvo, string modelo, Action<RespostaPonte> pronto) => Pedir(r => Modelo(r, alvo, modelo), pronto, 20000);
 
+    /// <summary>Sets the base effort level (0..4); never touches the Ultracode toggle.</summary>
     public void TrocarEsforco(string alvo, int nivel, Action<RespostaPonte> pronto) => Pedir(r => Esforco(r, alvo, nivel), pronto, 16000);
+
+    /// <summary>Turns the Ultracode toggle on or off (reads it first and only flips it when it differs).</summary>
+    public void DefinirUltracode(string alvo, bool ligar, Action<RespostaPonte> pronto) => Pedir(r => Ultracode(r, alvo, ligar), pronto, 18000);
 
     public void Enviar(string alvo, string texto, Action<RespostaPonte> pronto) => Pedir(r => Mandar(r, alvo, texto), pronto, 15000);
 
@@ -164,7 +217,7 @@ internal sealed class PonteClaudeApp : IDisposable
             RespostaPonte r;
             try
             {
-                var raiz = JanelaDoClaude(out _pidDoApp);
+                var raiz = JanelaDoClaude(out _pidDoApp, out _janelaDoApp);
                 r = raiz == null ? RespostaPonte.Falhou(Lang.T("O app do Claude não está aberto.", "The Claude app isn't open.")) : t.Fazer(raiz);
             }
             catch (ElementNotAvailableException) { r = RespostaPonte.Falhou(Lang.T("O app do Claude mudou a tela no meio; tenta de novo.", "The Claude app changed its screen midway; try again.")); }
@@ -187,10 +240,12 @@ internal sealed class PonteClaudeApp : IDisposable
     // ------------------------------------------------------------------ a árvore do app
 
     [ThreadStatic] private static int _pidDoApp;
+    [ThreadStatic] private static IntPtr _janelaDoApp;
 
-    private static AutomationElement? JanelaDoClaude(out int pid)
+    private static AutomationElement? JanelaDoClaude(out int pid, out IntPtr janela)
     {
         pid = 0;
+        janela = IntPtr.Zero;
         foreach (var p in Process.GetProcessesByName("claude"))
         {
             using (p)
@@ -200,6 +255,7 @@ internal sealed class PonteClaudeApp : IDisposable
                     if (p.MainWindowHandle != IntPtr.Zero && p.MainWindowTitle == "Claude")
                     {
                         pid = p.Id;
+                        janela = p.MainWindowHandle;
                         return AutomationElement.FromHandle(p.MainWindowHandle);
                     }
                 }
@@ -348,6 +404,14 @@ internal sealed class PonteClaudeApp : IDisposable
     private static AutomationElement? MenuChamado(AutomationElement raiz, string nome) =>
         DoTipo(raiz, ControlType.Menu).FirstOrDefault(m => m.Current.Name == nome);
 
+    /// <summary>The open model menu: by the button's exact name, else by the "Modelo:"/"Model:" prefix (the name changes when Ultracode flips).</summary>
+    private static AutomationElement? MenuDoModelo(AutomationElement raiz, string? nome)
+    {
+        var menus = DoTipo(raiz, ControlType.Menu);
+        return (nome != null ? menus.FirstOrDefault(m => m.Current.Name == nome) : null)
+            ?? menus.FirstOrDefault(m => BotaoDoModelo.EhMenuDoModelo(m.Current.Name ?? ""));
+    }
+
     private static AutomationElement[] ItensDoMenu(AutomationElement menu, ControlType tipo) =>
         menu.FindAll(TreeScope.Descendants, new PropertyCondition(AutomationElement.ControlTypeProperty, tipo))
             .Cast<AutomationElement>().OrderBy(e => e.Current.BoundingRectangle.Y).ToArray();
@@ -357,8 +421,9 @@ internal sealed class PonteClaudeApp : IDisposable
         if (p.BotaoModelo == null) return (null, null);
         var exp = (ExpandCollapsePattern)p.BotaoModelo.GetCurrentPattern(ExpandCollapsePattern.Pattern);
         if (exp.Current.ExpandCollapseState != ExpandCollapseState.Expanded) exp.Expand();
-        string nome = p.BotaoModelo.Current.Name;
-        return (exp, Esperar(() => MenuChamado(raiz, nome), 1500));
+        string? nome = null;
+        try { nome = p.BotaoModelo.Current.Name; } catch (Exception) { }
+        return (exp, Esperar(() => MenuDoModelo(raiz, nome), 1500));
     }
 
     private static void FecharMenu(ExpandCollapsePattern? exp)
@@ -367,16 +432,100 @@ internal sealed class PonteClaudeApp : IDisposable
         catch (Exception) { }
     }
 
-    private static AutomationElement? AbrirSubmenu(AutomationElement raiz, AutomationElement menu, Func<string, bool> qual)
+    /// <summary>
+    /// Opens a submenu that only reacts to hover. First the WM_MOUSEMOVE goes straight to the app's render widget
+    /// (works with another window on top of the app), then through the window under the point (the old path).
+    /// <paramref name="achouItem"/> tells "the item is not in the menu" apart from "the hover did not open it".
+    /// </summary>
+    private static AutomationElement? AbrirSubmenu(AutomationElement raiz, AutomationElement menu, Func<string, bool> qual, out bool achouItem)
     {
         var item = ItensDoMenu(menu, ControlType.MenuItem).FirstOrDefault(i => qual(i.Current.Name ?? ""));
+        achouItem = item != null;
         if (item == null) return null;
         string nome = item.Current.Name;
         var ja = MenuChamado(raiz, nome);
         if (ja != null) return ja;
         var c = Centro(item.Current.BoundingRectangle);
-        if (!Passar((int)c.X, (int)c.Y, _pidDoApp)) return null;
-        return Esperar(() => MenuChamado(raiz, nome), 1500);
+        int x = (int)c.X, y = (int)c.Y;
+        if (PassarNoRenderizador(_janelaDoApp, x, y))
+        {
+            var sub = Esperar(() => MenuChamado(raiz, nome), 1200);
+            if (sub != null) return sub;
+        }
+        if (PassarPeloPonto(x, y, _pidDoApp)) return Esperar(() => MenuChamado(raiz, nome), 1200);
+        return null;
+    }
+
+    private static AutomationElement? AbrirSubmenu(AutomationElement raiz, AutomationElement menu, Func<string, bool> qual) =>
+        AbrirSubmenu(raiz, menu, qual, out _);
+
+    // ------------------------------------------------------------------ the effort submenu
+
+    private static string ESFORCO_NAO_ABRIU => Lang.T("Deixe o app do Claude visível para trocar o esforço.", "Keep the Claude app visible to change the effort.");
+    private static string ESFORCO_SUMIU => Lang.T("O menu do app não tem mais o item de esforço; a ponte precisa ser atualizada.", "The app's menu no longer has the effort item; the bridge needs an update.");
+
+    /// <summary>The Ultracode toggle: TogglePattern on any control type (CheckBox, Button for role=switch, MenuItem).</summary>
+    private sealed class Interruptor
+    {
+        public AutomationElement? Elemento;
+        public TogglePattern? Toggle;
+        public Accessibility.IAccessible? Msaa;
+        public int MsaaFilho;
+
+        public bool? Ligado()
+        {
+            try
+            {
+                if (Toggle != null) return Toggle.Current.ToggleState == ToggleState.On;
+                if (Msaa != null) return Msaa.get_accState(MsaaFilho) is int st && (st & (0x10 | 0x08)) != 0; // CHECKED | PRESSED
+            }
+            catch (Exception) { }
+            return null;
+        }
+
+        public void Alternar()
+        {
+            if (Toggle != null) Toggle.Toggle();
+            else Msaa?.accDoDefaultAction(MsaaFilho);
+        }
+    }
+
+    private static Interruptor? AcharUltracode(AutomationElement sub, AutomationElement? menu)
+    {
+        var comToggle = new AndCondition(
+            new PropertyCondition(AutomationElement.IsTogglePatternAvailableProperty, true),
+            new PropertyCondition(AutomationElement.IsOffscreenProperty, false));
+        foreach (var onde in new[] { sub, menu })
+        {
+            if (onde == null) continue;
+            foreach (AutomationElement e in onde.FindAll(TreeScope.Descendants, comToggle))
+            {
+                if (!BotaoDoModelo.EhUltracode(e.Current.Name ?? "")) continue;
+                try { return new Interruptor { Elemento = e, Toggle = (TogglePattern)e.GetCurrentPattern(TogglePattern.Pattern) }; }
+                catch (Exception) { }
+            }
+        }
+        // no TogglePattern: the MSAA state and default action of the same node (only if UIA shows it in the submenu)
+        bool existe = sub.FindAll(TreeScope.Descendants, Condition.TrueCondition).Cast<AutomationElement>()
+            .Any(e => BotaoDoModelo.EhUltracode(e.Current.Name ?? "") && e.Current.ControlType != ControlType.Text);
+        if (!existe) return null;
+        var (acc, filho) = MsaaUltracode(_janelaDoApp);
+        return acc != null ? new Interruptor { Msaa = acc, MsaaFilho = filho } : null;
+    }
+
+    private static int? NivelMarcado(AutomationElement[] radios)
+    {
+        for (int k = 0; k < radios.Length; k++)
+            try { if (((SelectionItemPattern)radios[k].GetCurrentPattern(SelectionItemPattern.Pattern)).Current.IsSelected) return k; } catch (Exception) { }
+        return null;
+    }
+
+    /// <summary>The panel read again after an action, with the Ultracode state that the submenu showed (it is the source of truth).</summary>
+    private static PainelLido? Depois(AutomationElement raiz, string alvo, bool? ultra)
+    {
+        var lido = Escolher(Paineis(raiz), alvo)?.Lido();
+        if (lido == null || ultra is not bool u || lido.Ultracode == u) return lido;
+        return lido with { Ultracode = u, Esforco = BotaoDoModelo.Juntar(BotaoDoModelo.BaseDe(lido.Esforco), u) };
     }
 
     // ------------------------------------------------------------------ ações
@@ -419,50 +568,78 @@ internal sealed class PonteClaudeApp : IDisposable
         return new RespostaPonte { Ok = true, Painel = depois?.Lido(), Opcoes = opcoes };
     }
 
+    /// <summary>Opens the model menu and the effort submenu of the panel; on failure, the user-facing error.</summary>
+    private static (ExpandCollapsePattern? Exp, AutomationElement? Menu, AutomationElement? Sub, string? Erro) AbrirEsforco(AutomationElement raiz, Painel p)
+    {
+        var (exp, menu) = AbrirMenuDoModelo(raiz, p);
+        if (menu == null) { FecharMenu(exp); return (null, null, null, Lang.T("O menu de modelo não abriu.", "The model menu didn't open.")); }
+        var sub = AbrirSubmenu(raiz, menu, BotaoDoModelo.EhEsforco, out bool achou);
+        if (sub == null) { FecharMenu(exp); return (null, null, null, achou ? ESFORCO_NAO_ABRIU : ESFORCO_SUMIU); }
+        return (exp, menu, sub, null);
+    }
+
+    /// <summary>Base level 0..4: Invoke on the radio of that index; the Ultracode toggle is left as it is.</summary>
     private static RespostaPonte Esforco(AutomationElement raiz, string alvo, int nivel)
     {
-        nivel = Math.Clamp(nivel, 0, BotaoDoModelo.ULTRACODE);
+        nivel = Math.Clamp(nivel, 0, BotaoDoModelo.Niveis.Length - 1);
         var p = Escolher(Paineis(raiz), alvo);
         if (p?.BotaoModelo == null) return RespostaPonte.Falhou(SEM_SESSAO);
-        static bool EhEsforco(string n) => BotaoDoModelo.SemAcento(n).StartsWith("esforco", StringComparison.Ordinal) || n.StartsWith("Effort", StringComparison.Ordinal);
-        var (exp, menu) = AbrirMenuDoModelo(raiz, p);
-        if (menu == null) { FecharMenu(exp); return RespostaPonte.Falhou(Lang.T("O menu de modelo não abriu.", "The model menu didn't open.")); }
-        var sub = AbrirSubmenu(raiz, menu, EhEsforco);
-        if (sub == null) { FecharMenu(exp); return RespostaPonte.Falhou(Lang.T("O controle de esforço não abriu (se o mouse passou por cima do app, tenta de novo).", "The effort control didn't open (if the mouse passed over the app, try again).")); }
+        var (exp, menu, sub, erro) = AbrirEsforco(raiz, p);
+        if (sub == null) return RespostaPonte.Falhou(erro!);
+        // the items carry badges ("Médio Recomendado", "Máx 3.5x ou mais de uso"): the choice is by index
         var radios = ItensDoMenu(sub, ControlType.RadioButton);
-        var caixa = ItensDoMenu(sub, ControlType.CheckBox).FirstOrDefault(c => SemAcentoNome(c) == "ultracode");
         if (radios.Length != BotaoDoModelo.Niveis.Length)
         {
             FecharMenu(exp);
             return RespostaPonte.Falhou(Lang.T($"O controle de esforço do app mudou ({radios.Length} níveis); a ponte precisa ser atualizada.", $"The app's effort control changed ({radios.Length} levels); the bridge needs an update."));
         }
-        int? baseAtual = null;
-        for (int k = 0; k < radios.Length; k++)
-            try { if (((SelectionItemPattern)radios[k].GetCurrentPattern(SelectionItemPattern.Pattern)).Current.IsSelected) baseAtual = k; } catch (Exception) { }
-        bool ultra = caixa != null && ((TogglePattern)caixa.GetCurrentPattern(TogglePattern.Pattern)).Current.ToggleState == ToggleState.On;
-        bool querUltra = nivel == BotaoDoModelo.ULTRACODE;
-        if (caixa != null && ultra != querUltra)
+        bool? ultra = AcharUltracode(sub, menu)?.Ligado();
+        if (NivelMarcado(radios) != nivel)
         {
-            ((TogglePattern)caixa.GetCurrentPattern(TogglePattern.Pattern)).Toggle();
-            Thread.Sleep(300);
+            ((InvokePattern)radios[nivel].GetCurrentPattern(InvokePattern.Pattern)).Invoke();
+            Thread.Sleep(400);
         }
-        if (!querUltra && baseAtual != nivel)
-        {
-            // marcar o Ultracode pode ter fechado o menu: abre de novo se precisar
-            (exp, menu) = AbrirMenuDoModelo(raiz, p);
-            sub = menu != null ? AbrirSubmenu(raiz, menu, EhEsforco) : null;
-            if (sub == null) { FecharMenu(exp); return RespostaPonte.Falhou(Lang.T("O controle de esforço não abriu.", "The effort control didn't open.")); }
-            var r2 = ItensDoMenu(sub, ControlType.RadioButton);
-            if (nivel < r2.Length) ((InvokePattern)r2[nivel].GetCurrentPattern(InvokePattern.Pattern)).Invoke();
-        }
-        Thread.Sleep(400);
         FecharMenu(exp);
         Thread.Sleep(150);
-        var depois = Escolher(Paineis(raiz), alvo);
-        return new RespostaPonte { Ok = true, Painel = depois?.Lido() };
+        return new RespostaPonte { Ok = true, Painel = Depois(raiz, alvo, ultra) };
     }
 
-    private static string SemAcentoNome(AutomationElement e) => BotaoDoModelo.SemAcento(e.Current.Name ?? "");
+    /// <summary>Ultracode on or off: reads the toggle and flips it only when it differs; the base level is left as it is.</summary>
+    private static RespostaPonte Ultracode(AutomationElement raiz, string alvo, bool ligar)
+    {
+        var p = Escolher(Paineis(raiz), alvo);
+        if (p?.BotaoModelo == null) return RespostaPonte.Falhou(SEM_SESSAO);
+        var (exp, menu, sub, erro) = AbrirEsforco(raiz, p);
+        if (sub == null) return RespostaPonte.Falhou(erro!);
+        var chave = AcharUltracode(sub, menu);
+        if (chave == null)
+        {
+            FecharMenu(exp);
+            return RespostaPonte.Falhou(Lang.T("Não achei o Ultracode no menu de esforço do app; a ponte precisa ser atualizada.", "Couldn't find Ultracode in the app's effort menu; the bridge needs an update."));
+        }
+        bool? agora = chave.Ligado();
+        if (agora != ligar)
+        {
+            chave.Alternar();
+            Thread.Sleep(300);
+            agora = chave.Ligado();
+            if (agora == null)
+            {
+                // flipping it closed or rebuilt the menu: open it again (by prefix, the button got a new name) and read
+                FecharMenu(exp);
+                Thread.Sleep(150);
+                var p2 = Escolher(Paineis(raiz), alvo) ?? p;
+                (exp, menu, sub, _) = AbrirEsforco(raiz, p2);
+                agora = sub != null ? AcharUltracode(sub, menu)?.Ligado() : null;
+            }
+        }
+        FecharMenu(exp);
+        Thread.Sleep(150);
+        var depois = Depois(raiz, alvo, agora);
+        if (agora is bool a && a != ligar)
+            return new RespostaPonte { Ok = false, Painel = depois, Erro = Lang.T("O app não aceitou a troca do Ultracode.", "The app didn't accept the Ultracode change.") };
+        return new RespostaPonte { Ok = true, Painel = depois };
+    }
 
     private static RespostaPonte Mandar(AutomationElement raiz, string alvo, string texto)
     {
@@ -490,21 +667,43 @@ internal sealed class PonteClaudeApp : IDisposable
     // ------------------------------------------------------------------ hover sem mexer no cursor
 
     [StructLayout(LayoutKind.Sequential)] private struct PONTO { public int X, Y; }
+    [StructLayout(LayoutKind.Sequential)] private struct RET { public int Esq, Topo, Dir, Base; }
+    private delegate bool EnumFilhas(IntPtr h, IntPtr l);
     [DllImport("user32.dll")] private static extern IntPtr WindowFromPoint(PONTO p);
     [DllImport("user32.dll")] private static extern bool ScreenToClient(IntPtr h, ref PONTO p);
     [DllImport("user32.dll")] private static extern bool PostMessageW(IntPtr h, uint m, IntPtr w, IntPtr l);
     [DllImport("user32.dll")] private static extern uint GetWindowThreadProcessId(IntPtr h, out uint pid);
     [DllImport("user32.dll")] private static extern IntPtr SetThreadDpiAwarenessContext(IntPtr ctx);
+    [DllImport("user32.dll")] private static extern bool EnumChildWindows(IntPtr pai, EnumFilhas f, IntPtr l);
+    [DllImport("user32.dll", CharSet = CharSet.Unicode)] private static extern int GetClassNameW(IntPtr h, StringBuilder s, int n);
+    [DllImport("user32.dll")] private static extern bool IsWindowVisible(IntPtr h);
+    [DllImport("user32.dll")] private static extern bool GetWindowRect(IntPtr h, out RET r);
 
-    /// <summary>Move o "mouse" do app para (x, y) da tela só na cabeça dele: o cursor de verdade fica onde está.</summary>
-    private static bool Passar(int x, int y, int pidDoApp)
+    /// <summary>The app's Chromium render widget (Chrome_RenderWidgetHostHWND child of the main window) under the point, or the largest visible one.</summary>
+    private static IntPtr Renderizador(IntPtr janela, int x, int y)
     {
-        var p = new PONTO { X = x, Y = y };
-        var h = WindowFromPoint(p);
-        if (h == IntPtr.Zero) return false;
-        GetWindowThreadProcessId(h, out uint pid);
-        if (pid != (uint)pidDoApp) return false;
-        var c = p;
+        if (janela == IntPtr.Zero) return IntPtr.Zero;
+        IntPtr noPonto = IntPtr.Zero, maior = IntPtr.Zero;
+        long area = 0;
+        var nome = new StringBuilder(64);
+        EnumFilhas f = (h, _) =>
+        {
+            nome.Clear();
+            GetClassNameW(h, nome, nome.Capacity);
+            if (nome.ToString() != "Chrome_RenderWidgetHostHWND" || !IsWindowVisible(h) || !GetWindowRect(h, out var r)) return true;
+            if (x >= r.Esq && x < r.Dir && y >= r.Topo && y < r.Base) { noPonto = h; return false; }
+            long a = (long)(r.Dir - r.Esq) * (r.Base - r.Topo);
+            if (a > area) { area = a; maior = h; }
+            return true;
+        };
+        EnumChildWindows(janela, f, IntPtr.Zero);
+        GC.KeepAlive(f);
+        return noPonto != IntPtr.Zero ? noPonto : maior;
+    }
+
+    private static void Postar(IntPtr h, int x, int y)
+    {
+        var c = new PONTO { X = x, Y = y };
         ScreenToClient(h, ref c);
         for (int i = 0; i < 2; i++)
         {
@@ -512,6 +711,78 @@ internal sealed class PonteClaudeApp : IDisposable
             PostMessageW(h, 0x0200, IntPtr.Zero, (IntPtr)((c.Y << 16) | (cx & 0xFFFF)));
             Thread.Sleep(40);
         }
+    }
+
+    /// <summary>Hover at (x, y) of the screen sent straight to the app's render widget, even with another window on top.</summary>
+    private static bool PassarNoRenderizador(IntPtr janela, int x, int y)
+    {
+        var h = Renderizador(janela, x, y);
+        if (h == IntPtr.Zero) return false;
+        Postar(h, x, y);
         return true;
+    }
+
+    /// <summary>Old path: move o "mouse" do app para (x, y) da tela pela janela que está no ponto, só se for do app.</summary>
+    private static bool PassarPeloPonto(int x, int y, int pidDoApp)
+    {
+        var p = new PONTO { X = x, Y = y };
+        var h = WindowFromPoint(p);
+        if (h == IntPtr.Zero) return false;
+        GetWindowThreadProcessId(h, out uint pid);
+        if (pid != (uint)pidDoApp) return false;
+        Postar(h, x, y);
+        return true;
+    }
+
+    // ------------------------------------------------------------------ MSAA fallback for the Ultracode toggle
+
+    [DllImport("oleacc.dll")]
+    private static extern int AccessibleObjectFromWindow(IntPtr h, uint id, ref Guid iid, [MarshalAs(UnmanagedType.Interface)] out object? obj);
+    [DllImport("oleacc.dll")]
+    private static extern int AccessibleChildren(Accessibility.IAccessible pai, int inicio, int quantos,
+        [Out, MarshalAs(UnmanagedType.LPArray, SizeParamIndex = 2)] object?[] filhos, out int obtidos);
+
+    /// <summary>
+    /// Finds the Ultracode node through MSAA (for when UIA has no TogglePattern on it). Walks the render widget's tree
+    /// from the last child (Chromium puts the open menus at the end of the page), with a node and time budget.
+    /// </summary>
+    private static (Accessibility.IAccessible? Acc, int Filho) MsaaUltracode(IntPtr janela)
+    {
+        var rw = Renderizador(janela, int.MinValue, int.MinValue);
+        if (rw == IntPtr.Zero) return (null, 0);
+        var iid = new Guid("618736E0-3C3D-11CF-810C-00AA00389B71");
+        if (AccessibleObjectFromWindow(rw, 0xFFFFFFFC, ref iid, out var raiz) != 0 || raiz is not Accessibility.IAccessible acc) return (null, 0);
+        var pilha = new Stack<Accessibility.IAccessible>();
+        pilha.Push(acc);
+        int visitados = 0;
+        var fim = Environment.TickCount64 + 1500;
+        while (pilha.Count > 0 && visitados < 6000 && Environment.TickCount64 < fim)
+        {
+            var no = pilha.Pop();
+            visitados++;
+            try
+            {
+                if (EhChaveMsaa(no, 0)) return (no, 0);
+                int n = no.accChildCount;
+                if (n <= 0) continue;
+                var filhos = new object?[n];
+                if (AccessibleChildren(no, 0, n, filhos, out int obtidos) < 0) continue;
+                // pushed in order, popped from the last child
+                for (int i = 0; i < obtidos; i++)
+                {
+                    if (filhos[i] is Accessibility.IAccessible f) pilha.Push(f);
+                    else if (filhos[i] is int id && EhChaveMsaa(no, id)) return (no, id);
+                }
+            }
+            catch (Exception) { }
+        }
+        return (null, 0);
+    }
+
+    private static bool EhChaveMsaa(Accessibility.IAccessible no, int filho)
+    {
+        if (no.get_accName(filho) is not string nome || !BotaoDoModelo.EhUltracode(nome)) return false;
+        // only switch-like roles: a link or text with that name in a chat must never get the default action
+        return no.get_accRole(filho) is int papel && papel is 0x2C or 0x2B or 0x0C;
     }
 }

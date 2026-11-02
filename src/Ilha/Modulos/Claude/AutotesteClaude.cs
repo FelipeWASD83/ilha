@@ -59,8 +59,9 @@ internal static class AutotesteClaude
             Ok(Neutro.DoEvento(Ev(1, "ouvindo")) == "Thinking", "en: ouvindo vira Thinking");
             Ok(Neutro.DoEvento(Ev(1, "digitando", detalhe: "Editando Demo.cs", ligada: true)) == "Editing Demo.cs", "en: o verbo do hook é traduzido, o arquivo fica");
             Ok(Neutro.DoEvento(Ev(1, "rodando", detalhe: "descrição na voz dela", ligada: true)) == "Running a command", "en: comando com persona vira Running a command");
-            Ok(BotaoDoModelo.Rotulos[1] == "Medium" && BotaoDoModelo.Rotulos[5] == "Ultracode", "en: rótulos de esforço em inglês");
+            Ok(BotaoDoModelo.Rotulos.Length == 5 && BotaoDoModelo.Rotulos[1] == "Medium" && BotaoDoModelo.Rotulos[4] == "Max", "en: os 5 rótulos de esforço em inglês (Ultracode fica fora, é um interruptor)");
             Ok(BotaoDoModelo.Ler("Modelo: Sonnet 5.5 Médio").Nivel == 1, "en: o botão do app em português continua sendo lido");
+            Ok(BotaoDoModelo.Rotulo(2, true) == "High · Ultracode" && BotaoDoModelo.Rotulo(0, false) == "Low", "en: o chip mostra High · Ultracode");
             var m = new Sessoes();
             m.Aplicar(Ev(100, "ouvindo"), false);
             Ok(m.Pegar("s")!.Texto == "Thinking", "en: a máquina escreve Thinking");
@@ -368,7 +369,13 @@ internal static class AutotesteClaude
     private static void Botao()
     {
         var (mo, es, nv, ul) = BotaoDoModelo.Ler("Modelo: Opus 5.5 Alto · Ultracode");
-        Ok(mo == "Opus 5.5" && es == "Ultracode" && nv == 5 && ul, "Opus 5.5 Alto · Ultracode: nível 5");
+        Ok(mo == "Opus 5.5" && es == "Alto · Ultracode" && nv == 2 && ul, "Opus 5.5 Alto · Ultracode: nível base 2 e Ultracode ligado");
+        (mo, es, nv, ul) = BotaoDoModelo.Ler("Modelo: Opus 5.5 Alto");
+        Ok(mo == "Opus 5.5" && es == "Alto" && nv == 2 && !ul, "Opus 5.5 Alto: nível 2, Ultracode desligado");
+        (mo, es, nv, ul) = BotaoDoModelo.Ler("Modelo: Haiku 5.5 · Ultracode");
+        Ok(mo == "Haiku 5.5" && es == "Ultracode" && nv == null && ul, "Ultracode sem nível no botão");
+        (mo, es, nv, ul) = BotaoDoModelo.Ler("Modelo: Opus 5.5 Máx · Ultracode");
+        Ok(nv == 4 && ul && es == "Máx · Ultracode", "Máx com Ultracode");
         (mo, es, nv, ul) = BotaoDoModelo.Ler("Modelo: Sonnet 5.5 Médio");
         Ok(mo == "Sonnet 5.5" && es == "Médio" && nv == 1 && !ul, "Sonnet 5.5 Médio: nível 1");
         (mo, es, nv, ul) = BotaoDoModelo.Ler("Modelo: Haiku 5.5");
@@ -376,6 +383,26 @@ internal static class AutotesteClaude
         (mo, _, nv, _) = BotaoDoModelo.Ler("Modelo: Fable 5.1 Max · 1M");
         Ok(mo == "Fable 5.1" && nv == 4, "Max sem acento e extra que não é Ultracode");
         Ok(BotaoDoModelo.EhBotao("Modelo: x") && !BotaoDoModelo.EhBotao("Modelos"), "reconhece o botão");
+
+        // English app
+        (mo, es, nv, ul) = BotaoDoModelo.Ler("Model: Opus 5.5 High · Ultracode");
+        Ok(mo == "Opus 5.5" && es == "High · Ultracode" && nv == 2 && ul, "en: Model: Opus 5.5 High · Ultracode");
+        (mo, _, nv, ul) = BotaoDoModelo.Ler("Model: Sonnet 5.5 Extra high");
+        Ok(mo == "Sonnet 5.5" && nv == 3 && !ul, "en: Extra high (duas palavras) é nível 3, não High");
+        Ok(BotaoDoModelo.Ler("Model: Opus 5.5 xHigh").Nivel == 3 && BotaoDoModelo.Ler("Model: Opus 5.5 Extra").Nivel == 3, "en: xHigh e Extra são nível 3");
+        Ok(BotaoDoModelo.Ler("Model: Opus 5.5 Low").Nivel == 0 && BotaoDoModelo.Ler("Model: Opus 5.5 Medium").Nivel == 1 && BotaoDoModelo.Ler("Model: Opus 5.5 Max").Nivel == 4, "en: Low, Medium e Max");
+        Ok(BotaoDoModelo.EhMenuDoModelo("Modelo: Opus 5.5 Alto · Ultracode") && BotaoDoModelo.EhMenuDoModelo("Model: Opus 5.5") && !BotaoDoModelo.EhMenuDoModelo("Mais modelos"), "o menu é achado pelo prefixo, mesmo com o nome novo do botão");
+        Ok(BotaoDoModelo.EhEsforco("Esforço Alto") && BotaoDoModelo.EhEsforco("Effort High") && !BotaoDoModelo.EhEsforco("Mais modelos"), "item de esforço em português e inglês");
+
+        // the Ultracode toggle and the effort text
+        Ok(BotaoDoModelo.EhUltracode("Ultracode") && BotaoDoModelo.EhUltracode(" ultracode ") && BotaoDoModelo.EhUltracode("Ultracode Beta") && !BotaoDoModelo.EhUltracode("Ultracoder") && !BotaoDoModelo.EhUltracode("Alto"), "reconhece o interruptor do Ultracode pelo nome");
+        Ok(BotaoDoModelo.Juntar("Alto", true) == "Alto · Ultracode" && BotaoDoModelo.Juntar("Alto", false) == "Alto" && BotaoDoModelo.Juntar(null, true) == "Ultracode" && BotaoDoModelo.Juntar(null, false) == null, "texto do esforço: nível + · Ultracode");
+        Ok(BotaoDoModelo.BaseDe("Alto · Ultracode") == "Alto" && BotaoDoModelo.BaseDe("Ultracode") == null && BotaoDoModelo.BaseDe("Médio") == "Médio" && BotaoDoModelo.BaseDe(null) == null, "nível tirado do texto do esforço");
+        Ok(BotaoDoModelo.Rotulos.Length == 5 && BotaoDoModelo.Rotulos[2] == "Alto", "5 níveis na ilha, sem o Ultracode no meio");
+        Ok(BotaoDoModelo.Rotulo(2, true) == "Alto · Ultracode" && BotaoDoModelo.Rotulo(1, false) == "Médio" && BotaoDoModelo.Rotulo(null, true, "Extra high · Ultracode") == "Extra high · Ultracode" && BotaoDoModelo.Rotulo(null, false) == null, "o chip principal mostra Alto · Ultracode");
+        var antes = new PainelLido("s", "Opus 5.5", "Alto", 2, false, null, false);
+        var depois = antes with { Ultracode = true, Esforco = BotaoDoModelo.Juntar(BotaoDoModelo.BaseDe(antes.Esforco), true) };
+        Ok(depois.Nivel == 2 && depois.Esforco == "Alto · Ultracode", "ligar o Ultracode guarda o nível base");
     }
 
     private static void Protocolo()

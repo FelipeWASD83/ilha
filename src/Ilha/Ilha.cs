@@ -64,6 +64,7 @@ internal sealed class Ilha : IDisposable
     // borda clara: aparece só com fundo escuro em volta (a sonda lê poucas vezes por segundo, só com a ilha visível)
     private ShapeVisual? _borda, _bordaBolha;
     private readonly SondaDeFundo _sonda = new();
+    private int _sondaFalhas;
     private readonly System.Windows.Forms.Timer _relogioSonda = new() { Interval = 500 };
     private bool _bordaLigada;
     private long _ultimoLogDaSonda;
@@ -206,6 +207,22 @@ internal sealed class Ilha : IDisposable
     }
 
     public Palco Palco => _p;
+
+    /// <summary>
+    /// Set by a module that needs the island to keep private text off the screen (a lock that is closed, for example).
+    /// While it returns true, modules that show other people's text (notifications) show only that something arrived.
+    /// </summary>
+    public static Func<bool>? Discreto { get; set; }
+
+    /// <summary>The discreet hook says so; a hook that throws counts as discreet.</summary>
+    public static bool Discreta
+    {
+        get
+        {
+            try { return Discreto?.Invoke() == true; }
+            catch { return true; }
+        }
+    }
 
     // ------------------------------------------------------------------ montagem
 
@@ -450,9 +467,21 @@ internal sealed class Ilha : IDisposable
     private void LigarSonda()
     {
         // cada leitura espera o compositor (~10 ms medidos): com tela cheia na frente (jogo) não lê nada
-        bool rodar = _borda != null && _janelasVisiveis && _estado != Estado.Oculta && !_ctx.TelaCheia && !_ctx.D3DExclusivo;
+        bool rodar = SondaPodeRodar();
         if (rodar && !_relogioSonda.Enabled) { _relogioSonda.Start(); Sondar(); }
-        else if (!rodar) _relogioSonda.Stop();
+        else if (!rodar) { _relogioSonda.Stop(); ApagarBorda(); }
+    }
+
+    // on the desktop the island is always plain dark, with no border (his choice)
+    private bool SondaPodeRodar() =>
+        _borda != null && _janelasVisiveis && _estado != Estado.Oculta && !_ctx.TelaCheia && !_ctx.D3DExclusivo && !_ctx.Desktop;
+
+    /// <summary>A paused probe cannot keep a border that was lit for a background that is no longer there.</summary>
+    private void ApagarBorda()
+    {
+        if (!_bordaLigada || _borda == null) return;
+        _bordaLigada = false;
+        AnimarEscalar(_borda, "Opacity", 0, 260, true);
     }
 
     /// <summary>
@@ -462,7 +491,7 @@ internal sealed class Ilha : IDisposable
     /// </summary>
     private void Sondar()
     {
-        if (_borda == null || !_janelasVisiveis || _estado == Estado.Oculta || _ctx.TelaCheia || _ctx.D3DExclusivo) { _relogioSonda.Stop(); return; }
+        if (!SondaPodeRodar()) { _relogioSonda.Stop(); ApagarBorda(); return; }
         var r = CorpoNaTela;
         int fora = (int)_p.Px(40), faixa = Math.Max(2, (int)_p.Px(4)), abaixo = (int)_p.Px(46);
         float direita = _temBolha ? _rBolha.Right + _janX : r.Right;
@@ -473,13 +502,15 @@ internal sealed class Ilha : IDisposable
             new System.Drawing.Rectangle((int)r.Left, (int)r.Bottom + abaixo, Math.Max(1, (int)r.Width), faixa),
         };
         var lum = _sonda.Ler(faixas);
+        if (lum == null && ++_sondaFalhas == 20) Log.Escrever($"borda: 20 leituras seguidas falharam (faixas {string.Join(" ", faixas)})");
         if (lum is double l)
         {
+            _sondaFalhas = 0;
             bool ligar = _bordaLigada ? l < 0.30 : l < 0.22;
             if (ligar != _bordaLigada)
             {
                 _bordaLigada = ligar;
-                AnimarEscalar(_borda, "Opacity", ligar ? 1 : 0, 260, true);
+                AnimarEscalar(_borda!, "Opacity", ligar ? 1 : 0, 260, true);
             }
         }
         if (Environment.TickCount64 - _ultimoLogDaSonda > 60_000)
@@ -780,7 +811,8 @@ internal sealed class Ilha : IDisposable
 
     private bool PodeMostrar(Alerta a) =>
         !_cfg.Pausada && (!_ctx.Competitivo || a.PermitidoNoCompetitivo) && !(_ctx.NaoPerturbe && _cfg.RespeitarNaoPerturbe && !a.Importante)
-        && !(_ctx.ConteudoEmTelaCheia && !_revelada && !a.Importante);
+        && !(_ctx.ConteudoEmTelaCheia && !_revelada && !a.Importante)
+        && !(a.Privado && Discreta);
 
     private void ProximoAlerta()
     {
@@ -1243,7 +1275,15 @@ internal sealed class Ilha : IDisposable
         {
             float l = OCIOSA_L, h = OCIOSA_A;
             if (_sobre) { l += PREVIA_L * 0.6f; h += PREVIA_A * 0.6f; }
-            return new Plano(Estado.Ociosa, new Vector2(l, h), h / 2, null, null, false, null, null);
+            // the empty pill shows the time everywhere except on the desktop (and not while it is a drop zone)
+            string? chave = null;
+            Func<Cena>? criar = null;
+            if (_cfg.Relogio && !_ctx.Desktop && !_zonaDeSoltar)
+            {
+                chave = "ociosa:relogio:0";
+                TamanhoDaCena(_vagaCorpo, chave, () => ComRelogio(_p.NovaCena(new Vector2(OCIOSA_L, OCIOSA_A)), (0, OCIOSA_L)), out criar);
+            }
+            return new Plano(Estado.Ociosa, new Vector2(l, h), h / 2, chave, criar, false, null, null);
         }
 
         return new Plano(Estado.Oculta, Vector2.Zero, 0, null, null, false, null, null);

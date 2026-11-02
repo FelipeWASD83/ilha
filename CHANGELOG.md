@@ -1,5 +1,20 @@
 # Changelog
 
+## 1.0.1 (01/11/2026)
+
+**Changed**
+- The empty pill shows the time over any window; on the desktop it stays plain, with no time and no border.
+- Claude Code effort: the five levels (Low, Medium, High, Extra, Max) and Ultracode as a separate switch, matching
+  the new menu of the Claude app. The level is changed without the Claude app having to be in front; when the app
+  does not open the menu, the island says so.
+
+**Fixed**
+- The island could vanish after closing the browser and going to the desktop: Windows kept reporting a full screen
+  app that was no longer there.
+- The adaptive border stopped following the background now and then, for the same reason; and a border lit for a
+  dark background no longer stays on when the probe pauses.
+- The effort selector no longer worked after the Claude app update that turned Ultracode into a toggle.
+
 ## 1.0.0 (01/11/2026)
 
 **New**

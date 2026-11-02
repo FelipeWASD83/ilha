@@ -155,6 +155,12 @@ internal sealed class ModuloNotificacoes : Modulo
                     Desenhos.Sino(dc, p.G.Fabrica, new Vector2(23, tam.Y / 2), 24, Cor.Branco);
                     float x0 = 58, l = tam.X - x0;
                     p.Texto.Desenhar(dc, app, new Vector2(x0, 2), 11.5f, Cor.Secundario, largura: l);
+                    // discreet island (a lock closed): who sent it and what it says stay off the screen
+                    if (Ilha.Discreta)
+                    {
+                        p.Texto.Desenhar(dc, Lang.T("Nova notificação", "New notification"), new Vector2(x0, 19), 15, Cor.Branco, largura: l);
+                        return;
+                    }
                     p.Texto.Desenhar(dc, t.Titulo, new Vector2(x0, 19), 15, Cor.Branco, largura: l);
                     if (comTexto && t.Texto.Length > 0)
                         p.Texto.Desenhar(dc, t.Texto, new Vector2(x0, 42), 12.5f, Cor.Secundario, FontWeight.Normal, largura: l);

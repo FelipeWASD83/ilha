@@ -123,6 +123,8 @@ internal sealed class Alerta
     public Atividade? Dono;
     // som que toca quando o alerta aparece (null = o próprio Tipo; "" = sem som)
     public string? Som;
+    // private content: dropped (even from the queue) while the island is discreet
+    public bool Privado;
 }
 
 /// <summary>

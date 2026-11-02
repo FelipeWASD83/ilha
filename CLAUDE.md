@@ -160,7 +160,16 @@ and the points that matter are here.
   0.22/0.30. Measured on 01/11/2026: each read waits ~10 ms for the compositor and, at 4 per second, cost +0.01% of
   processor (0.020% against 0.010%); the wait is what led to lowering it to 2 and stopping in full screen (games). The
   cost goes to the log every minute ("borda: N leituras"). It does not exist in docked mode.
-- **Clock:** the activity declares `MeioLivreCompacta`; the core draws the time there when it fits, never on the
+- **1.0.1 (01/11/2026):** `SHQueryUserNotificationState` 2 (QUNS_BUSY) no longer counts as full screen: it stayed on
+  long after the app had gone and hid the island on the desktop and stopped the border probe (only the window rectangle,
+  3 and 4 count; `quns` and the window class go to the log when they change). A transitional or empty foreground whose
+  previous window is gone, hidden or minimized is the desktop (closing the browser left a stale context). On the
+  desktop the island is plain dark: no border, no clock, and the border goes off whenever the probe pauses.
+- **Discreet hook (1.0.1):** `Ilha.Discreto` (static `Func<bool>?`, null in the public build) lets a private module
+  keep other people's text off the screen: notifications show only "New notification", and alerts with `Privado` are
+  dropped, even from the queue, while it returns true. A hook that throws counts as discreet.
+- **Clock:** the empty pill shows the time everywhere except on the desktop (1.0.1). On the compact pill, the
+  activity declares `MeioLivreCompacta`; the core draws the time there when it fits, never on the
   desktop.
 - **Dropping files** (`Soltura.cs`): an OLE target on the touch window, only real paths, link or copy effect (never
   move). With the island hidden, the empty pill shows up at the top center when a file drag (the mouse capture is in a
