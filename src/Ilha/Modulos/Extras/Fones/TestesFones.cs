@@ -71,6 +71,14 @@ internal static class TestesFones
         r.Conferir("sem modelo esperado: qualquer modelo conhecido", VarreduraApple.Aceita(a!, null, -75) && !VarreduraApple.Aceita(a! with { Modelo = 0x1234 }, null, -75));
         r.Conferir("anúncio sem bateria nenhuma não serve", !VarreduraApple.Aceita(AnuncioApple.Decodificar(Anuncio(0x2027, 0x2B, 0xFF, 0x0F))!, 0x2027, -75));
 
+        // ---- footer battery in the menu
+        r.Conferir("footer: the emptier AirPod, the case when no bud was read, else the battery",
+            ModuloFones.FooterLevel(a, null) == 80 && ModuloFones.FooterLevel(real! with { Esquerdo = null, Direito = null, Estojo = 40 }, null) == 40
+            && ModuloFones.FooterLevel(null, 48) == 48 && ModuloFones.FooterLevel(null, null) == null);
+        r.Conferir("footer: green above 50, yellow to 26, red at 25, green while charging",
+            Menu.BatteryColor(51, false).G > 0.7f && Menu.BatteryColor(50, false).R == 1f && Menu.BatteryColor(50, false).G == 0.8f
+            && Menu.BatteryColor(25, false).G < 0.3f && Menu.BatteryColor(5, true).Equals(Menu.BatteryColor(90, false)));
+
         // ---- G733
         r.Conferir("curva: 3520 mV dá ~11%", CurvaG733.Porcentagem(3520) == 11, CurvaG733.Porcentagem(3520)?.ToString() ?? "null");
         r.Conferir("curva: pontos exatos", CurvaG733.Porcentagem(4100) == 100 && CurvaG733.Porcentagem(3850) == 60 && CurvaG733.Porcentagem(3150) == 0);

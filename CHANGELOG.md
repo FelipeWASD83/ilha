@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.3.1 (02/11/2026)
+
+**Changed**
+- The headset and mouse batteries left the menu grid and moved to its bottom-right corner: the device photo in a circle
+  with a gray ring (so a black device still shows on the black card) and, next to it, an iPhone-style battery with the
+  number inside. It fills green, turns yellow at 50% and red at 25%, and stays green while charging. Clicking either
+  one still opens the device.
+
 ## 1.3.0 (02/11/2026)
 
 **New**

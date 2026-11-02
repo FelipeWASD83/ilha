@@ -19,6 +19,15 @@ internal sealed class ItemDoMenu
     public Func<string?>? Detalhe;
     public int Ordem = 100;
     internal string? Dono;
+
+    /// <summary>
+    /// A battery entry (headset, mouse): drawn in the menu's bottom-right corner instead of the grid, as the icon inside
+    /// a gray-ringed circle next to an iPhone-style battery.
+    /// </summary>
+    public bool Footer;
+    /// <summary>Battery level 0 to 100 for the footer battery; null = nothing read yet.</summary>
+    public Func<int?>? Level;
+    public Func<bool>? Charging;
 }
 
 /// <summary>A lista do menu principal. O núcleo marca o dono enquanto o módulo liga e tira as entradas dele ao desligar.</summary>
@@ -88,11 +97,15 @@ internal sealed class Menu : Atividade
     protected override Cena Montar(Palco p, Forma f)
     {
         _minuto.Start();
-        var itens = _menu.Itens;
-        _quantos = itens.Count;
+        var todos = _menu.Itens;
+        _quantos = todos.Count;
+        var itens = todos.Where(i => !i.Footer).ToList();
+        var rodape = todos.Where(i => i.Footer).ToList();
         int linhas = (int)Math.Ceiling(itens.Count / COLUNAS);
         float largura = COLUNAS * LADO + (COLUNAS - 1) * VAO;
         float altura = CABECALHO + (linhas == 0 ? 20 : linhas * ALTO + (linhas - 1) * VAO);
+        float yRodape = altura + FOOT_TOP;
+        if (rodape.Count > 0) altura = yRodape + FOOT_H;
         var c = p.NovaCena(new Vector2(largura, altura));
         p.Desenho(c, Vector2.Zero, c.Tamanho, (dc, t) =>
         {
@@ -101,6 +114,11 @@ internal sealed class Menu : Atividade
             var cultura = Lang.Culture;
             p.Texto.Desenhar(dc, agora.ToString("HH:mm", cultura), new Vector2(-1, -6), 38, Cor.Branco, FontWeight.Medium, tabular: true);
             p.Texto.Desenhar(dc, agora.ToString(Lang.T("dddd, d 'de' MMMM", "dddd, MMMM d"), cultura), new Vector2(112, 6), 14, Cor.Secundario, FontWeight.Normal, largura: largura - 112);
+            for (int i = 0; i < rodape.Count; i++)
+            {
+                try { DrawFooter(dc, p, rodape[i], FooterX(i, rodape.Count, largura), yRodape); }
+                catch (Exception e) { Log.Escrever($"menu: rodapé de {rodape[i].Id}: {e.Message}"); }
+            }
             if (itens.Count == 0)
             {
                 p.Texto.Desenhar(dc, Lang.T("Nenhum módulo com entrada no menu.", "No module has a menu entry."), new Vector2(0, CABECALHO), 12, Cor.Secundario, FontWeight.Normal);
@@ -126,7 +144,71 @@ internal sealed class Menu : Atividade
             var item = itens[i];
             c.Botoes.Add(new Botao { Area = new System.Drawing.RectangleF(x, y, LADO, ALTO), Acao = () => Abrir(item) });
         }
+        for (int i = 0; i < rodape.Count; i++)
+        {
+            var item = rodape[i];
+            c.Botoes.Add(new Botao { Area = new System.Drawing.RectangleF(FooterX(i, rodape.Count, largura), yRodape, FOOT_W, FOOT_H), Acao = () => Abrir(item) });
+        }
         return c;
+    }
+
+    // ------------------------------------------------------------------ battery footer
+
+    private const float FOOT_TOP = 12, FOOT_H = 32, FOOT_GAP = 16, PILL_W = 34, PILL_H = 16, NUB = 2.5f;
+    private const float FOOT_W = FOOT_H + 7 + PILL_W + 1 + NUB;
+
+    private static readonly Vortice.Mathematics.Color4 Ring = new(0.47f, 0.47f, 0.5f, 1f);
+    private static readonly Vortice.Mathematics.Color4 BatteryGreen = new(0.2f, 0.78f, 0.35f, 1f);
+    private static readonly Vortice.Mathematics.Color4 BatteryYellow = new(1f, 0.8f, 0f, 1f);
+    private static readonly Vortice.Mathematics.Color4 BatteryRed = new(1f, 0.23f, 0.19f, 1f);
+
+    /// <summary>Right-aligned: the last entry touches the right edge.</summary>
+    private static float FooterX(int i, int n, float largura) => largura - (n - i) * FOOT_W - (n - 1 - i) * FOOT_GAP;
+
+    internal static Vortice.Mathematics.Color4 BatteryColor(int level, bool charging) =>
+        charging || level > 50 ? BatteryGreen : level > 25 ? BatteryYellow : BatteryRed;
+
+    private static void DrawFooter(ID2D1DeviceContext dc, Palco p, ItemDoMenu item, float x, float y)
+    {
+        float raio = FOOT_H / 2;
+        var centro = new Vector2(x + raio, y + raio);
+        Icone.Circulo(dc, centro, raio, new Vortice.Mathematics.Color4(1, 1, 1, 0.1f));
+        const float pad = 4.5f;
+        item.Icone?.Invoke(dc, p, new System.Drawing.RectangleF(x + pad, y + pad, FOOT_H - 2 * pad, FOOT_H - 2 * pad));
+        // the ring goes over the photo, so a dark device on the black card still has an outline
+        using (var b = dc.CreateSolidColorBrush(Ring)) dc.DrawEllipse(new Vortice.Direct2D1.Ellipse(centro, raio - 0.6f, raio - 0.6f), b, 1.2f);
+        int? level = null;
+        bool charging = false;
+        try { level = item.Level?.Invoke(); charging = item.Charging?.Invoke() ?? false; } catch { }
+        DrawBattery(dc, p, x + FOOT_H + 7, y + (FOOT_H - PILL_H) / 2, level, charging);
+    }
+
+    /// <summary>
+    /// The iPhone battery with the number inside: a gray track filled from the left in green, yellow (50% and below) or
+    /// red (25% and below), always green while charging. The number is dark over the fill and white over the empty part.
+    /// </summary>
+    private static void DrawBattery(ID2D1DeviceContext dc, Palco p, float x, float y, int? level, bool charging)
+    {
+        const float r = 5f, tam = 11f;
+        Icone.Retangulo(dc, x + PILL_W + 1, y + PILL_H / 2 - 3, NUB, 6, 1.2f, new Vortice.Mathematics.Color4(1, 1, 1, 0.35f));
+        Icone.Retangulo(dc, x, y, PILL_W, PILL_H, r, new Vortice.Mathematics.Color4(1, 1, 1, 0.24f));
+        string texto = level is int lv ? Math.Clamp(lv, 0, 100).ToString() : "–";
+        var m = p.Texto.Medir(texto, tam, FontWeight.Bold, tabular: true);
+        var pos = new Vector2(x + (PILL_W - m.X) / 2, y + (PILL_H - m.Y) / 2 - 0.5f);
+        float cheio = level is int v ? PILL_W * Math.Clamp(v, 0, 100) / 100f : 0;
+        if (cheio > 0)
+        {
+            dc.PushAxisAlignedClip(new System.Drawing.RectangleF(x, y, cheio, PILL_H), AntialiasMode.PerPrimitive);
+            Icone.Retangulo(dc, x, y, PILL_W, PILL_H, r, BatteryColor(level!.Value, charging));
+            p.Texto.Desenhar(dc, texto, pos, tam, new Vortice.Mathematics.Color4(0, 0, 0, 0.88f), FontWeight.Bold, tabular: true);
+            dc.PopAxisAlignedClip();
+        }
+        if (cheio < PILL_W)
+        {
+            dc.PushAxisAlignedClip(new System.Drawing.RectangleF(x + cheio, y - 2, PILL_W - cheio + 1, PILL_H + 4), AntialiasMode.PerPrimitive);
+            p.Texto.Desenhar(dc, texto, pos, tam, Cor.Branco, FontWeight.Bold, tabular: true);
+            dc.PopAxisAlignedClip();
+        }
     }
 
     private static (float x, float y) Posicao(int i) =>

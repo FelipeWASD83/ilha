@@ -427,10 +427,12 @@ internal sealed class ModuloFones : Modulo
         if (!_tiles.Add(id)) { S.Menu.Redesenhar(); return; }
         S.Menu.Adicionar(new ItemDoMenu
         {
-            Id = id, Dono = "fones", Nome = MenuName(f), Ordem = 90,
+            Id = id, Dono = "fones", Nome = MenuName(f), Ordem = 90, Footer = true,
             Abrir = () => Mostrar(f, doMenu: true),
             Icone = (dc, p, r) => DrawTileIcon(dc, p, r, f),
             Detalhe = () => MenuDetail(f.BateriaApple, f.Bateria, f.Carregando),
+            Level = () => FooterLevel(f.BateriaApple, f.Bateria),
+            Charging = () => f.Carregando,
         });
         if (f.RetratoMenu != null) return;
         f.Foto ??= EscolherFoto(f);
@@ -450,7 +452,12 @@ internal sealed class ModuloFones : Modulo
         if (_tiles.Remove(id)) S.Menu.Remover(id);
     }
 
-    private const float TILE = 30;
+    /// <summary>The photo's box inside the footer circle (DIP).</summary>
+    private const float TILE = 23;
+
+    /// <summary>One number for the footer battery: the emptier AirPod (the case when no bud was read), else the battery.</summary>
+    internal static int? FooterLevel(BateriaApple? apple, int? bateria) =>
+        apple != null ? apple.MenorFone ?? apple.Estojo : bateria;
 
     internal static string MenuName(bool mouse, bool g733, bool apple, ushort? modelo, string nome) =>
         mouse ? "G502 X Plus" : g733 ? "G733" : apple ? "AirPods" : nome;
@@ -471,20 +478,18 @@ internal sealed class ModuloFones : Modulo
         return bateria is int b ? b + "%" : null;
     }
 
-    /// <summary>The photo centered on the icon spot (a little bigger than the 24 DIP square), and a dot for charging or low.</summary>
+    /// <summary>The photo centered in the footer circle (the battery next to it says the rest); a drawing while it loads.</summary>
     private void DrawTileIcon(Vortice.Direct2D1.ID2D1DeviceContext dc, Palco p, System.Drawing.RectangleF r, Fone f)
     {
         var centro = new Vector2(r.X + r.Width / 2, r.Y + r.Height / 2);
+        float lado = MathF.Min(r.Width, r.Height);
         if (f.RetratoMenu != null)
         {
             var tam = f.RetratoMenu.TamanhoDip(p.Escala);
             f.RetratoMenu.Desenhar(dc, p.Escala, centro.X - tam.X / 2, centro.Y - tam.Y / 2);
         }
-        else if (f.Tipo == TipoAparelho.Mouse) Desenhos.Mouse(dc, p.G.Fabrica, centro, 24, Cor.Branco);
-        else Desenhos.Fone(dc, p.G.Fabrica, centro, 24, Cor.Branco);
-        int? menor = f.BateriaApple?.MenorFone ?? f.Bateria;
-        if (f.Carregando) Icone.Circulo(dc, new Vector2(r.Right + 6, r.Y + 2), 3.5f, Cor.Verde);
-        else if (menor is int m && m <= 20) Icone.Circulo(dc, new Vector2(r.Right + 6, r.Y + 2), 3.5f, Cor.Vermelho);
+        else if (f.Tipo == TipoAparelho.Mouse) Desenhos.Mouse(dc, p.G.Fabrica, centro, lado, Cor.Branco);
+        else Desenhos.Fone(dc, p.G.Fabrica, centro, lado, Cor.Branco);
     }
 
     // ------------------------------------------------------------------ low battery alerts

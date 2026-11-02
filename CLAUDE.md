@@ -182,6 +182,9 @@ and the points that matter are here.
   island); test it with the cursor parked over the island, which is the real case.
 - **Battery tiles (1.2.0):** `bateria:<key>` items in the main menu (owner `fones`), shown while the device is on (G733
   by HID++), connected (AirPods) or listed by G HUB (mouse), removed when it goes; `bateriaNoMenu` turns them off.
+  Since 1.3.1 they are `Footer` items: the menu draws them right-aligned in a row under the grid (photo in a gray-ringed
+  circle plus an iPhone-style battery from `Level`/`Charging`, green above 50, yellow, red at 25 and below), not as
+  tiles; the AirPods show their emptier bud.
 - **ALTURA_MAX (640 DIP)** bounds the shape visuals of the island: a card taller than it loses the bottom of its body.
 - **Low battery alerts (1.1.0, `BatteryAlerts.cs`, `GHub.cs`, `ModuloFones.cs`):** a level (50, 25, 10, 5, 1 by
   default, `limiaresBateria` in the settings) fires when a reading goes from above it to at or below it, once per level
