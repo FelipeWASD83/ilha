@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.0.3 (01/11/2026)
+
+**Fixed**
+- The mouse pointer vanished while crossing the island: its window had no cursor of its own, so the pointer kept
+  the shape of whatever was underneath (or stayed hidden if that one had hidden it). Now it is always the arrow.
+
 ## 1.0.2 (01/11/2026)
 
 **New**

@@ -82,6 +82,7 @@ internal sealed class JanelaToque : NativeWindow
     }
 
     private bool _rastreando;
+    private IntPtr? _seta;
 
     /// <summary>Botão apertado em cima dela (o mouse está capturado para um arraste).</summary>
     public bool Apertado => _apertado;
@@ -114,6 +115,17 @@ internal sealed class JanelaToque : NativeWindow
             case Nativo.WM_MOUSEACTIVATE:
                 m.Result = (IntPtr)Nativo.MA_NOACTIVATE;
                 return;
+            case Nativo.WM_SETCURSOR:
+                // the window class has no cursor (NativeWindow registers it with none): without this the pointer keeps
+                // the shape of the window underneath, or vanishes when that one had hidden it
+                if ((m.LParam.ToInt64() & 0xFFFF) == 1)
+                {
+                    _seta ??= Nativo.LoadCursorW(IntPtr.Zero, Nativo.IDC_ARROW);
+                    Nativo.SetCursor(_seta.Value);
+                    m.Result = (IntPtr)1;
+                    return;
+                }
+                break;
             case Nativo.WM_MOUSEMOVE:
             {
                 if (!_rastreando)

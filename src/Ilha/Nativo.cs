@@ -25,6 +25,10 @@ internal static unsafe class Nativo
     public const int WM_MOUSEWHEEL = 0x020A;
     public const int WM_MOUSELEAVE = 0x02A3;
     public const int WM_MOUSEACTIVATE = 0x0021;
+    public const int WM_SETCURSOR = 0x0020;
+    [DllImport("user32.dll", CharSet = CharSet.Unicode)] public static extern IntPtr LoadCursorW(IntPtr hInstance, IntPtr name);
+    [DllImport("user32.dll")] public static extern IntPtr SetCursor(IntPtr cursor);
+    public static readonly IntPtr IDC_ARROW = new(32512);
     public const int WM_NCHITTEST = 0x0084;
     public const int MA_NOACTIVATE = 3;
     public const int HTCLIENT = 1;

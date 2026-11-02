@@ -165,6 +165,9 @@ and the points that matter are here.
   3 and 4 count; `quns` and the window class go to the log when they change). A transitional or empty foreground whose
   previous window is gone, hidden or minimized is the desktop (closing the browser left a stale context). On the
   desktop the island is plain dark: no border, no clock, and the border goes off whenever the probe pauses.
+- **Pointer (1.0.3):** `NativeWindow` registers its window class with no cursor (`GetClassLongPtr(GCL_HCURSOR)` was 0),
+  so over the touch window Windows left the pointer as the window below had it, and it vanished when that one hid
+  it. `JanelaToque` answers `WM_SETCURSOR` (client area) with the arrow.
 - **Content swap (1.0.2, `ContentSwap.cs`):** a change of content without a change of size (a new song, a new
   Claude Code step) no longer just redraws: the old content is drawn once into a temporary layer above the live one,
   slides out and fades while the live layer (already redrawn) slides in, all in the compositor; the temporary layer is
