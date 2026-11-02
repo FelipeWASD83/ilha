@@ -50,7 +50,18 @@ internal sealed class Ilha : IDisposable
     private Contexto _ctx = new();
     private readonly List<Atividade> _atividades = new();
     private readonly Queue<Alerta> _fila = new();
-    private Alerta? _alerta;
+    // every change of the alert in front goes through here: the one leaving stops its looping sound
+    private Alerta? _alertaAtual;
+    private Alerta? _alerta
+    {
+        get => _alertaAtual;
+        set
+        {
+            if (ReferenceEquals(_alertaAtual, value)) return;
+            _alertaAtual?.PararSom();
+            _alertaAtual = value;
+        }
+    }
     private readonly System.Windows.Forms.Timer _relogioAlerta = new();
     private readonly System.Windows.Forms.Timer _relogioSaida = new() { Interval = 320 };
     private readonly System.Windows.Forms.Timer _vigiaClique = new() { Interval = 35 };
@@ -826,7 +837,8 @@ internal sealed class Ilha : IDisposable
             _relogioAlerta.Interval = Math.Max(1, (int)(1000 * (_alerta.Segundos ?? _cfg.AlertaSegundos)));
             _relogioAlerta.Start();
             string som = _alerta.Som ?? _alerta.Tipo;
-            if (som.Length > 0) Sons?.Tocar(som, _alerta.Importante);
+            if (_alerta.SomEmLoop is { } loop && Sons?.TocarEmLoop(loop, _alerta.Importante) is { } parar) _alerta.Parar = parar;
+            else if (som.Length > 0) Sons?.Tocar(som, _alerta.Importante);
         }
         Aplicar();
     }
@@ -1721,6 +1733,7 @@ internal sealed class Ilha : IDisposable
 
     public void Dispose()
     {
+        _alerta?.PararSom();
         _relogioAlerta.Dispose();
         _relogioSaida.Dispose();
         _vigiaClique.Dispose();

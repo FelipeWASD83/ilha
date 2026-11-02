@@ -165,6 +165,12 @@ and the points that matter are here.
   3 and 4 count; `quns` and the window class go to the log when they change). A transitional or empty foreground whose
   previous window is gone, hidden or minimized is the desktop (closing the browser left a stale context). On the
   desktop the island is plain dark: no border, no clock, and the border goes off whenever the probe pauses.
+- **Sounds (1.3.0):** all synthesized by `ferramentas/gerar_sons.py` (numpy, fixed seed: same files on every run), in
+  the style he liked on 02/11/2026 (soft attack of 40 to 280 ms, warm, 1 to 2 kHz, fifths and octaves); 48 kHz stereo,
+  all at -21 dB RMS. `Alerta.SomEmLoop` plays a sound in a loop while the alert is in front (`Sons.TocarEmLoop`); the
+  core's `_alerta` setter stops it whenever the alert leaves, by any path. The timer finishing uses `timer-loop.wav`
+  (a seamless loop: the tail wraps to the start) and stays up to `segundosDoAlarme` (60); "+1 min" stops the melody
+  and closes the alert 2.5 s later.
 - **Drawing bitmaps (1.2.0):** Vortice's `DrawBitmap(bitmap, opacity, mode, Rect)` takes the SOURCE rectangle and
   draws at the origin. Use `Bitmaps.Draw(dc, bmp, x, y, w, h, mode)` (destination); every positioned photo was in the
   corner, cut, until 01/11/2026. `Faixas.cs` draws at the origin and was left as it was.

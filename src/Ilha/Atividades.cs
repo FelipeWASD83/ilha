@@ -125,6 +125,17 @@ internal sealed class Alerta
     public string? Som;
     // private content: dropped (even from the queue) while the island is discreet
     public bool Privado;
+    // a sound that plays in a loop while the alert is on screen (the timer finishing); it stops when the alert goes
+    // away or when PararSom is called (a "+1 min" press, for example)
+    public string? SomEmLoop;
+    internal Action? Parar;
+
+    public void PararSom()
+    {
+        var p = Parar;
+        Parar = null;
+        p?.Invoke();
+    }
 }
 
 /// <summary>

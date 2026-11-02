@@ -62,6 +62,8 @@ public sealed class ConfigTempo
     [JsonPropertyName("focosAteLonga")] public int FocosAteLonga { get; set; } = 4;
     // quanto tempo o alerta de "acabou" fica na ilha
     [JsonPropertyName("segundosDoAlerta")] public double SegundosDoAlerta { get; set; } = 10;
+    // how long the timer melody keeps ringing (in a loop) when nobody dismisses it
+    [JsonPropertyName("segundosDoAlarme")] public double SegundosDoAlarme { get; set; } = 60;
     // timers, pomodoro e cronômetro em andamento (a ilha grava sozinha; sobrevive a fechar e abrir)
     [JsonPropertyName("estado")] public EstadoTempo Estado { get; set; } = new();
 
@@ -75,6 +77,7 @@ public sealed class ConfigTempo
         PausaLongaMin = Limite(PausaLongaMin, 1, 600, 15);
         FocosAteLonga = Math.Clamp(FocosAteLonga, 1, 20);
         SegundosDoAlerta = Limite(SegundosDoAlerta, 2, 60, 10);
+        SegundosDoAlarme = Limite(SegundosDoAlarme, 5, 600, 60);
         Estado ??= new EstadoTempo();
     }
 
@@ -85,6 +88,7 @@ public sealed class ConfigTempo
         PausaLongaMin = de.PausaLongaMin;
         FocosAteLonga = de.FocosAteLonga;
         SegundosDoAlerta = de.SegundosDoAlerta;
+        SegundosDoAlarme = de.SegundosDoAlarme;
     }
 }
 

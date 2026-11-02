@@ -1,5 +1,16 @@
 # Changelog
 
+## 1.3.0 (02/11/2026)
+
+**New**
+- When a timer finishes, a small melody plays in a loop until you dismiss it (OK, a click outside or "+1 min"); it
+  stops by itself after 60 seconds (adjustable in the timer settings). Pomodoro phases keep a single chime.
+
+**Changed**
+- All the sounds were made again from scratch by the island's own generator (`ferramentas/gerar_sons.py`): soft tones
+  that swell in, warm and in the same key, with a little room around them, all at the same loudness. They replace the
+  Kenney sounds of 1.2.1.
+
 ## 1.2.1 (02/11/2026)
 
 **Changed**

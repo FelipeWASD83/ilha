@@ -74,9 +74,28 @@ internal sealed class ModuloTempo : Modulo
             var r = new StringBuilder(Rodar());
             Lang.Set("en");
             EnglishChecks(r);
+            AlarmChecks(r);
             return r.ToString().TrimEnd();
         }
         finally { Lang.Set(previous); }
+    }
+
+    // the timer melody: shipped with the island, stopped once, and its time limit kept in range
+    private static void AlarmChecks(StringBuilder r)
+    {
+        void Ok(bool cond, string what) => r.AppendLine((cond ? "ok      " : "FALHOU  ") + what);
+        Ok(Sons.Arquivo("timer-loop") != null, "alarm: the timer melody ships with the island (sons/timer-loop.wav)");
+        var alerta = new Alerta { Tipo = "timer", Criar = _ => null! };
+        int stops = 0;
+        alerta.Parar = () => stops++;
+        alerta.PararSom();
+        alerta.PararSom();
+        Ok(stops == 1, "alarm: stopping the alert's sound twice stops it once");
+        var cfg = new ConfigTempo { SegundosDoAlarme = 9999 };
+        cfg.Sanear();
+        var cfg2 = new ConfigTempo { SegundosDoAlarme = double.NaN };
+        cfg2.Sanear();
+        Ok(cfg.SegundosDoAlarme == 600 && cfg2.SegundosDoAlarme == 60, $"alarm: ringing time kept between 5 s and 10 min ({cfg.SegundosDoAlarme}, {cfg2.SegundosDoAlarme})");
     }
 
     private static void EnglishChecks(StringBuilder r)

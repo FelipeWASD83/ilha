@@ -34,6 +34,44 @@ internal sealed class Sons
         return null;
     }
 
+    /// <summary>
+    /// Plays `tipo` in a loop (same rules as Tocar: muted, paused, competitive, Do Not Disturb) and returns how to stop
+    /// it; null when it could not start. The returned action can be called from any thread and more than once.
+    /// </summary>
+    public Action? TocarEmLoop(string tipo, bool importante = false)
+    {
+        var cfg = _cfg();
+        var ctx = _ctx();
+        if (!cfg.Sons.Ligados || cfg.Sons.Volume <= 0 || cfg.Pausada) return null;
+        if (ctx.Competitivo && !importante) return null;
+        if (ctx.NaoPerturbe && cfg.RespeitarNaoPerturbe && !importante) return null;
+        var arq = Arquivo(tipo);
+        if (arq == null) return null;
+        try
+        {
+            var mp = new Windows.Media.Playback.MediaPlayer
+            {
+                Source = Windows.Media.Core.MediaSource.CreateFromUri(new Uri(arq)),
+                Volume = Math.Clamp(cfg.Sons.Volume, 0, 1),
+                AudioCategory = Windows.Media.Playback.MediaPlayerAudioCategory.Alerts,
+                IsLoopingEnabled = true,
+            };
+            mp.MediaFailed += (s, e) => Programa.NaInterface(() => Log.Escrever($"som {tipo} (loop) falhou: {e.ErrorMessage}"));
+            _tocando.Add(mp);
+            mp.Play();
+            bool parado = false;
+            return () => Programa.NaInterface(() =>
+            {
+                if (parado) return;
+                parado = true;
+                try { mp.Pause(); } catch (Exception) { }
+                _tocando.Remove(mp);
+                mp.Dispose();
+            });
+        }
+        catch (Exception e) { Log.Escrever($"som {tipo} (loop): {e.Message}"); return null; }
+    }
+
     public void Tocar(string tipo, bool importante = false)
     {
         var cfg = _cfg();

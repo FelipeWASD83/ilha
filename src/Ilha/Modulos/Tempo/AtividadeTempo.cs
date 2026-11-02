@@ -271,23 +271,33 @@ internal sealed class AtividadeTempo : Atividade
         long? adiadoAte = null;
         string quem = t.Nome.Length > 0 ? Formato.Maiuscula(t.Nome) : "Timer";
         string titulo = Lang.T(quem + " acabou", quem + " is done");
-        Alertar(new Alerta
+        // the melody loops while the alert is up: it stays until "ok", a click outside or "+1 min", or the limit
+        bool comMelodia = Sons.Arquivo("timer-loop") != null;
+        Alerta alerta = null!;
+        alerta = new Alerta
         {
             Tipo = "timer",
             Som = "timer",
+            SomEmLoop = comMelodia ? "timer-loop" : null,
             Importante = true,
             PermitidoNoCompetitivo = true,
-            Segundos = (float)_cfg.SegundosDoAlerta,
+            Segundos = (float)(comMelodia ? _cfg.SegundosDoAlarme : _cfg.SegundosDoAlerta),
             Criar = p => CenaAlerta(p, titulo,
                 () => adiadoAte is long a ? Lang.T("mais 1 minuto, até ", "1 more minute, until ") + Formato.Hora(a) : Formato.Duracao(t.DuracaoMs),
                 Cor.Laranja, comMais: adiadoAte == null, mais: () =>
                 {
                     if (adiadoAte != null || _encerrada) return;
                     adiadoAte = _r.MaisUmMinuto(t, Agora).FimMs;
+                    alerta.PararSom();
                     // a versão nova refaz a cena do alerta (sem o botão, com a confirmação)
                     Sincronizar(estrutura: true, salvar: true);
+                    // the confirmation stays a moment, not the whole ringing time
+                    var fechar = new System.Windows.Forms.Timer { Interval = 2500 };
+                    fechar.Tick += (_, _) => { fechar.Stop(); fechar.Dispose(); _s.Ilha.FecharAlerta(alerta); };
+                    fechar.Start();
                 }),
-        });
+        };
+        Alertar(alerta);
     }
 
     private void AlertarVarios(int n)
