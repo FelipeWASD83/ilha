@@ -1,4 +1,5 @@
-"""Generates the island's default sounds (sons/<tipo>.wav): short, subtle, synthesized (sine with harmonics and decay).
+"""Generates the island's older synthesized sounds (sons/<tipo>.wav): short, subtle (sine with harmonics and decay).
+Since 1.2.1 the island ships Kenney's CC0 sounds (sons/CREDITS.md); running this replaces them with the synthesized set.
 
 To use your own sounds, put a .wav with the same name in %USERPROFILE%\\.ilha\\sons\\ (it wins over these).
 Usage: python ferramentas/gerar_sons.py

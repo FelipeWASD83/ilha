@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.2.1 (02/11/2026)
+
+**Changed**
+- New sound effects for every kind of alert (arrival, alert, timer, Claude Code, device connected, error): Kenney's
+  Interface Sounds (CC0), all at the same loudness. Credits in `sons/CREDITS.md`.
+
 ## 1.2.0 (01/11/2026)
 
 **New**
