@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.6.1 (02/11/2026)
+
+**Changed**
+- The sound and brightness numbers are a little smaller (still bold).
+
 ## 1.6.0 (02/11/2026)
 
 **New**

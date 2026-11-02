@@ -415,7 +415,7 @@ internal sealed class MenuSlider
     private static void Content(ID2D1DeviceContext dc, Palco p, System.Drawing.RectangleF r, Vortice.Mathematics.Color4 color,
         Action<ID2D1DeviceContext, Vector2, Vortice.Mathematics.Color4> icon, string text)
     {
-        const float ICON = 24, SIZE = 12.5f;
+        const float ICON = 24, SIZE = 11f;
         icon(dc, new Vector2(r.X + (r.Width - ICON) / 2, r.Bottom - 56), color);
         var m = p.Texto.Medir(text, SIZE, FontWeight.Bold, tabular: true);
         p.Texto.Desenhar(dc, text, new Vector2(r.X + (r.Width - m.X) / 2, r.Bottom - 20 - SIZE * 0.73f), SIZE, color, FontWeight.Bold, tabular: true);
