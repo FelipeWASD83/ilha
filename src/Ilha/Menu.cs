@@ -40,6 +40,11 @@ internal sealed class ItemDoMenu
     public Func<System.Drawing.SizeF, IReadOnlyList<(System.Drawing.RectangleF Area, Action Open)>>? Parts;
     /// <summary>A plain icon in the top-right corner, next to the date (settings, recording), instead of a tile.</summary>
     public bool Corner;
+    /// <summary>
+    /// A small icon in the card's bottom-right corner, with no ball, name or background (a discreet entry). The icon
+    /// draws its own colors, dim ones being the point.
+    /// </summary>
+    public bool CornerBottom;
     /// <summary>A small color dot before the detail line (the color picker's last color).</summary>
     public Func<Vortice.Mathematics.Color4?>? DetailSwatch;
     /// <summary>A bigger block that draws in the label space under its body, like the balls' names (the batteries).</summary>
@@ -105,7 +110,7 @@ internal sealed class Menu : Atividade
     public override string Nome => "Menu";
 
     private const int COLUNAS = 4;
-    private const float LADO = 80, ALTO = 80, VAO = 6, CABECALHO = 48, BOLA = 54, CANTO = 32, CANTO_ICONE = 24;
+    private const float LADO = 80, ALTO = 80, VAO = 6, CABECALHO = 48, BOLA = 54, CANTO = 32, CANTO_ICONE = 24, CANTO_BAIXO = 14;
     /// <summary>The header's center line: the time's digits, the date, the dots and the corner icons sit on it.</summary>
     private const float LINHA = 18;
     /// <summary>How far the header stays from the card's sides (the time and the corner icons were almost in the corners).</summary>
@@ -144,7 +149,7 @@ internal sealed class Menu : Atividade
     }
 
     private static string Assinatura(IReadOnlyList<ItemDoMenu> itens) =>
-        string.Join("|", itens.Select(i => $"{i.Id}:{i.Cols}x{i.Rows}:{(i.Corner ? 1 : 0)}"));
+        string.Join("|", itens.Select(i => $"{i.Id}:{i.Cols}x{i.Rows}:{(i.Corner ? 1 : 0)}{(i.CornerBottom ? 2 : 0)}"));
 
     /// <summary>
     /// Packs the tiles into the 4-column grid: each goes to the first free spot (row by row) where it fits, in the menu's
@@ -211,7 +216,8 @@ internal sealed class Menu : Atividade
         _assinatura = Assinatura(todos);
         // the first corner entry sits at the right edge: settings (the highest order) last in the menu, first here
         var cantos = todos.Where(i => i.Corner).OrderByDescending(i => i.Ordem).ToList();
-        var itens = todos.Where(i => !i.Corner).ToList();
+        var embaixo = todos.Where(i => i.CornerBottom && !i.Corner).OrderByDescending(i => i.Ordem).ToList();
+        var itens = todos.Where(i => !i.Corner && !i.CornerBottom).ToList();
         var (lugares, linhas) = Pack(itens.Select(i => (i.Cols, i.Rows)).ToList());
         var blocos = itens.Select((it, k) => (it, Area(lugares[k].Col, lugares[k].Row, it))).ToList();
         _blocos = blocos;
@@ -220,10 +226,29 @@ internal sealed class Menu : Atividade
         // space would only be an empty band above the card's edge
         float altura = linhas == 0 ? CABECALHO + 20
             : blocos.Max(b => Simples(b.it) || b.it.LabelBelow ? b.Item2.Bottom : Corpo(b.Item2).Bottom);
+        // the discreet icons sit in the bottom-right corner: inside the last row when its right cells are empty, else on
+        // a short strip of their own under the grid
+        if (embaixo.Count > 0)
+        {
+            int livres = linhas == 0 ? 0 : CelulasLivresNaDireita(itens, lugares, linhas - 1);
+            float precisa = embaixo.Count * (CANTO_BAIXO + 8);
+            if (livres * (LADO + VAO) < precisa) altura += CANTO_BAIXO + 10;
+        }
+        var areasDeBaixo = Enumerable.Range(0, embaixo.Count).Select(k => AreaDeBaixo(k, largura, altura)).ToList();
         var c = p.NovaCena(new Vector2(largura, altura));
         p.Desenho(c, Vector2.Zero, c.Tamanho, (dc, t) =>
         {
             DesenharCabecalho(dc, p, largura, cantos);
+            for (int k = 0; k < embaixo.Count; k++)
+            {
+                var r = areasDeBaixo[k];
+                var centro = new Vector2(r.X + r.Width / 2, r.Y + r.Height / 2);
+                var antes = dc.Transform;
+                dc.Transform = Matrix3x2.CreateScale(CANTO_BAIXO / 24f, centro) * antes;
+                try { embaixo[k].Icone?.Invoke(dc, p, new System.Drawing.RectangleF(centro.X - 12, centro.Y - 12, 24, 24)); }
+                catch (Exception e) { Log.Escrever($"menu: ícone de {embaixo[k].Id}: {e.Message}"); }
+                finally { dc.Transform = antes; }
+            }
             if (itens.Count == 0)
             {
                 p.Texto.Desenhar(dc, Lang.T("Nenhum módulo com entrada no menu.", "No module has a menu entry."), new Vector2(0, CABECALHO), 12, Cor.Secundario, FontWeight.Normal);
@@ -263,8 +288,35 @@ internal sealed class Menu : Atividade
             var item = cantos[k];
             c.Botoes.Add(new Botao { Area = AreaDoCanto(k, largura), Acao = () => Abrir(item.Id, item.Abrir) });
         }
+        for (int k = 0; k < embaixo.Count; k++)
+        {
+            var item = embaixo[k];
+            var r = areasDeBaixo[k];
+            // a little more than the icon takes the click, so a small icon is not fiddly to hit
+            c.Botoes.Add(new Botao { Area = new(r.X - 5, r.Y - 5, r.Width + 10, r.Height + 10), Acao = () => Abrir(item.Id, item.Abrir) });
+        }
         return c;
     }
+
+    /// <summary>How many cells of a row are free from its right edge leftwards (no tile covers them).</summary>
+    private static int CelulasLivresNaDireita(IReadOnlyList<ItemDoMenu> itens, List<(int Col, int Row)> lugares, int linha)
+    {
+        var ocupada = new bool[COLUNAS];
+        for (int k = 0; k < itens.Count; k++)
+        {
+            int w = Math.Clamp(itens[k].Cols, 1, COLUNAS), h = Math.Clamp(itens[k].Rows, 1, 4);
+            var (col, row) = lugares[k];
+            if (linha < row || linha >= row + h) continue;
+            for (int x = col; x < col + w; x++) ocupada[x] = true;
+        }
+        int livres = 0;
+        for (int x = COLUNAS - 1; x >= 0 && !ocupada[x]; x--) livres++;
+        return livres;
+    }
+
+    /// <summary>The bottom-right icons line up from the right edge of the grid's last ball, the first one at the edge.</summary>
+    private static System.Drawing.RectangleF AreaDeBaixo(int k, float largura, float altura) =>
+        new(largura - (LADO - BOLA) / 2 - CANTO_BAIXO - k * (CANTO_BAIXO + 8), altura - CANTO_BAIXO, CANTO_BAIXO, CANTO_BAIXO);
 
     /// <summary>
     /// Time, the camera and microphone dots, date and the corner icons, all centered on one line (the digits' middle,

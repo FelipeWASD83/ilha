@@ -26,7 +26,8 @@ internal sealed class Ilha : IDisposable
     private const float BOLHA = 36, VAO = 14;
     private const float CARTAO_FOLGA = 18, CARTAO_MIN = 340, RAIO_EXPANDIDA = 38, RAIO_ALERTA = 28;
     private const float OMBRO = 7;
-    private const float SOMBRA = 30;
+    // room under the shape for the wide shadow layer (offset + 3 sigma)
+    private const float SOMBRA = 56;
     private const float PONTO = 7, PONTO_VAO = 5;
 
     private readonly Grafico _g;
@@ -385,7 +386,8 @@ internal sealed class Ilha : IDisposable
     private void Sombras(Compositor c)
     {
         // (desvio do desfoque, opacidade, deslocamento para baixo), em DIP
-        var camadas = new (float sigma, float alfa, float dy)[] { (2.5f, 0.30f, 1f), (11f, 0.26f, 7f) };
+        // 1.8.0: darker and wider, his request (the 0.30/0.26 pair barely showed on a light background)
+        var camadas = new (float sigma, float alfa, float dy)[] { (3f, 0.46f, 1.5f), (15f, 0.44f, 10f) };
         const float R = 18;
         foreach (var (sigma, alfa, dy) in camadas)
         {
@@ -664,6 +666,17 @@ internal sealed class Ilha : IDisposable
     {
         foreach (var h in new[] { _vis.Handle, _toque.Handle })
             Nativo.SetWindowPos(h, Nativo.HWND_TOPMOST, _janX, _janY, _janL, _janA, Nativo.SWP_NOACTIVATE);
+    }
+
+    /// <summary>
+    /// Keeps the island out of every screen capture (WDA_EXCLUDEFROMCAPTURE) while the recorder records the screen, so
+    /// the pill with the recording time never ends up in the video. False gives it back to captures and screenshots.
+    /// </summary>
+    public void ForaDasCapturas(bool sim)
+    {
+        foreach (var h in new[] { _vis.Handle, _toque.Handle })
+            if (!Nativo.SetWindowDisplayAffinity(h, sim ? Nativo.WDA_EXCLUDEFROMCAPTURE : Nativo.WDA_NONE))
+                Log.Escrever($"fora das capturas ({sim}): erro {System.Runtime.InteropServices.Marshal.GetLastWin32Error()}");
     }
 
     /// <summary>Jogo sem borda costuma se pôr no topo ao ganhar foco; chamado a cada troca de janela da frente.</summary>

@@ -237,6 +237,35 @@ and the points that matter are here.
   second press replaces the alert; nothing in competitive mode.
 - **Air display light (1.7.0):** `visor` joined `CamposDeComando` (the server already took it); the switch row shows
   only when `capacidades.visor` is true and, like the site, does nothing while the air is off.
+- **Recorder (1.8.0, `Modulos/Gravador`, his request on 02/11/2026):** two menu tiles, "Gravar vídeo" (Tela, Câmera,
+  Tela + câmera) and "Gravar áudio", each card with the PC sound and microphone switches; `Ctrl + Alt + G` (free on his
+  PC) starts and stops the video. Video goes through **ffmpeg** (not shipped; winget `Gyan.FFmpeg`), audio is captured by
+  the island (WASAPI, the `Midia` COM code) into WAV files. One timeline for everything: T0 is the wall clock right
+  before anything starts; ffmpeg stamps its inputs with `-use_wallclock_as_timestamps 1 -itsoffset -T0 -copyts`, and
+  `AudioCapture` places each packet by its QPC time with sample 0 = T0 (gaps become silence, the loopback sends nothing
+  while nothing plays). Stopping copies the video and mixes the tracks into one stereo AAC (a 7.1 headset's loopback
+  comes in 8 channels); a failed join keeps every piece in the folder. Measured on 02/11/2026 with a flashing square and
+  a tone: audio within -7 to +9 ms of the picture.
+  - **Screen = `gfxcapture` (Windows.Graphics.Capture) by `hmonitor`, not `ddagrab`**: Desktop Duplication returned
+    washed-out grays on his PC (128 came back as 217, primaries fine), gfxcapture matched within 3 levels. 2% of one core
+    for the screen alone (frames stay on the GPU into NVENC); Tela + câmera downloads the frames for the overlay, ~66%.
+  - NVENC turns RGB into **BT.601 limited** (measured); the file is tagged so with `setparams` (it said "GBR, full
+    range" before). The webcam's MJPEG is converted to limited range with the same tags.
+  - The island leaves the capture with `WDA_EXCLUDEFROMCAPTURE` (`Ilha.ForaDasCapturas`) while the screen records; seen
+    on a recorded frame. Windows.Graphics.Capture lights the ConsentStore, so the Recording module (OBS detector) skips
+    `ffmpeg.exe` while the recorder runs (`Capturas.GravadorAtivo`).
+  - Tela + câmera: the camera is 28% of the screen's height, 16:9, bottom right above the taskbar (work area), radius
+    6.5% of its height, shadow from a blurred PNG made by `PipFrame`. **His C920 has a privacy cover: a black camera in a
+    test is the cover**, not a bug. Camera auto = the first PnP one in ffmpeg's dshow list (the Quest and OBS ones are
+    virtual); 1080p30 MJPEG, then its default mode on a second try.
+  - Not tested: a recording of an hour or more (a WAV keeps the 4 GB header limit, about 3 hours of 7.1 float), a
+    camera recording with the cover open, recording a game (gfxcapture does not inject; the island is hidden there
+    anyway), and the module turning off mid-recording (it stops the session in the background).
+- **Discreet menu entries (1.8.0):** `ItemDoMenu.CornerBottom` draws the icon small (14 DIP) with no ball, name or
+  background in the menu's bottom-right corner (inside the last row when its right cells are empty, else on a strip under
+  the grid). The private unlock entry uses it with a dim lock. Not seen on screen on 02/11/2026 (it only shows locked).
+- **Shadows (1.8.0):** two layers (sigma 3, 0.46, 1.5 down; sigma 15, 0.44, 10 down), stronger at his request; `SOMBRA`
+  (the room under the shape) went to 56.
 - **ALTURA_MAX (640 DIP)** bounds the shape visuals of the island: a card taller than it loses the bottom of its body.
 - **Low battery alerts (1.1.0, `BatteryAlerts.cs`, `GHub.cs`, `ModuloFones.cs`):** a level (50, 25, 10, 5, 1 by
   default, `limiaresBateria` in the settings) fires when a reading goes from above it to at or below it, once per level

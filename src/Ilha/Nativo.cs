@@ -94,6 +94,8 @@ internal static unsafe class Nativo
     [DllImport("dwmapi.dll")] public static extern int DwmGetWindowAttribute(IntPtr h, int attr, out int value, int size);
     public const int DWMWA_CLOAKED = 14, DWMWA_CLOAK = 13;
     [DllImport("dwmapi.dll")] public static extern int DwmSetWindowAttribute(IntPtr h, int attr, ref int value, int size);
+    public const uint WDA_NONE = 0, WDA_EXCLUDEFROMCAPTURE = 0x11;
+    [DllImport("user32.dll", SetLastError = true)] public static extern bool SetWindowDisplayAffinity(IntPtr h, uint affinity);
 
     // QUNS: 1 sem tela cheia, 2 ocupado (tela cheia sem borda ou apresentação), 3 Direct3D exclusivo,
     // 4 modo apresentação, 5 aceita notificações, 6 hora quieta, 7 app da Store

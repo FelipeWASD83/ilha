@@ -25,6 +25,14 @@ internal static class Capturas
 
     public static bool EhObs(string exe) => ExesDoObs.Any(o => o.Equals(exe, StringComparison.OrdinalIgnoreCase));
 
+    /// <summary>
+    /// The island's own recorder captures the screen through ffmpeg (Windows.Graphics.Capture, so it shows up here too):
+    /// while it records, ffmpeg.exe is not "someone else capturing the screen".
+    /// </summary>
+    public static volatile bool GravadorAtivo;
+
+    public static bool EhDoGravador(string exe) => GravadorAtivo && exe.Equals("ffmpeg.exe", StringComparison.OrdinalIgnoreCase);
+
     /// <summary>FILETIME do registro em UTC; inválido ou zero: null.</summary>
     public static DateTime? Instante(long filetime)
     {
@@ -52,7 +60,7 @@ internal static class Capturas
             if (e.NaoEmpacotado)
             {
                 string exe = Consentimento.NomeDoExe(e.Subchave);
-                if (EhObs(exe)) continue;
+                if (EhObs(exe) || EhDoGravador(exe)) continue;
                 if (rodando != null && !rodando(exe)) continue;
             }
             string nome = e.NaoEmpacotado ? Consentimento.NomeAmigavelExe(e.Subchave) : nomeDoPacote(e.Subchave);

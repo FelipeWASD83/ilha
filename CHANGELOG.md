@@ -1,5 +1,18 @@
 # Changelog
 
+## 1.8.0 (02/11/2026)
+
+**New**
+- Recorder: two new menu buttons. "Record video" records the screen, the webcam, or the screen with the webcam in the
+  bottom-right corner, with rounded corners and a soft shadow. "Record audio" records the microphone and/or the PC's
+  sound. The PC's sound and the microphone are switches on each card. While it records, the pill shows a red dot and
+  the time, and the island stays out of the video. Video is saved as MP4 in Videos\Ilha (full resolution, 60 frames per
+  second, encoded on the graphics card), audio as WAV in Music\Ilha. Ctrl + Alt + G starts and stops the video.
+  Video needs ffmpeg installed.
+
+**Changed**
+- Stronger shadows under the island, floating and in notch style.
+
 ## 1.7.1 (02/11/2026)
 
 **Fixed**
