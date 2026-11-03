@@ -301,7 +301,7 @@ internal static class Marks
 {
     public static void Game(ID2D1DeviceContext dc, ID2D1Factory1 f, string game, Vector2 c, float side, Color4 fallback)
     {
-        if (GameArt.GameIcon(game) is { } icon)
+        if (GameArt.IconFor(game, Playtime.SteamApp(game) ?? (game.StartsWith("steam:") && int.TryParse(game[6..], out var app) ? app : null)) is { } icon)
             Rounded(dc, f, c.X - side / 2, c.Y - side / 2, side, () => GameArt.Draw(dc, icon, c.X - side / 2, c.Y - side / 2, side));
         else Glyphs.Draw(dc, f, game, c, side * 0.42f, fallback);
     }

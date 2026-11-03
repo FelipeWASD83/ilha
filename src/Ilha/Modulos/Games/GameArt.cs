@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Drawing.Imaging;
 using System.IO;
+using System.Linq;
 using System.Numerics;
 using System.Runtime.InteropServices;
 using System.Text;
@@ -99,6 +100,78 @@ internal static class GameArt
             _icons[game] = r;
             return r;
         }
+    }
+
+    /// <summary>
+    /// Any game's icon: its .exe when installed, else Steam's own small icon from the library cache
+    /// (appcache\librarycache\&lt;app&gt;\&lt;hash&gt;.jpg, every game in the library has one), else a logo downloaded once into
+    /// ~/.ilha/jogos/logos/ for games outside Steam (he allowed the download on 03/11/2026).
+    /// </summary>
+    public static (byte[] Px, int Side)? IconFor(string key, int? steamApp)
+    {
+        if (GameIcon(key) is { } exe) return exe;
+        lock (_lock)
+        {
+            string cacheKey = "icon:" + key;
+            if (_icons.TryGetValue(cacheKey, out var cached)) return cached;
+            (byte[], int)? r = null;
+            try
+            {
+                string? file = null;
+                if (steamApp is int app && GameSetup.SteamFolder() is { } steam)
+                {
+                    string dir = Path.Combine(steam, "appcache", "librarycache", app.ToString());
+                    // the icon is the small jpg named by its hash (the others are banners with fixed names)
+                    if (Directory.Exists(dir))
+                        file = Directory.EnumerateFiles(dir, "*.jpg", SearchOption.AllDirectories)
+                            .Where(f => Path.GetFileNameWithoutExtension(f).Length == 40).OrderBy(f => new FileInfo(f).Length).FirstOrDefault();
+                }
+                file ??= DownloadedLogo(key);
+                if (file != null)
+                {
+                    using var src = new System.Drawing.Bitmap(file);
+                    r = (Pixels(src, 64, 64), 64);
+                }
+            }
+            catch (Exception e) { Log.Escrever($"jogos: ícone de {key}: {e.Message}"); }
+            _icons[cacheKey] = r;
+            return r;
+        }
+    }
+
+    // Wikipedia pages of games outside Steam, for their logo
+    private static readonly Dictionary<string, string> WikiPages = new()
+    {
+        ["valorant-win64-shipping"] = "Valorant", ["league of legends"] = "League_of_Legends", ["fortniteclient-win64-shipping"] = "Fortnite",
+        ["overwatch"] = "Overwatch_2", ["cod"] = "Call_of_Duty", ["genshinimpact"] = "Genshin_Impact",
+    };
+
+    private static readonly HashSet<string> _asked = new();
+
+    /// <summary>A downloaded logo if there is one; otherwise asks for it once (the next draw after it arrives shows it).</summary>
+    private static string? DownloadedLogo(string key)
+    {
+        string file = Path.Combine(Folder, "logos", key.Replace(' ', '-') + ".png");
+        if (File.Exists(file)) return file;
+        if (!WikiPages.TryGetValue(key, out var page) || !_asked.Add(key)) return null;
+        _ = System.Threading.Tasks.Task.Run(async () =>
+        {
+            try
+            {
+                using var http = new System.Net.Http.HttpClient { Timeout = TimeSpan.FromSeconds(15) };
+                http.DefaultRequestHeaders.UserAgent.ParseAdd("Ilha/3 (https://github.com/FelipeWASD83/ilha)");
+                var json = await http.GetStringAsync("https://en.wikipedia.org/api/rest_v1/page/summary/" + page).ConfigureAwait(false);
+                using var d = System.Text.Json.JsonDocument.Parse(json);
+                if (!d.RootElement.TryGetProperty("thumbnail", out var th) || th.GetProperty("source").GetString() is not { } url) return;
+                var bytes = await http.GetByteArrayAsync(url).ConfigureAwait(false);
+                Directory.CreateDirectory(Path.GetDirectoryName(file)!);
+                await File.WriteAllBytesAsync(file, bytes).ConfigureAwait(false);
+                lock (_lock) _icons.Remove("icon:" + key);
+                Log.Escrever($"jogos: logo de {key} baixada");
+            }
+            catch (Exception e) { Log.Escrever($"jogos: logo de {key} não baixou: {e.Message}"); }
+        });
+        return null;
     }
 
     // ------------------------------------------------------------------ CS2's SVGs

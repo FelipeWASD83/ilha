@@ -381,6 +381,21 @@ def ace():
     return reverb(lowpass_fast(b, 9000), wet=0.22)
 
 
+def conquista():
+    """An achievement: a sparkling rising arpeggio of bells over a warm brass chord that swells, like a trophy shown."""
+    rng = np.random.default_rng(606)
+    b = np.zeros((int(3.0 * SR), 2))
+    for i, note in enumerate(("G5", "B5", "D6", "G6", "B6")):
+        place(b, mallet(hz(note), 1.2, decay=0.45, hardness=0.8), i * 0.07, 0.5)
+    for note, g in (("G3", 0.6), ("D4", 0.5), ("G4", 0.5), ("B4", 0.45)):
+        place(b, brass(hz(note), 1.7, rng, attack=0.18, release=0.6, bright=1.0, vibrato=0.005), 0.25, g)
+    m = int(1.8 * SR)
+    tm = np.arange(m) / SR
+    sparkle = highpass(rng.normal(0, 1, (m, 2)), 7000) * (np.clip(tm / 0.3, 0, 1) * np.exp(-tm / 0.5))[:, None]
+    place(b, sparkle * 0.25, 0.3)
+    return reverb(lowpass_fast(b, 10000), wet=0.24)
+
+
 SOUNDS = {
     "chegada": chegada,
     "alerta": alerta,
@@ -395,6 +410,7 @@ SOUNDS = {
     "abate": abate,
     "derrota": derrota,
     "ace": ace,
+    "conquista": conquista,
 }
 
 

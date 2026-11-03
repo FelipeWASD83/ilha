@@ -25,6 +25,57 @@ internal sealed partial class GamesModule : Modulo
     private readonly System.Windows.Forms.Timer _linger = new() { Interval = 9000 };
     // only while a match is on: is its game still running? (closed mid-match, the match goes at once)
     private readonly System.Windows.Forms.Timer _alive = new() { Interval = 2000 };
+    private readonly System.Windows.Forms.Timer _minute = new() { Interval = 60_000 };
+    private TrophyStore _trophies = null!;
+    private OwnClock _clock = null!;
+    private TrophyRoom? _room;
+    private int _minutes;
+    private Dictionary<int, int> _steam = new();
+    private DateTime _steamRead;
+
+    /// <summary>Every game with hours: Steam's (read at most every 5 minutes) and the island's own clock.</summary>
+    private List<GameHours> Hours()
+    {
+        if (DateTime.Now - _steamRead > TimeSpan.FromMinutes(5))
+        {
+            _steam = Playtime.Steam();
+            _steamRead = DateTime.Now;
+        }
+        var known = new[] { "cs2", "bf6", "rl", "dota2", "deadlock", "tslgame", "r5apex", "rainbowsix", "marvelrivals-win64-shipping" }
+            .Where(k => Playtime.SteamApp(k) != null).ToDictionary(k => Playtime.SteamApp(k)!.Value, k => k);
+        var list = _steam.Select(kv =>
+        {
+            string key = known.TryGetValue(kv.Key, out var k) ? k : "steam:" + kv.Key;
+            string name = SteamNames.Get(kv.Key) ?? (known.ContainsKey(kv.Key) ? Match.NameOf(key) : $"Steam {kv.Key}");
+            return new GameHours(key, name, kv.Value, kv.Key);
+        }).ToList();
+        foreach (var (key, min) in _clock.Minutes)
+        {
+            var same = list.FindIndex(g => g.Key == key);
+            if (same >= 0) list[same] = list[same] with { Minutes = list[same].Minutes + min };
+            else list.Add(new GameHours(key, Match.NameOf(key), min, null));
+        }
+        return list;
+    }
+
+    /// <summary>New achievements become notices (three at most, then one that sums the rest).</summary>
+    private void CheckTrophies(bool announce)
+    {
+        if (_stopped) return;
+        var hours = Hours();
+        // names of games with at least 10 hours that are not installed come from Steam's store, a few at a time
+        SteamNames.Fetch(hours.Where(g => g.SteamApp != null && g.Minutes >= 600).Select(g => g.SteamApp!.Value), () => S.NaInterface(() => _room?.Changed()));
+        var fresh = _trophies.Update(Trophies.Earned(hours));
+        _room?.Changed();
+        if (!announce || fresh.Count == 0) return;
+        Log.Escrever($"jogos: {fresh.Count} conquista(s) nova(s): {string.Join(", ", fresh.Select(t => t.Id))}");
+        foreach (var t in fresh.OrderByDescending(t => t.Hours).Take(3))
+            S.Ilha.Alertar(new Alerta
+            {
+                Tipo = "conquista", Criar = p => Celebrations.Trophy(p, t), Segundos = 4f, Som = _cfg.Sons ? "conquista" : "",
+                Importante = true, Dono = _room,
+            });
+    }
     private Alerta? _killAlert;
     private DateTime _lastKill;
     private int _streak;
@@ -54,6 +105,28 @@ internal sealed partial class GamesModule : Modulo
         // a finished match stays on the pill a few seconds with its result, then the pill goes back to normal
         _linger.Tick += (_, _) => { _linger.Stop(); Refresh(); };
         _alive.Tick += (_, _) => CheckAlive();
+
+        // achievements: Steam's hours plus the island's own clock for games outside Steam
+        _trophies = new TrophyStore(System.IO.Path.Combine(Config.Pasta, "conquistas.json"));
+        _clock = new OwnClock(System.IO.Path.Combine(Config.Pasta, "tempo-de-jogo.json"));
+        _room = new TrophyRoom(S, Hours, () => _trophies.Unlocked, () => CheckTrophies(announce: true));
+        S.Ilha.Adicionar(_room);
+        S.Menu.Adicionar(new ItemDoMenu
+        {
+            Id = "conquistas", Nome = Lang.T("Conquistas", "Achievements"), Ordem = 62,
+            Abrir = _room.Open,
+            Icone = (dc, p, r) => TrophyRoom.Cup(dc, p.G.Fabrica, new System.Numerics.Vector2(r.X + r.Width / 2, r.Y + r.Height / 2 + 1), r.Width * 0.8f, Cor.Branco),
+            Detalhe = () => _trophies.Unlocked.Count > 0 ? _trophies.Unlocked.Count.ToString() : null,
+        });
+        // once a minute: the island's clock counts the games outside Steam; every 10 minutes (Steam writes its hours
+        // when a game closes) the trophies are checked
+        _minute.Tick += (_, _) =>
+        {
+            _clock.Tick();
+            if (++_minutes % 10 == 0) CheckTrophies(announce: true);
+        };
+        _minute.Start();
+        CheckTrophies(announce: true);
         StartSources();
         // opened (or restarted) with a game already in front: the pill shows it right away
         Contexto(S.ContextoAtual());
@@ -299,6 +372,8 @@ internal sealed partial class GamesModule : Modulo
         _linger.Dispose();
         _alive.Stop();
         _alive.Dispose();
+        _minute.Stop();
+        _minute.Dispose();
         StopSources();
     }
 }

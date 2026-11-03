@@ -427,6 +427,39 @@ and the points that matter are here.
   tested**: a real match after these changes (the real CS2, Rocket League and BF6 matches of that day were before the
   module existed), the game's fps with the BF6 reader on, other BF6 modes, the end screen of BF6, Premier's mode name.
 
+## Menu with 5 columns, Games and Sports (3.2.0 and 3.3.0, his requests on 03/11/2026)
+
+- **Menu grid** (`Menu.Pack`): 5 columns. Blocks bigger than 1x1 go first, each to the rightmost free spot from the
+  top; then the balls fill row by row from the left. Before, every tile took the first free spot in order, and the two
+  private balls the lock hides (Lari & Nina and the mascot, private modules in `local.props`) moved the blocks and left
+  holes. Now a ball that goes away only shifts the balls after it.
+- **Games card** (`Games/GamesOverview.cs`, menu `jogos`, order 58): the live match (click opens the score), and per
+  game the hours from Steam's `userdata\<id>\config\localconfig.vdf` ("Playtime" in minutes under
+  Software\Valve\Steam\apps; `Playtime.Steam`, read when the card opens, at most once a minute) and the last five.
+- **Ace** (`MomentKind.Ace`): `player.state.round_kills` of the local player reaching 5 in competitive or Premier, 2 in
+  Wingman, once per `map.round`; not in casual (10 enemies). It closes the kill notice on screen.
+- **Sports** (`Modulos/Sports`, id `esportes`): ESPN's `site.api.espn.com/apis/site/v2/sports/<path>/scoreboard`,
+  undocumented, read defensively (see `docs/pesquisa-placar-de-esportes.md`). `?dates=YYYYMMDD` works for one day,
+  a range answers 400, so the card's past and coming days are one request per day (two back, five ahead, only when
+  the card opens, at most every 30 minutes). Today's scoreboard of each followed league every 30 s while a followed
+  game is live, 1 min with any game live or about to start, 5 min on a day with games left, 15 min otherwise. A race
+  weekend comes as one event with a competition per session; the island takes the live one, else the race. Followed
+  teams and drivers match by name, short name or abbreviation without accents (a surname alone for drivers). Crests:
+  `Crests` downloads `team.logo` once into `~/.ilha/esportes/escudos/` (outside git). How much of a live race ESPN
+  shows (laps, gaps) was **not seen**: no race was on.
+
+- **Achievements (3.4.0, `Games/Trophies.cs`, `TrophyRoom.cs`)**: hours = Steam's `Playtime` per app plus
+  `OwnClock` (`~/.ilha/tempo-de-jogo.json`), a minute for each tracked non-Steam process running, checked once a
+  minute by the process list (`OwnClock.Tracked`). Trophies are ids `jogo:<key>:<hours>` and `total:<hours>` in
+  `~/.ilha/conquistas.json`; the first run only seeds (on 03/11/2026 it noted 89 at once, silently), then each new one
+  becomes a notice (three at most per check), checked at start and every 10 minutes. Steam games no longer installed
+  get their name from the store's public `appdetails` (one request per game with 10 h or more, 1.5 s apart, cached in
+  `~/.ilha/jogos/steam-nomes.json`). Icons: `GameArt.IconFor` = the .exe, else Steam's
+  `appcache\librarycache\<app>\<40-hex>.jpg` (32 px, every library game has one), else a Wikipedia summary thumbnail
+  for the few non-Steam games listed in `WikiPages` (often none: Wikipedia leaves non-free logos out of thumbnails).
+- **`--abrir <entry>`** (3.4.0): opens a menu entry's card 4.5 s after startup, without taking the focus, for photos
+  (`--menu` does the same for the menu).
+
 ## Approving Claude Code permissions from the island
 
 - `ferramentas/hook_permissao.py` is the `PermissionRequest` hook, installed on 01/11/2026 in his

@@ -26,6 +26,7 @@ internal sealed partial class GamesModule
         TestCelebrationWords();
         TestArt();
         TestPlaytimeAndAce();
+        TestTrophies();
         return _report.ToString().TrimEnd();
     }
 
@@ -282,6 +283,28 @@ internal sealed partial class GamesModule
         var cas = new Cs2State();
         cas.Apply(Json(Payload(0, 1, "casual")), now);
         Ok("ace: no casual cinco não é ace", cas.Apply(Json(Payload(5, 1, "casual")), now).All(m => m.Kind != MomentKind.Ace));
+    }
+
+    private static void TestTrophies()
+    {
+        var games = new[] { new GameHours("cs2", "Counter-Strike 2", 264 * 60, 730), new GameHours("x", "X", 9 * 60, null), new GameHours("y", "Y", 60 * 60, null) };
+        var earned = Trophies.Earned(games);
+        Ok("conquistas: por jogo nas faixas e o total", earned.Count(t => t.GameKey == "cs2") == 4 && earned.Count(t => t.GameKey == "y") == 2
+            && !earned.Any(t => t.GameKey == "x") && earned.Count(t => t.Total) == 1 && earned.Any(t => t.Id == "total:100"),
+            string.Join(",", earned.Select(t => t.Id)));
+        Ok("conquistas: próxima meta e quanto falta", Trophies.Next(264 * 60) is { Hours: 500 } n && n.Progress > 0.05f && n.Progress < 0.1f
+            && Trophies.Next(1001 * 60) == null);
+        string file = Path.Combine(Path.GetTempPath(), $"ilha-teste-conquistas-{Environment.ProcessId}.json");
+        try
+        {
+            var store = new TrophyStore(file);
+            var first = store.Update(earned);
+            var more = Trophies.Earned(games.Append(new GameHours("z", "Z", 11 * 60, null)));
+            var second = new TrophyStore(file).Update(more);
+            Ok("conquistas: a primeira vez só anota (sem chuva de avisos), depois avisa só a nova", first.Count == 0 && second.Count == 1 && second[0].Id == "jogo:z:10",
+                string.Join(",", second.Select(t => t.Id)));
+        }
+        finally { try { File.Delete(file); } catch (Exception) { } }
     }
 
     private static void TestArt()

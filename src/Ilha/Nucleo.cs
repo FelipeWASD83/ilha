@@ -30,6 +30,14 @@ internal sealed class Nucleo : IDisposable
     private readonly Entrada _entrada;
     private readonly Indicadores _indicadores = new();
     private readonly MenuDaIlha _menu = new();
+
+    /// <summary>Opens a menu entry by id, as a click on its tile would (`--abrir`, for screenshots and tests).</summary>
+    public void AbrirEntrada(string id)
+    {
+        var item = _menu.Itens.FirstOrDefault(i => string.Equals(i.Id, id, StringComparison.OrdinalIgnoreCase));
+        if (item == null) { Log.Escrever($"--abrir: entrada {id} não existe"); return; }
+        try { item.Abrir(); } catch (Exception e) { Log.Escrever($"--abrir {id}: {e.Message}"); }
+    }
     private readonly Servicos _servicos;
     private readonly Dictionary<string, Modulo> _modulos = new();
     private readonly Dictionary<string, string> _cfgModulos = new();

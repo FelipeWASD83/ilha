@@ -86,6 +86,15 @@ public static class Programa
             tm.Tick += (_, _) => { tm.Stop(); nucleo.Ilha.AbrirMenu(); };
             tm.Start();
         }
+        int ab = Array.IndexOf(args, "--abrir");
+        if (ab >= 0 && ab + 1 < args.Length)
+        {
+            // opens one menu entry's card after startup (for screenshots and tests), without taking the focus
+            string id = args[ab + 1];
+            var ta = new System.Windows.Forms.Timer { Interval = 4500 };
+            ta.Tick += (_, _) => { ta.Stop(); nucleo.AbrirEntrada(id); };
+            ta.Start();
+        }
         int d = Array.IndexOf(args, "--demo");
         if (d >= 0 && d + 1 < args.Length)
         {

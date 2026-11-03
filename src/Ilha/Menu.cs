@@ -246,6 +246,9 @@ internal sealed class Menu : Atividade
         // space would only be an empty band above the card's edge
         float altura = linhas == 0 ? CABECALHO + 20
             : blocos.Max(b => Simples(b.it) || b.it.LabelBelow ? b.Item2.Bottom : Corpo(b.Item2).Bottom);
+        // a ball's detail line (the shelf's "1 item", the achievements count) runs a little past its cell: on the bottom
+        // row the card's edge cut it
+        if (blocos.Any(b => Simples(b.it) && b.it.Detalhe != null && Math.Abs(b.Item2.Bottom - altura) < 0.5f)) altura += 8;
         // the discreet icons sit in the bottom-right corner: inside the last row when its right cells are empty, else on
         // a short strip of their own under the grid
         if (embaixo.Count > 0)

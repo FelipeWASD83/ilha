@@ -111,6 +111,44 @@ internal static class Celebrations
         return c;
     }
 
+    /// <summary>An achievement unlocked: the cup in the tier's color pops up with a ring of light, then the text slides in.</summary>
+    public static Cena Trophy(Palco p, Trophy t)
+    {
+        string top = Lang.T("Conquista desbloqueada", "Achievement unlocked") + " · " + Trophies.TierName(t.Tier);
+        string title = t.Total ? Lang.T($"{t.Hours} h em todos os jogos", $"{t.Hours} h in all games") : $"{t.Hours} h · {t.GameName}";
+        var ts = p.Texto.Medir(title, 16, FontWeight.Bold);
+        var ss = p.Texto.Medir(top, 12, FontWeight.SemiBold);
+        float w = MathF.Min(MathF.Max(ts.X, ss.X) + 86, 420), h = 62;
+        var c = p.NovaCena(new Vector2(w, h));
+        var f = p.G.Fabrica;
+        var cc = p.C;
+        var color = Trophies.TierColor(t.Tier);
+        var ring = Layer(p, c, new Vector2(4, 1), new Vector2(60, 60), (dc, s) =>
+        {
+            using var b = dc.CreateSolidColorBrush(new Color4(color.R, color.G, color.B, 0.8f));
+            dc.DrawEllipse(new Ellipse(s / 2, 26, 26), b, 2.5f);
+        });
+        var cup = Layer(p, c, new Vector2(14, 11), new Vector2(40, 40), (dc, s) =>
+        {
+            TrophyRoom.Cup(dc, f, s / 2 + new Vector2(0, 1.5f), 34, new Color4(0, 0, 0, 0.45f));
+            TrophyRoom.Cup(dc, f, s / 2, 34, color);
+            TrophyRoom.Star(dc, f, s / 2 + new Vector2(0, -4), 6, new Color4(1, 1, 1, 0.9f));
+        });
+        var text = Layer(p, c, new Vector2(70, (h - ts.Y - ss.Y - 2) / 2), new Vector2(w - 74, ts.Y + ss.Y + 4), (dc, _) =>
+        {
+            p.Texto.Desenhar(dc, top, Vector2.Zero, 12, color, FontWeight.SemiBold, largura: w - 74);
+            p.Texto.Desenhar(dc, title, new Vector2(0, ss.Y + 1), 16, Cor.Branco, FontWeight.Bold, largura: w - 74);
+        });
+        Scale(cc, cup, 0, 520, new[] { (0f, 0.2f), (0.55f, 1.25f), (0.8f, 0.94f), (1f, 1f) });
+        Rotate(cc, cup, 0, 520, new[] { (0f, -25f), (0.55f, 8f), (1f, 0f) });
+        Fade(cc, cup, 0, 120);
+        Scale(cc, ring, 250, 600, new[] { (0f, 0.4f), (1f, 1.5f) });
+        Opacity(cc, ring, 250, 600, new[] { (0f, 0f), (0.15f, 1f), (1f, 0f) });
+        Slide(cc, text, 220, 360, new Vector2(16, 0));
+        Fade(cc, text, 220, 240);
+        return c;
+    }
+
     /// <summary>A skull: domed cranium, cheekbones, deep eye sockets, the nose and a row of teeth.</summary>
     public static void Skull(ID2D1DeviceContext dc, ID2D1Factory1 f, Vector2 c, float r, Color4 bone)
     {

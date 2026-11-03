@@ -1,5 +1,30 @@
 # Changelog
 
+## 3.4.0 (03/11/2026)
+
+**New**
+- Achievements: a trophy for every 10, 50, 100, 250, 500 and 1000 hours in a game (bronze, silver, gold, platinum,
+  diamond, legend) and for 100, 500, 1000, 2500 and 5000 hours in all games together. Steam games use Steam's own
+  count of hours; games outside Steam (Rocket League, Fortnite, Valorant and others) are counted by the island from
+  now on, while they are open. What was already earned is noted quietly the first time; from then on each new trophy
+  shows up with a cup in its color and its own sound.
+- "Achievements" in the menu: how many are unlocked, the hours in all games with the five total medals, and the most
+  played games with their six medals and a bar to the next one.
+- Every game gets its icon: from its .exe when installed, else Steam's own icon from its library cache, else a logo
+  downloaded once for games outside Steam. Names of Steam games no longer installed come from Steam's store.
+
+## 3.3.0 (03/11/2026)
+
+**New**
+- Sports: live scores from ESPN's open scoreboards (no account or key). In the settings you pick the leagues
+  (Brasileirão Série A and B, Copa do Brasil, Libertadores, Sul-Americana, Champions League, Premier League, La Liga,
+  World Cup, Formula 1, NBA, NFL), the teams and the drivers you follow.
+  - A followed team's game goes to the pill while it is live: both crests, the score and the minute, with
+    "GOOOOOOOOOL!" and its sound when your team scores. A live race (with a followed driver, or any race when none is
+    picked) shows the leader and your drivers' places.
+  - "Sports" in the menu: what is live now, today's games, the coming games and the latest results.
+  - Crests are downloaded once from ESPN's image server and kept only on this PC.
+
 ## 3.2.0 (03/11/2026)
 
 **New**
