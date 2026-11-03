@@ -1,5 +1,21 @@
 # Changelog
 
+## 4.0.0 (03/11/2026)
+
+**New**
+- With the menu open, every activity running (music, timer, Claude Code, the score...) shows as a ball of its own at
+  the right of the menu, one under the other, each with its own shadow and border; a click on a ball opens that
+  activity's card (with "< Menu" to come back).
+
+**Changed**
+- The "Copied" notice hides anything that looks like a key, a token or a random password ("a key (hidden)"), even
+  when the site it came from does not mark it as private.
+
+**Removed**
+- Steam friends. It needed a Steam Web API key, and that key is what the well-known "API key scam" uses to watch and
+  cancel an account's trade offers: not worth the risk for an account with a valuable inventory. If you created a key
+  for it, revoke it at steamcommunity.com/dev/revokekey.
+
 ## 3.9.0 (03/11/2026)
 
 **New**

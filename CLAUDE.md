@@ -596,11 +596,7 @@ and the points that matter are here.
   FileSystemWatcher per library (filtered to manifests, `downloading`, Workshop downloads), a look every 2 s while
   something downloads, else one a minute. **Not seen with a real download** (nothing was downloading on 03/11/2026):
   whether Steam rewrites the manifest during a download is the open question the folder size covers.
-- **Steam friends** (`Modulos/Amigos`, id `amigos`): Web API key in Credential Manager `Ilha/steam` (pasted in the
-  card), SteamID64 from `ActiveProcess\ActiveUser` (+76561197960265728) or the MostRecent account of loginusers.vdf.
-  Friend list every 30 min, GetPlayerSummaries every minute; notices for online and game start/switch (offline off by
-  default), three per reading at most; avatars in `~/.ilha/amigos/avatares/`, circle cut into the alpha. **Not tested
-  live**: there is no key yet; whether a private friend list answers to its owner's key is unknown.
+- **Steam friends** existed only in 3.9.0 and was **removed in 4.0.0** (see below). Do not bring it back.
 - **Weather** (`Modulos/Clima`, id `clima`): Open-Meteo forecast every 10 min; the city's coordinates from its
   geocoding, cached in `~/.ilha/clima.json`. `SkyWatch`: a new sky group must be read twice in a row to count; the first
   reading only learns. His city is in his local config. Photo hook `ILHA_FOTO_CLIMA=1`.
@@ -611,6 +607,25 @@ and the points that matter are here.
   (BatchMode) every 2 minutes; notices for a failed or restarting service, a stopped one, the server unreachable twice
   in a row, disk 90% and 80 °C; what was said is kept in `~/.ilha/servidor-avisos.json`, so a service failing for days
   is told once. Listed in public mode's `PrivateOwners`. The live test needs `ILHA_TESTE_SERVIDOR=user@ip`.
+
+## 4.0.0 (his requests on 03/11/2026)
+
+- **Menu column** (`Ilha.cs`): with the menu (`_painel`) open, `Planejar` puts every visible activity except privacy
+  (up to `COLUNA_MAX` = 6) in `Plano.Coluna`. Each slot is a full bubble of its own (`BolaDaColuna`: geometry, black
+  shape, both shadow layers, border contour, clip and `Vaga`), built in `Montar` before `Sombras`/`Borda` so they pick
+  the slots up; it pops from its center, `BOLHA + COLUNA_VAO` apart, at the card's right edge plus `VAO`. The touch
+  region adds a circle per ball (`AplicarRegiao(..., coluna)`), a click on one (`ColunaEm`) opens that activity's card,
+  and the right probe strip moves past the column. Seen on screen with three demo activities and the real Claude Code.
+  He chose separate balls over one capsule with the icons inside (more core code, his call).
+- **No Steam Web API, ever** (his decision): his Steam account is worth over R$ 10,000, and a Web API key is what the
+  "API key scam" uses to watch and cancel trade offers. The friends module (3.9.0) was deleted; no key was ever saved.
+  Do not propose anything that needs a Steam Web API key. Steam data comes only from local files (downloads, playtime,
+  icons) or the store's public pages.
+- **Secrets in the "Copied" notice** (`ReactionsModule.LooksSecret`): one word of 20+ characters that is a long hex run,
+  starts with a known key prefix (sk-, ghp_, xox, AKIA, eyJ...), or mixes letters, digits and case/symbols with few
+  repeats shows as "uma chave (escondida)". URLs, paths, sentences and plain words still show.
+- **Private:** the server entry is a corner icon next to the gear (`Corner`, `Ordem` 999); the public mode globe moved
+  to 998, left of it.
 
 ## Approving Claude Code permissions from the island
 

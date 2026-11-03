@@ -204,7 +204,12 @@ internal sealed class ReactionsModule : Modulo
                     return (Lang.T($"Imagem {bmp.Width} × {bmp.Height}", $"Image {bmp.Width} × {bmp.Height}"), r);
                 }
             }
-            if (Clipboard.ContainsText()) return (OneLine(Clipboard.GetText()), null);
+            if (Clipboard.ContainsText())
+            {
+                string text = Clipboard.GetText();
+                // 3.9.1: a key or token copied from a site (not marked private by it) never goes on the screen
+                return (LooksSecret(text) ? Lang.T("uma chave (escondida)", "a key (hidden)") : OneLine(text), null);
+            }
             return (Lang.T("algo da área de transferência", "something to the clipboard"), null);
         }
         catch (Exception e)
@@ -213,6 +218,27 @@ internal sealed class ReactionsModule : Modulo
             Log.Escrever("reações: área de transferência: " + e.Message);
             return null;
         }
+    }
+
+    /// <summary>
+    /// Text that looks like a key, a token or a password, by its shape: one word (no spaces) of 20 characters or more that
+    /// is a long hex run, starts with a known key prefix (sk-, ghp_, xox, AKIA, eyJ, github_pat_...), or mixes letters
+    /// and digits with few repeats (random-looking). A URL, a path or an ordinary word is not.
+    /// </summary>
+    internal static bool LooksSecret(string text)
+    {
+        string s = text.Trim();
+        if (s.Length < 20 || s.Length > 512 || s.Any(char.IsWhiteSpace)) return false;
+        if (s.Contains("://") || s.Contains('\\') || s.StartsWith("www.", StringComparison.OrdinalIgnoreCase)) return false;
+        if (System.Text.RegularExpressions.Regex.IsMatch(s, "^[0-9A-Fa-f]{24,}$")) return true;
+        string[] prefixes = { "sk-", "sk_", "pk_", "rk_", "ghp_", "gho_", "ghs_", "github_pat_", "xox", "AKIA", "ASIA", "eyJ", "AIza", "glpat-", "npm_", "hf_" };
+        if (prefixes.Any(p => s.StartsWith(p, StringComparison.Ordinal))) return true;
+        bool letters = s.Any(char.IsLetter), digits = s.Any(char.IsDigit);
+        if (!letters || !digits) return false;
+        // random-looking: most characters different and both cases or symbols mixed in
+        double distinct = s.Distinct().Count() / (double)s.Length;
+        bool mixed = s.Any(char.IsUpper) && s.Any(char.IsLower) || s.Any(c => c is '_' or '-' or '+' or '/' or '=');
+        return mixed && distinct > 0.45 && s.Count(char.IsDigit) >= 3;
     }
 
     private float Escala() => S.Palco.Escala;
@@ -351,6 +377,12 @@ internal sealed class ReactionsModule : Modulo
         Check(OneLine("  linha um\n\n   linha dois  ") == "“linha um linha dois”" && OneLine(new string('a', 100)).Length == 62,
             "cópia: texto vira uma linha curta entre aspas");
         Check(Private(new[] { "Text", "ExcludeClipboardContentFromMonitorProcessing" }, _ => null), "cópia: marcada como privada pelo gerenciador de senha não aparece");
+        Check(LooksSecret("0123456789ABCDEF0123456789ABCDEF") && LooksSecret("sk-proj-abcDEF123ghiJKL456mnoPQR789") && LooksSecret("ghp_a1B2c3D4e5F6g7H8i9J0k1L2m3N4o5P6q7R8")
+              && LooksSecret("eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxMjMifQ.abc123") && LooksSecret("Xk9_mQ2-vT7pLw4zR8nB3cY6"),
+            "cópia: chave, token e senha aleatória ficam escondidos");
+        Check(!LooksSecret("https://steamcommunity.com/dev/apikey") && !LooksSecret("C:\\Users\\alguem\\arquivo.txt") && !LooksSecret("olá, tudo bem com você?")
+              && !LooksSecret("paralelepipedoparalelepipedo") && !LooksSecret("2026-11-03") && !LooksSecret("alguem.exemplo@gmail.com"),
+            "cópia: link, caminho, frase e palavra comum aparecem");
         Check(Private(new[] { "Text", "CanIncludeInClipboardHistory" }, _ => new MemoryStream(BitConverter.GetBytes(0))), "cópia: fora do histórico (DWORD 0) não aparece");
         Check(!Private(new[] { "Text", "CanIncludeInClipboardHistory" }, _ => new MemoryStream(BitConverter.GetBytes(1))) && !Private(new[] { "Text", "Bitmap" }, _ => null),
             "cópia comum aparece");
