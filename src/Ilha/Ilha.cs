@@ -829,7 +829,13 @@ internal sealed class Ilha : IDisposable
     }
 
     /// <summary>A atividade que o atalho abre quando não tem nada em andamento.</summary>
-    public void DefinirPainel(Atividade a) => _painel = a;
+    public void DefinirPainel(Atividade a)
+    {
+        _painel = a;
+        // the menu is not in the activities' list, so its size changes (an entry in or out, the public mode) had no one
+        // listening: the open menu only reflowed when opened again (3.7.1)
+        a.Mudou += x => { if (x == _painel && _expandida && _foco == _painel) Aplicar(); };
+    }
 
     private readonly HashSet<Atividade> _jaVistas = new();
 

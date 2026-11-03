@@ -66,7 +66,7 @@ internal sealed class FocoModule : Modulo
         {
             // a 2x1 block right after the batteries (3.7.0, his request): under them while they are 2x1, beside them
             // (under the sliders) when they grow to 2x2, since the blocks are packed in menu order
-            Id = "foco", Nome = Lang.T("Foco", "Focus"), Ordem = 91, Cols = 2,
+            Id = "foco", Nome = Lang.T("Foco", "Focus"), Ordem = 91, Cols = 2, Follows = "baterias",
             Abrir = () => _activity?.Open(),
             Icone = (dc, p, r) => FocusIcons.Draw(dc, p.G.Fabrica, r, _active?.Icone ?? "lua", Cor.Branco),
             BodyColor = () => _active is { } m ? FocusIcons.ColorOf(m.Cor) : null,

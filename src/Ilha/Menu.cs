@@ -49,6 +49,11 @@ internal sealed class ItemDoMenu
     public Func<Vortice.Mathematics.Color4?>? DetailSwatch;
     /// <summary>A bigger block that draws in the label space under its body, like the balls' names (the batteries).</summary>
     public bool LabelBelow;
+    /// <summary>
+    /// A block that follows another one (its id): right under it while that one is one row tall, else at the left of the
+    /// row right after it (the focus and the batteries, his drawing on 03/11/2026).
+    /// </summary>
+    public string? Follows;
     /// <summary>The body's color instead of the gray (an "on" toggle, like the focus and Do Not Disturb balls).</summary>
     public Func<Vortice.Mathematics.Color4?>? BodyColor;
 }
@@ -164,7 +169,7 @@ internal sealed class Menu : Atividade
     /// two balls fewer moved the blocks and left holes. Returns each tile's column and row (in the given order) and the
     /// number of rows used.
     /// </summary>
-    internal static (List<(int Col, int Row)> Spots, int Rows) Pack(IReadOnlyList<(int Cols, int Rows)> sizes)
+    internal static (List<(int Col, int Row)> Spots, int Rows) Pack(IReadOnlyList<(int Cols, int Rows)> sizes, IReadOnlyList<int>? follows = null)
     {
         var used = new List<bool[]>();
         var spots = new (int, int)[sizes.Count];
@@ -184,10 +189,25 @@ internal sealed class Menu : Atividade
             spots[k] = (c, r);
             rows = Math.Max(rows, r + h);
         }
+        var placed = new bool[sizes.Count];
         for (int k = 0; k < sizes.Count; k++)
         {
             int w = Math.Clamp(sizes[k].Cols, 1, COLUNAS), h = Math.Clamp(sizes[k].Rows, 1, 4);
             if (w == 1 && h == 1) continue;
+            // following a block that is already in: under it (one row tall) or at the left of the row after it
+            if (follows != null && follows[k] is int a and >= 0 && a < k && placed[a])
+            {
+                var (ac, ar) = spots[a];
+                int ah = Math.Clamp(sizes[a].Rows, 1, 4);
+                if (ah == 1 && ac + w <= COLUNAS && Free(ac, ar + 1, w, h)) { Take(k, ac, ar + 1, w, h); placed[k] = true; continue; }
+                bool done = false;
+                for (int r = ar + ah; !done; r++)
+                    for (int c = 0; c + w <= COLUNAS && !done; c++)
+                        if (Free(c, r, w, h)) { Take(k, c, r, w, h); done = true; }
+                placed[k] = true;
+                continue;
+            }
+            placed[k] = true;
             for (int r = 0; ; r++)
             {
                 int c = Enumerable.Range(0, COLUNAS - w + 1).Reverse().FirstOrDefault(c => Free(c, r, w, h), -1);
@@ -243,7 +263,8 @@ internal sealed class Menu : Atividade
         var cantos = todos.Where(i => i.Corner).OrderByDescending(i => i.Ordem).ToList();
         var embaixo = todos.Where(i => i.CornerBottom && !i.Corner).OrderByDescending(i => i.Ordem).ToList();
         var itens = todos.Where(i => !i.Corner && !i.CornerBottom).ToList();
-        var (lugares, linhas) = Pack(itens.Select(i => (i.Cols, i.Rows)).ToList());
+        var (lugares, linhas) = Pack(itens.Select(i => (i.Cols, i.Rows)).ToList(),
+            itens.Select(i => i.Follows is { } id ? itens.FindIndex(x => x.Id == id) : -1).ToList());
         var blocos = itens.Select((it, k) => (it, Area(lugares[k].Col, lugares[k].Row, it))).ToList();
         _blocos = blocos;
         float largura = COLUNAS * LADO + (COLUNAS - 1) * VAO;

@@ -220,6 +220,11 @@ internal sealed class ModuloMidia : Modulo
                 }
                 a.Rastro.Atualizar(tocando, pausada, agora, ultima, nova);
             }
+            catch (Exception e) when (!Morta(e))
+            {
+                // a passing hiccup (an empty reading): the session stays
+                Log.Escrever($"mídia: estado da sessão {chave}: {e.Message} (segue)");
+            }
             catch (Exception e)
             {
                 Log.Escrever($"mídia: estado da sessão {chave}: {e.Message} (largada)");
@@ -316,7 +321,8 @@ internal sealed class ModuloMidia : Modulo
         try
         {
             var (tocando, _, taxa) = Estado(a.Sessao);
-            _atv.Linha.Recebeu(LerInstante(a.Sessao, tocando, taxa), DateTimeOffset.Now);
+            // Apple Music sometimes hands back no timeline for a moment: nothing to read this time, the session is fine
+            if (LerInstante(a.Sessao, tocando, taxa) is { } instante) _atv.Linha.Recebeu(instante, DateTimeOffset.Now);
             AtualizarEstado(a, novaLinha: false);
             _atv.LinhaMudou();
         }
@@ -330,6 +336,14 @@ internal sealed class ModuloMidia : Modulo
     /// </summary>
     private void Quebrou(Acompanhada a, string onde, Exception e)
     {
+        // only a session that is gone is dropped (3.7.1: in 3.5.0 any error dropped it, and Apple Music's empty timelines
+        // kept making the music bubble vanish for two minutes at a time)
+        if (!Morta(e))
+        {
+            if (DateTime.Now - _ultimoErro > TimeSpan.FromMinutes(1)) Log.Escrever($"mídia: {onde}: {e.Message} (sessão {a.Rastro.Chave} segue)");
+            _ultimoErro = DateTime.Now;
+            return;
+        }
         Log.Escrever($"mídia: {onde}: {e.Message} (sessão {a.Rastro.Chave} largada)");
         _quebradas[a.Identidade] = DateTime.Now;
         Soltar(a);
@@ -337,6 +351,12 @@ internal sealed class ModuloMidia : Modulo
         if (_escolhida == a) _escolhida = null;
         Ressincronizar();
     }
+
+    private DateTime _ultimoErro;
+
+    /// <summary>The errors of a session whose app went away: the COM proxy disconnected or the server unavailable.</summary>
+    internal static bool Morta(Exception e) => e is ObjectDisposedException or InvalidComObjectException
+        || e is COMException c && (uint)c.HResult is 0x80010108 or 0x800706BA or 0x800706BE or 0x800706BF or 0x80010012;
 
     private void PropsMudaram(Acompanhada a)
     {
@@ -346,9 +366,10 @@ internal sealed class ModuloMidia : Modulo
         _espera.Start();
     }
 
-    private static Instante LerInstante(Sessao s, bool tocando, double taxa)
+    private static Instante? LerInstante(Sessao s, bool tocando, double taxa)
     {
         var t = s.GetTimelineProperties();
+        if (t == null) return null;
         return new Instante(t.StartTime, t.EndTime, t.Position, t.LastUpdatedTime, tocando, taxa);
     }
 
@@ -358,10 +379,10 @@ internal sealed class ModuloMidia : Modulo
         try
         {
             var info = a.Sessao.GetPlaybackInfo();
-            var c = info.Controls;
+            if (info?.Controls is not { } c) return;
             bool tocando = info.PlaybackStatus == Status.Playing;
             double taxa = info.PlaybackRate ?? 1.0;
-            if (novaLinha) _atv.DefinirLinha(new Linha(LerInstante(a.Sessao, tocando, taxa)));
+            if (novaLinha && LerInstante(a.Sessao, tocando, taxa) is { } instante) _atv.DefinirLinha(new Linha(instante));
             else _atv.Linha.MudouEstado(tocando, taxa, DateTimeOffset.Now);
             bool tocarPausar = c.IsPlayPauseToggleEnabled || (tocando ? c.IsPauseEnabled : c.IsPlayEnabled);
             _atv.DefinirEstado(tocando, c.IsPreviousEnabled, c.IsNextEnabled, tocarPausar,

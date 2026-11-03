@@ -53,11 +53,13 @@ internal static class FocusTests
         Ok("foco: id novo a partir do nome", FocusMode.NewId("Leitura", new[] { "trabalho" }) == "leitura"
             && FocusMode.NewId("Trabalho", new[] { "trabalho" }) == "trabalho-2" && FocusMode.NewId("Ação!", Array.Empty<string>()) == "acao");
         // the menu's blocks in their order: volume and brightness (1x2), the batteries, then the focus (2x1)
-        var withWide = Menu.Pack(new[] { (1, 2), (1, 2), (2, 1), (2, 1) }).Spots;
-        var withSquare = Menu.Pack(new[] { (1, 2), (1, 2), (2, 2), (2, 1) }).Spots;
-        Ok("foco: bloco 2x1 embaixo das baterias 2x1 e do lado (embaixo dos sliders) com as baterias 2x2",
-            withWide[2] == (1, 0) && withWide[3] == (1, 1) && withSquare[2] == (1, 0) && withSquare[3] == (3, 2),
-            $"{withWide[3]} / {withSquare[3]}");
+        var follow = new[] { -1, -1, -1, 2 };
+        var withWide = Menu.Pack(new[] { (1, 2), (1, 2), (2, 1), (2, 1) }, follow).Spots;
+        var withSquare = Menu.Pack(new[] { (1, 2), (1, 2), (2, 2), (2, 1) }, follow).Spots;
+        var noBlock = Menu.Pack(new[] { (1, 2), (1, 2), (1, 1), (2, 1) }, follow).Spots;
+        Ok("foco: bloco 2x1 embaixo das baterias 2x1, e no começo da fileira depois delas quando elas são 2x2 (o desenho dele)",
+            withWide[2] == (1, 0) && withWide[3] == (1, 1) && withSquare[2] == (1, 0) && withSquare[3] == (0, 2) && noBlock[3] == (1, 0),
+            $"{withWide[3]} / {withSquare[3]} / {noBlock[3]}");
         var defaults = FocusMode.Defaults();
         Ok("foco: modos de fábrica (Não Perturbe primeiro, ícones e cores que existem)", defaults[0].Id == FocusMode.DoNotDisturbId
             && defaults.All(m => FocusIcons.Names.Any(n => n.Id == m.Icone) && FocusIcons.Colors.Any(c => c.Id == m.Cor))

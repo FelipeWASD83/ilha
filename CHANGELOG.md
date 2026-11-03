@@ -1,5 +1,13 @@
 # Changelog
 
+## 3.7.1 (03/11/2026)
+
+**Fixed**
+- The music bubble kept vanishing: Apple Music sometimes reports no timeline for a moment, and since 3.5.0 that made
+  the island drop the player for two minutes. Now only a player that really went away is dropped.
+- Public mode (and any menu entry coming or going) only showed after the menu was opened again.
+- Focus goes to the start of the row after the batteries when they take 2x2 (under them when they are 2x1).
+
 ## 3.7.0 (03/11/2026)
 
 **New**
