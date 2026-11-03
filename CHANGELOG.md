@@ -1,5 +1,19 @@
 # Changelog
 
+## 2.1.0 (03/11/2026)
+
+**New**
+- PC reactions: the collapsed island gives a short notice when something happens on the PC, each one can be turned
+  off in the settings.
+  - Copied: a preview of what went to the clipboard (the text in one line, a thumbnail of an image, the file name).
+    What a password manager marks as private doesn't show, and with the island discreet it only says "Copied".
+  - Download finished: the file's name and size (a thumbnail for images) once it gets its final name in Downloads. A
+    click shows it in Explorer, and it can be dragged out of the notice into another program.
+  - Drive connected or removed: pen drive or external drive, with its letter, name and size; a click opens it.
+  - Internet dropped or came back (from Windows' own network status, after it held for a few seconds).
+  - Microphone muted or unmuted, with the device's name.
+  - Do Not Disturb turned on or off.
+
 ## 2.0.1 (02/11/2026)
 
 **Changed**

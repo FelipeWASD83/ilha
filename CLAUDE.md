@@ -343,6 +343,20 @@ and the points that matter are here.
   notice. A change made from the island gives the notice right away and the confirmation that comes later stays quiet.
   A change from the remote control shows up within 15 min (the server cadence with nobody watching), or 3 min with
   something watching.
+- **PC reactions (2.1.0, `Modulos/Reacoes/`):** everything from Windows events, no polling. `SystemEvents` is a hidden
+  top-level window (not message-only: those never get the `WM_DEVICECHANGE` broadcast) with
+  `AddClipboardFormatListener`; drives come from `DBT_DEVTYP_VOLUME` (network shares skipped). The clipboard notice
+  waits 250 ms for the copy to settle, skips copies made by the island itself (owner's pid) and anything with
+  `ExcludeClipboardContentFromMonitorProcessing`, `Clipboard Viewer Ignore` or `CanIncludeInClipboardHistory` = 0 (what
+  password managers set). Downloads: a rename from a temporary name (`.crdownload`, `.part`, `Unconfirmed ...`) to a
+  final one, or a file created with its final name once nothing holds it open (`Arquivo.EsperarFechar`, 10 min), each
+  path once per 30 s. Mic: the endpoint mute of the default capture device (Console role), moved when the default
+  changes. **Not confirmed:** whether the G733's own mute button flips that endpoint mute (some headsets mute only in
+  their hardware, and then Windows never knows). Internet: `NetworkStatusChanged`, read again after 4 s of quiet;
+  `GetNetworkConnectivityLevel` only, no server is probed. Do Not Disturb: only a change between two real readings of
+  `NaoPerturbeLido`; on his PC it read "on" all the time (see Tested and not tested), so this one may never fire there.
+  Every notice is `Importante` for that same reason. `GetClipboardSequenceNumber` returns 0 inside the Claude app's
+  shell (03/11/2026, PowerShell too), so the IA module's clipboard probe fails there; it is the shell, not the code.
 
 ## Approving Claude Code permissions from the island
 
