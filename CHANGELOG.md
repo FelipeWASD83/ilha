@@ -1,5 +1,21 @@
 # Changelog
 
+## 3.7.0 (03/11/2026)
+
+**New**
+- Clips: while a competitive game is in front, the island keeps the last seconds of the screen and the PC's sound
+  (on the graphics card, like the recorder; needs ffmpeg). A double kill or more, an ace, a win, your team's goal and
+  an epic save cut the last 30 seconds by themselves (moments close together become one clip); when the match ends the
+  island asks whether to keep them, with each clip's frame (a click plays it). No answer keeps them. Ctrl+Alt+C cuts one
+  right away in any competitive game. Clips go to Videos\Ilha\Clips; the Games card shows the last four and opens the
+  folder. Length, frame rate, quality and folder are in the settings.
+- Rocket League: "WHAT A SAVE!" lit letter by letter on your epic saves, and their count with the match's numbers.
+- CS2 Rush: the mode's own icon next to its name.
+- Three activities at once: the pill gets a second bubble on its left, for the third activity.
+
+**Changed**
+- Focus is a 2x1 block in the menu: under the batteries, or beside them (under the sliders) when they take 2x2.
+
 ## 3.6.0 (03/11/2026)
 
 **New**

@@ -26,6 +26,9 @@ internal sealed class AudioCapture
     private long _stopWall;
     private Thread? _thread;
     private FileStream? _file;
+    // raw mode (the clips' ring, 3.7.0): the same samples, no WAV header, into a stream that feeds ffmpeg
+    private readonly Stream? _sink;
+    private Stream? _out;
     private byte[]? _formatBytes;
     private FormatoAudio _format;
     private long _written;
@@ -43,6 +46,12 @@ internal sealed class AudioCapture
         Path = path;
         _startWall = startWallUtcTicks;
     }
+
+    /// <summary>Raw mode: interleaved samples in the device's format, from the start instant on, written into `sink`.</summary>
+    public AudioCapture(bool loopback, Stream sink, long startWallUtcTicks) : this(loopback, "", startWallUtcTicks) => _sink = sink;
+
+    /// <summary>The device's format (known once Start returned true).</summary>
+    public FormatoAudio Format => _format;
 
     /// <summary>Opens the device and the file; false (with Error) when the device does not open in 3 s.</summary>
     public bool Start()
@@ -75,7 +84,7 @@ internal sealed class AudioCapture
             {
                 var end = Session(en, first);
                 first = false;
-                if (end == SessionEnd.Stop || _file == null) break;
+                if (end == SessionEnd.Stop || _out == null) break;
                 // the device went away (headset turned off, default changed): silence until it comes back
                 if (_stop.WaitOne(1000)) break;
             }
@@ -227,7 +236,7 @@ internal sealed class AudioCapture
 
     private unsafe void Place(IntPtr data, int frames, long wall, bool silent)
     {
-        if (_file == null) return;
+        if (_out == null) return;
         if (!silent) Measure((byte*)data, frames);
         long index = (long)Math.Round((wall - _startWall) * (_format.Taxa / 10_000_000.0));
         var (pad, skip) = Placement(_written, index, frames, _format.Taxa);
@@ -235,7 +244,7 @@ internal sealed class AudioCapture
         int n = frames - skip;
         if (n <= 0) return;
         if (silent) { WriteSilence(n); return; }
-        _file.Write(new ReadOnlySpan<byte>((byte*)data + (long)skip * _format.Bloco, n * _format.Bloco));
+        _out.Write(new ReadOnlySpan<byte>((byte*)data + (long)skip * _format.Bloco, n * _format.Bloco));
         Interlocked.Add(ref _written, n);
     }
 
@@ -247,7 +256,7 @@ internal sealed class AudioCapture
         while (bytes > 0)
         {
             int k = (int)Math.Min(bytes, _zeros.Length);
-            _file!.Write(_zeros, 0, k);
+            _out!.Write(_zeros, 0, k);
             bytes -= k;
         }
         Interlocked.Add(ref _written, frames);
@@ -257,7 +266,9 @@ internal sealed class AudioCapture
     {
         _formatBytes = wf;
         _format = f;
+        if (_sink != null) { _out = _sink; return; }
         _file = new FileStream(Path, FileMode.Create, FileAccess.ReadWrite, FileShare.Read, 1 << 18);
+        _out = _file;
         using var w = new BinaryWriter(_file, System.Text.Encoding.ASCII, leaveOpen: true);
         w.Write("RIFF"u8);
         w.Write(0u);
@@ -296,6 +307,13 @@ internal sealed class AudioCapture
     /// <summary>Pads to the stop instant and writes the real sizes in the header (a file past 4 GB keeps the maximum).</summary>
     private void Finish()
     {
+        if (_sink != null)
+        {
+            // raw: no header to fix; closing the sink tells the reader the stream is over
+            try { _sink.Dispose(); } catch (Exception) { }
+            _out = null;
+            return;
+        }
         if (_file == null) return;
         try
         {
@@ -318,6 +336,7 @@ internal sealed class AudioCapture
         {
             _file.Dispose();
             _file = null;
+            _out = null;
         }
     }
 }

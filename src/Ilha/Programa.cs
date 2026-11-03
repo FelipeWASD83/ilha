@@ -112,8 +112,11 @@ public static class Programa
         int d = Array.IndexOf(args, "--demo");
         if (d >= 0 && d + 1 < args.Length)
         {
-            // liga uma atividade de mentira pelo tipo (timer, midia, claude, uso, ia, galeria); --expandir abre o cartão
-            var a = nucleo.Demonstracao.Atividades.Find(x => x.Tipo == args[d + 1]);
+            // liga uma atividade de mentira pelo tipo (timer, midia, claude, uso, ia, galeria); --expandir abre o cartão.
+            // Several separated by commas run together (the pill with its two bubbles, 3.7.0); the first is the main one
+            var tipos = args[d + 1].Split(',', StringSplitOptions.RemoveEmptyEntries);
+            foreach (var tipo in tipos.Skip(1).Reverse()) nucleo.Demonstracao.Atividades.Find(x => x.Tipo == tipo)?.Comecar();
+            var a = nucleo.Demonstracao.Atividades.Find(x => x.Tipo == tipos[0]);
             a?.Comecar();
             if (a != null && Array.IndexOf(args, "--expandir") >= 0)
             {

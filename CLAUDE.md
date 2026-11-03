@@ -522,6 +522,35 @@ and the points that matter are here.
   `modoCompetitivo = placar`, `Ilha.MenuFechado` is false: the menu and the "<" work (keyboard focus still never goes
   to the island in a competitive game).
 
+## 3.7.0 (his requests on 03/11/2026)
+
+- **Clips** (`Modulos/Clipes/`): `ClipRing` runs ffmpeg while `Contexto.Jogo` (a competitive game in front, any
+  `modoCompetitivo`) is set, stopping 60 s after it leaves. Screen: gfxcapture of the main monitor + NVENC (`-g fps`,
+  a keyframe a second); sound: `AudioCapture` in raw mode (new: no WAV header, into a `QueueStream` that never blocks
+  the audio thread) piped to ffmpeg's stdin as `f32le`/`s16le`..., both on one timeline from T0 (`-itsoffset -T0` with
+  wall clock video, audio counted from 0, `-copyts`). Output: MPEG-TS pieces of 2 s, `-segment_wrap 25` (~50 s) in
+  `%TEMP%\ilha-clipes-anel`. A cut copies the newest pieces (the growing one too) and joins them with the concat
+  demuxer, `-c copy`, into MP4 (~0.4 s). Measured on 03/11/2026 during a Rocket League match: 3440x1440 at 60 fps,
+  stereo AAC, video and audio 37 ms apart. Moments come from `GamesModule.MomentHappened` (new static event, raised
+  before the score-mode check): two kills within 6 s, ace, epic save, our goal, a win; the cut waits 3 s and moments in
+  that time join it. Pending clips sit in `<folder>\.pendentes` until the end-of-match card (Salvar/Descartar, 3 min
+  with no answer = kept); frames in `.miniaturas`. Ctrl+Alt+C (`clipe`) cuts straight into the folder. The live test
+  only runs with `ILHA_TESTE_CLIPE=1` (records the screen 9 s; `ILHA_TESTE_CLIPE_PASTA` keeps a copy). Not measured:
+  the game's fps with the ring on (no frame-time tool here; the GPU was at 97% with RL uncapped either way).
+- **Left bubble** (`Ilha.cs`): `_geoBolhaE`/`_formaBolhaE`/`_vagaBolhaE` mirror the right bubble everywhere (shape,
+  clip, shadow, border, notch shoulders, window region, click, edge probe); `DaBolhaE` = the next non-privacy activity
+  after the right bubble's. `Plano` got `BolhaE`, `ChaveBolhaE`, `CenaBolhaE` (defaults, so the other plans did not
+  change). `--demo a,b,c` runs several fake activities (the first is the main one).
+- **Public mode** (private, `ilha/privado/ModoPublico.cs`, out of git, in `local.props`): a globe next to the gear
+  hides the menu entries of `mascote`, `conversas` (and anything else listed in `PrivateOwners`; its test fails when a
+  module in a private namespace is missing). The public code only has `MenuDaIlha.Filtro`.
+- **Focus 2x1**: order 91, right after the batteries (90): the menu packs blocks in order, so it lands under 2x1
+  batteries and under the sliders when the batteries are 2x2.
+- **RL epic save**: `StatfeedEvent` with `EventName: "EpicSave"` and `MainTarget.Name` = the target name of the camera
+  (us); `MomentKind.EpicSave`, `Celebrations.Save` (the goal's lit letters, now `Shout`). **CS2 Rush**: raw mode
+  "rush" gets the badge `panorama/images/map_icons/mapgroup_icon_rush.vsvg_c` (a cream "R" tile), with the name next
+  to it.
+
 ## Approving Claude Code permissions from the island
 
 - `ferramentas/hook_permissao.py` is the `PermissionRequest` hook, installed on 01/11/2026 in his

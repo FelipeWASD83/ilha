@@ -226,7 +226,18 @@ internal static class Celebrations
             return cc0;
         }
 
-        const string goal = "GOOOOOOOOOL!";
+        return Shout(p, "GOOOOOOOOOL!", color, (word, i) => word[i] == 'O');
+    }
+
+    /// <summary>Rocket League's epic save (3.7.0, his request): "WHAT A SAVE!" lit like the goal, SAVE in the team color.</summary>
+    public static Cena Save(Palco p, Color4 color) => Shout(p, "WHAT A SAVE!", color, (word, i) => i >= 7 && i <= 10);
+
+    /// <summary>
+    /// A word lit letter by letter from the left (each pops in big with a white flash), then blinking with a glow and a
+    /// shine running over it twice. `tinted` picks the letters in the color; the others are white.
+    /// </summary>
+    public static Cena Shout(Palco p, string goal, Color4 color, Func<string, int, bool> tinted)
+    {
         const float size = 36;
         var full = p.Texto.Medir(goal, size, FontWeight.Black);
         float pad = 16, h = 60;
@@ -247,7 +258,7 @@ internal static class Celebrations
         {
             string ch = goal[i].ToString();
             var cs = p.Texto.Medir(ch, size, FontWeight.Black);
-            var col = goal[i] == 'O' ? color : Cor.Branco;
+            var col = tinted(goal, i) ? color : Cor.Branco;
             var v = Layer(p, c, origin + new Vector2(x - 2, 0), cs + new Vector2(4, 2), (dc, _) =>
             {
                 p.Texto.Desenhar(dc, ch, new Vector2(2, 2.5f), size, new Color4(0, 0, 0, 0.55f), FontWeight.Black);

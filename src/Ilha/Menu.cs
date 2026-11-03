@@ -67,7 +67,10 @@ internal sealed class MenuDaIlha
     private HashSet<string> _escondidos = new(StringComparer.OrdinalIgnoreCase);
 
     /// <summary>The entries on screen: all but the ones hidden in the settings (`menuEscondido`).</summary>
-    public IReadOnlyList<ItemDoMenu> Visiveis => Itens.Where(i => !_escondidos.Contains(i.Id)).ToList();
+    public IReadOnlyList<ItemDoMenu> Visiveis => Itens.Where(i => !_escondidos.Contains(i.Id) && Filtro?.Invoke(i) != false).ToList();
+
+    /// <summary>A module's own say on which entries show (false hides one); the menu repacks on <see cref="Redesenhar"/>.</summary>
+    public Func<ItemDoMenu, bool>? Filtro { get; set; }
 
     /// <summary>The ids hidden from the menu (the settings window's "Menu" section); the menu redraws.</summary>
     public void Esconder(IEnumerable<string>? ids)

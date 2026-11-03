@@ -90,6 +90,15 @@ internal sealed class RocketLeagueState
                     moments.Add(new Moment(MomentKind.End, Outcome: _match.Outcome));
                 }
                 break;
+            case "StatfeedEvent":
+                // an epic save of ours: the feed names who made it (MainTarget)
+                if (_match != null && !_ended && Str(data, "EventName") == "EpicSave" && _me.Length > 0 && Str(data, "MainTarget", "Name") == _me)
+                {
+                    _epicSaves++;
+                    SetEpicSaves(_match);
+                    moments.Add(new Moment(MomentKind.EpicSave));
+                }
+                break;
             case "MatchDestroyed":
                 // left the match (the result is already in, or it was abandoned)
                 _match = null;
@@ -97,6 +106,14 @@ internal sealed class RocketLeagueState
                 break;
         }
         return moments;
+    }
+
+    private int _epicSaves;
+
+    private void SetEpicSaves(Match m)
+    {
+        int i = m.Extras.FindIndex(e => e.Item1 == Lang.T("Def. épicas", "Epic saves"));
+        if (i >= 0) m.Extras[i] = (m.Extras[i].Item1, _epicSaves.ToString());
     }
 
     private void Update(JsonElement d, DateTime now, List<Moment> moments)
@@ -110,6 +127,7 @@ internal sealed class RocketLeagueState
         {
             _match = new Match { Game = "rl", Start = now };
             _blue = _orange = _demos = -1;
+            _epicSaves = 0;
             _myTeam = -1;
             _ended = false;
         }
@@ -159,6 +177,7 @@ internal sealed class RocketLeagueState
                 m.Extras.Add((Lang.T("Gols", "Goals"), (Int(p, "Goals") ?? 0).ToString()));
                 m.Extras.Add((Lang.T("Assist.", "Assists"), (Int(p, "Assists") ?? 0).ToString()));
                 m.Extras.Add((Lang.T("Defesas", "Saves"), (Int(p, "Saves") ?? 0).ToString()));
+                m.Extras.Add((Lang.T("Def. épicas", "Epic saves"), _epicSaves.ToString()));
                 m.Extras.Add(("Demos", demos.ToString()));
                 m.Extras.Add((Lang.T("Pontos", "Score"), (Int(p, "Score") ?? 0).ToString()));
             }

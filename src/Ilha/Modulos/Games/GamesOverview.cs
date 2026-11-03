@@ -56,12 +56,17 @@ internal sealed class GamesOverview : Atividade
     public static string Hours(int minutes) =>
         minutes <= 0 ? "–" : minutes < 60 ? Lang.T($"{minutes} min", $"{minutes} min") : (minutes / 60.0).ToString(minutes < 600 ? "0.0" : "0", Lang.Culture) + " h";
 
+    private const float CLIP_W = (L - 3 * 8) / 4, CLIP_H = CLIP_W * 9 / 16;
+
     protected override Cena Montar(Palco p, Forma f)
     {
         var live = _live();
         var games = Games();
         float top = live != null ? 64 : 0;
-        var c = p.NovaCena(new Vector2(L, 24 + top + games.Count * ROW));
+        // the last saved clips (3.7.0): their frames in a row under the games, a click opens the video
+        var clips = Clips.ClipModule.Current is { } cm ? Clips.ClipStore.Recent(cm.SavedFolder, 4) : new List<Clips.ClipFile>();
+        float clipsH = clips.Count > 0 ? 30 + CLIP_H + 24 : 0;
+        var c = p.NovaCena(new Vector2(L, 24 + top + games.Count * ROW + clipsH));
         p.Desenho(c, Vector2.Zero, c.Tamanho, (dc, t) =>
         {
             p.Texto.Desenhar(dc, Lang.T("Jogos", "Games"), new Vector2(0, 0), 15, Cor.Branco);
@@ -102,8 +107,31 @@ internal sealed class GamesOverview : Atividade
                 }
                 y += ROW;
             }
+            if (clips.Count > 0)
+            {
+                p.Texto.Desenhar(dc, Lang.T("Clipes", "Clips"), new Vector2(0, y + 8), 12, Cor.Secundario, FontWeight.Normal);
+                string folder = Lang.T("Abrir pasta", "Open folder");
+                var fs = p.Texto.Medir(folder, 12, FontWeight.Normal);
+                p.Texto.Desenhar(dc, folder, new Vector2(L - fs.X, y + 8), 12, new Color4(0.35f, 0.65f, 1f, 1), FontWeight.Normal);
+                for (int i = 0; i < clips.Count; i++)
+                {
+                    float x = i * (CLIP_W + 8);
+                    Clips.ClipStore.Draw(dc, p.G.Fabrica, clips[i].Thumb, x, y + 30, CLIP_W, CLIP_H, 8);
+                    p.Texto.Desenhar(dc, clips[i].When.ToString("dd/MM HH:mm"), new Vector2(x, y + 30 + CLIP_H + 3), 10.5f, Cor.Fraco, FontWeight.Normal, largura: CLIP_W);
+                }
+            }
         });
         if (live != null) c.Botoes.Add(new Botao { Area = new System.Drawing.RectangleF(0, 24, L, 54), Acao = _openLive });
+        if (clips.Count > 0)
+        {
+            float cy = 24 + top + games.Count * ROW;
+            c.Botoes.Add(new Botao { Area = new System.Drawing.RectangleF(L - 90, cy + 4, 90, 22), Acao = () => Clips.ClipStore.ShowInFolder(clips[0].Video) });
+            for (int i = 0; i < clips.Count; i++)
+            {
+                var clip = clips[i];
+                c.Botoes.Add(new Botao { Area = new System.Drawing.RectangleF(i * (CLIP_W + 8), cy + 30, CLIP_W, CLIP_H), Acao = () => Clips.ClipStore.Open(clip.Video) });
+            }
+        }
         return c;
     }
 

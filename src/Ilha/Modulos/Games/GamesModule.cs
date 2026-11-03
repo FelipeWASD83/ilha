@@ -311,9 +311,15 @@ internal sealed partial class GamesModule : Modulo
         return list.Length > 0;
     }
 
+    /// <summary>Every moment of every game, on the interface thread, whatever the score mode (the clips listen).</summary>
+    internal static event Action<string, Moment>? MomentHappened;
+
     private void OnMoment(string game, Moment x)
     {
-        if (_stopped || _activity == null || !ScoreMode) return;
+        if (_stopped) return;
+        try { MomentHappened?.Invoke(game, x); }
+        catch (Exception e) { Log.Escrever("jogos: quem ouve os lances: " + e.Message); }
+        if (_activity == null || !ScoreMode) return;
         var m = _lastSeen.TryGetValue(game, out var seen) ? seen : null;
         switch (x.Kind)
         {
@@ -336,6 +342,10 @@ internal sealed partial class GamesModule : Modulo
                 var color = x.Ours ? m?.UsColor ?? TeamColors.Blue : m?.ThemColor ?? TeamColors.Orange;
                 bool ours = x.Ours;
                 Show("jogo-gol", p => Celebrations.Goal(p, ours, color), ours ? 3.2f : 1.6f, ours && _cfg.Sons ? "gol" : "");
+                break;
+            case MomentKind.EpicSave when _cfg.Animacoes:
+                var team = m?.UsColor ?? TeamColors.Blue;
+                Show("jogo-defesa", p => Celebrations.Save(p, team), 2.8f, _cfg.Sons ? "gol" : "");
                 break;
             case MomentKind.End:
                 if (m != null && x.Outcome is Outcome o)

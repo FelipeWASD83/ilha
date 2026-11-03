@@ -107,6 +107,15 @@ internal sealed partial class GamesModule
         x = s.ApplyMessage(RlState(1, 1, 1, 200), now);
         Ok("rl: gol deles", x.Count == 1 && x[0].Kind == MomentKind.Goal && !x[0].Ours);
         Ok("rl: placar e números", s.Current?.Us == 1 && s.Current?.Them == 1 && s.Current.Extras.Any(e => e.Value == "2"));
+        string Feed(string who, string ev) => JsonSerializer.Serialize(new { Event = "StatfeedEvent",
+            Data = JsonSerializer.Serialize(new { EventName = ev, Type = "Save", MainTarget = new { Name = who, TeamNum = 0 } }) });
+        var save = s.ApplyMessage(Feed("Player1", "EpicSave"), now);
+        var theirs = s.ApplyMessage(Feed("Outro", "EpicSave"), now);
+        var plain = s.ApplyMessage(Feed("Player1", "Save"), now);
+        Ok("rl: defesa épica nossa conta e anima, a dos outros e a defesa comum não",
+            save.Count == 1 && save[0].Kind == MomentKind.EpicSave && theirs.Count == 0 && plain.Count == 0
+            && s.Current!.Extras.Any(e => e.Name == Lang.T("Def. épicas", "Epic saves") && e.Value == "1"),
+            string.Join(", ", s.Current?.Extras.Select(e => $"{e.Name} {e.Value}") ?? Array.Empty<string>()));
         s.ApplyMessage(RlState(2, 1, 1, 12, ot: true), now);
         Ok("rl: prorrogação conta para cima", s.Current?.ClockUp == true && s.Current.Stage == Lang.T("Prorrogação", "Overtime"));
         x = s.ApplyMessage("""{"Event":"MatchEnded","Data":"{\"MatchGuid\":\"A1\",\"WinnerTeamNum\":0}"}""", now);
@@ -343,9 +352,20 @@ internal sealed partial class GamesModule
         if (GameSetup.SteamAppFolder(730) == null) Ok("logos: CS2 não instalado, pulado", true);
         else
         {
-            var svgs = new[] { GameArt.CtLogo, GameArt.TLogo, GameArt.Premier }.Select(GameArt.Cs2Svg).ToList();
-            Ok("logos: escudos do CT e do TR e o selo do Premier lidos dos arquivos do CS2", svgs.All(s => s != null && s.StartsWith("<svg") && s.EndsWith("</svg>")),
+            var svgs = new[] { GameArt.CtLogo, GameArt.TLogo, GameArt.Premier, GameArt.Rush }.Select(GameArt.Cs2Svg).ToList();
+            Ok("logos: escudos do CT e do TR e os selos do Premier e do Rush lidos dos arquivos do CS2", svgs.All(s => s != null && s.StartsWith("<svg") && s.EndsWith("</svg>")),
                 string.Join(", ", svgs.Select(s => s?.Length.ToString() ?? "nada")));
+            try
+            {
+                var png = Path.Combine(Path.GetTempPath(), "ilha-selos-cs2.png");
+                global::Ilha.Recorder.IconPreview.Render(png, new Action<Vortice.Direct2D1.ID2D1DeviceContext, Vortice.Direct2D1.ID2D1Factory1, System.Drawing.RectangleF>[]
+                {
+                    (dc, f, box) => Marks.Badge(dc, "premier", box.X - 8, box.Y + 4, 16),
+                    (dc, f, box) => Marks.Badge(dc, "rush", box.X, box.Y, 24),
+                });
+                Ok("logos: selos desenhados em " + png, File.Exists(png));
+            }
+            catch (Exception e) { Ok("logos: selos: " + e.Message, false); }
         }
         foreach (var g in new[] { "cs2", "rl", "bf6" })
         {

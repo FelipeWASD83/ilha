@@ -22,6 +22,8 @@ internal static class GameArt
     public const string CtLogo = "panorama/images/icons/ct_logo.vsvg_c";
     public const string TLogo = "panorama/images/icons/t_logo.vsvg_c";
     public const string Premier = "panorama/images/icons/ui/premier.vsvg_c";
+    /// <summary>The Rush group's icon (3v3 mode from 23/09/2026), from the play menu's map icons.</summary>
+    public const string Rush = "panorama/images/map_icons/mapgroup_icon_rush.vsvg_c";
 
     private static readonly Dictionary<string, (byte[] Px, int Side)?> _icons = new();
     private static readonly Dictionary<string, string?> _svgs = new();

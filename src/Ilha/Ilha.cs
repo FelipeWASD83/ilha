@@ -41,11 +41,12 @@ internal sealed class Ilha : IDisposable
     // árvore
     private ContainerVisual _raiz = null!;
     private ContainerVisual _camada = null!;
-    private CompositionRoundedRectangleGeometry _geoCorpo = null!, _geoBolha = null!;
-    private ShapeVisual _formaBolha = null!;
+    private CompositionRoundedRectangleGeometry _geoCorpo = null!, _geoBolha = null!, _geoBolhaE = null!;
+    // the left bubble (3.7.0, his request): a third activity, like the iPhone 18 Pro's island
+    private ShapeVisual _formaBolha = null!, _formaBolhaE = null!;
     private readonly List<SpriteVisual> _ombros = new();
     private readonly List<Superficie> _fixas = new();
-    private Vaga _vagaCorpo = null!, _vagaBolha = null!;
+    private Vaga _vagaCorpo = null!, _vagaBolha = null!, _vagaBolhaE = null!;
 
     // situação
     private Contexto _ctx = new();
@@ -76,7 +77,7 @@ internal sealed class Ilha : IDisposable
     private float _extraPontos;
 
     // borda clara: aparece só com fundo escuro em volta (a sonda lê poucas vezes por segundo, só com a ilha visível)
-    private ShapeVisual? _borda, _bordaBolha;
+    private ShapeVisual? _borda, _bordaBolha, _bordaBolhaE;
     private readonly SondaDeFundo _sonda = new();
     private int _sondaFalhas;
     private readonly System.Windows.Forms.Timer _relogioSonda = new() { Interval = 500 };
@@ -147,8 +148,8 @@ internal sealed class Ilha : IDisposable
 
     // geometria atual em pixels, relativa à janela
     private int _janX, _janY, _janL, _janA;
-    private System.Drawing.RectangleF _rCorpo, _rBolha;
-    private bool _temBolha;
+    private System.Drawing.RectangleF _rCorpo, _rBolha, _rBolhaE;
+    private bool _temBolha, _temBolhaE;
     private float _alturaAlvoPx;
     private int _geracao;
 
@@ -296,6 +297,17 @@ internal sealed class Ilha : IDisposable
         _formaBolha.Shapes.Add(sb);
         _camada.Children.InsertAtTop(_formaBolha);
 
+        _geoBolhaE = c.CreateRoundedRectangleGeometry();
+        _geoBolhaE.Size = _p.Px(new Vector2(BOLHA * 0.5f));
+        _geoBolhaE.CornerRadius = _p.Px(new Vector2(BOLHA * 0.25f));
+        _formaBolhaE = c.CreateShapeVisual();
+        _formaBolhaE.Size = new Vector2(L, A);
+        _formaBolhaE.Opacity = 0;
+        var sbe = c.CreateSpriteShape(_geoBolhaE);
+        sbe.FillBrush = preto;
+        _formaBolhaE.Shapes.Add(sbe);
+        _camada.Children.InsertAtTop(_formaBolhaE);
+
         // centraliza a pílula e cola o topo dela acima da borda (os cantos de cima ficam fora da tela)
         float g = colada ? 1 : 0;
         var centro = c.CreateExpressionAnimation("Vector2(cx - this.Target.Size.X / 2, topo - this.Target.CornerRadius.Y * g)");
@@ -312,9 +324,16 @@ internal sealed class Ilha : IDisposable
         lado.SetScalarParameter("g", g);
         lado.SetReferenceParameter("corpo", _geoCorpo);
         _geoBolha.StartAnimation("Offset", lado);
+        var ladoE = c.CreateExpressionAnimation("Vector2(cx - corpo.Size.X / 2 - vao - this.Target.Size.X, topo - this.Target.CornerRadius.Y * g)");
+        ladoE.SetScalarParameter("cx", cx);
+        ladoE.SetScalarParameter("vao", vao);
+        ladoE.SetScalarParameter("topo", topo);
+        ladoE.SetScalarParameter("g", g);
+        ladoE.SetReferenceParameter("corpo", _geoCorpo);
+        _geoBolhaE.StartAnimation("Offset", ladoE);
 
         if (_cfg.Sombra) Sombras(c);
-        _borda = _bordaBolha = null;
+        _borda = _bordaBolha = _bordaBolhaE = null;
         if (_cfg.BordaAdaptativa && !colada) Borda(c, L, A);
         // os "ombros": curvas côncavas pretas que emendam a pílula na borda da tela, como se ela saísse dela
         _ombros.Clear();
@@ -331,8 +350,10 @@ internal sealed class Ilha : IDisposable
                 "Vector3(cx + corpo.Size.X / 2, 0, 0)",
                 "Vector3(cx + corpo.Size.X / 2 + vao - o, 0, 0)",
                 "Vector3(cx + corpo.Size.X / 2 + vao + bolha.Size.X, 0, 0)",
+                "Vector3(cx - corpo.Size.X / 2 - vao - bolhaE.Size.X - o, 0, 0)",
+                "Vector3(cx - corpo.Size.X / 2 - vao, 0, 0)",
             };
-            for (int i = 0; i < 4; i++)
+            for (int i = 0; i < 6; i++)
             {
                 var v = c.CreateSpriteVisual();
                 v.Size = esq.TamanhoPx;
@@ -343,11 +364,12 @@ internal sealed class Ilha : IDisposable
                 e.SetScalarParameter("vao", vao);
                 e.SetReferenceParameter("corpo", _geoCorpo);
                 e.SetReferenceParameter("bolha", _geoBolha);
+                e.SetReferenceParameter("bolhaE", _geoBolhaE);
                 v.StartAnimation("Offset", e);
                 if (i >= 2)
                 {
                     var op = c.CreateExpressionAnimation("fb.Opacity");
-                    op.SetReferenceParameter("fb", _formaBolha);
+                    op.SetReferenceParameter("fb", i >= 4 ? _formaBolhaE : _formaBolha);
                     v.StartAnimation("Opacity", op);
                 }
                 _camada.Children.InsertAtTop(v);
@@ -370,9 +392,22 @@ internal sealed class Ilha : IDisposable
         op2.SetReferenceParameter("fb", _formaBolha);
         hostBolha.StartAnimation("Opacity", op2);
         Recortado(c, _geoBolha, L, A).Children.InsertAtTop(hostBolha);
+        var hostBolhaE = c.CreateContainerVisual();
+        var posE = c.CreateExpressionAnimation("Vector3(cx - corpo.Size.X / 2 - vao - bolha.Size.X / 2, topo, 0)");
+        posE.SetScalarParameter("cx", cx);
+        posE.SetScalarParameter("vao", vao);
+        posE.SetScalarParameter("topo", topo);
+        posE.SetReferenceParameter("corpo", _geoCorpo);
+        posE.SetReferenceParameter("bolha", _geoBolhaE);
+        hostBolhaE.StartAnimation("Offset", posE);
+        var op3 = c.CreateExpressionAnimation("fb.Opacity");
+        op3.SetReferenceParameter("fb", _formaBolhaE);
+        hostBolhaE.StartAnimation("Opacity", op3);
+        Recortado(c, _geoBolhaE, L, A).Children.InsertAtTop(hostBolhaE);
 
         _vagaCorpo = new Vaga { Host = hostCorpo };
         _vagaBolha = new Vaga { Host = hostBolha };
+        _vagaBolhaE = new Vaga { Host = hostBolhaE };
 
         // bolinhas de câmera (verde) e microfone (laranja), como as do iPhone
         _pontos = c.CreateContainerVisual();
@@ -405,7 +440,7 @@ internal sealed class Ilha : IDisposable
             var sup = _g.NovaSuperficie(new Vector2(lado), (dc, t) => Borrao(dc, t, M, R, sigma, alfa));
             _fixas.Add(sup);
             float m = _p.Px(M), ins = _p.Px(M + R), d = _p.Px(dy);
-            foreach (var (geo, ligada) in new[] { (_geoCorpo, (Visual?)null), (_geoBolha, _formaBolha) })
+            foreach (var (geo, ligada) in new[] { (_geoCorpo, (Visual?)null), (_geoBolha, _formaBolha), (_geoBolhaE, _formaBolhaE) })
             {
                 var nove = c.CreateNineGridBrush();
                 nove.Source = sup.Pincel;
@@ -491,6 +526,12 @@ internal sealed class Ilha : IDisposable
         op.SetReferenceParameter("b", _borda);
         _bordaBolha.StartAnimation("Opacity", op);
         _camada.Children.InsertAtTop(_bordaBolha);
+        _bordaBolhaE = Contorno(_geoBolhaE);
+        var opE = c.CreateExpressionAnimation("fb.Opacity * b.Opacity");
+        opE.SetReferenceParameter("fb", _formaBolhaE);
+        opE.SetReferenceParameter("b", _borda);
+        _bordaBolhaE.StartAnimation("Opacity", opE);
+        _camada.Children.InsertAtTop(_bordaBolhaE);
     }
 
     private void LigarSonda()
@@ -524,9 +565,10 @@ internal sealed class Ilha : IDisposable
         var r = CorpoNaTela;
         int fora = (int)_p.Px(40), faixa = Math.Max(2, (int)_p.Px(4)), abaixo = (int)_p.Px(46);
         float direita = _temBolha ? _rBolha.Right + _janX : r.Right;
+        float esquerda = _temBolhaE ? _rBolhaE.Left + _janX : r.Left;
         var faixas = new[]
         {
-            new System.Drawing.Rectangle((int)r.Left - fora - faixa, (int)r.Top, faixa, Math.Max(1, (int)r.Height)),
+            new System.Drawing.Rectangle((int)esquerda - fora - faixa, (int)r.Top, faixa, Math.Max(1, (int)r.Height)),
             new System.Drawing.Rectangle((int)direita + fora, (int)r.Top, faixa, Math.Max(1, (int)r.Height)),
             new System.Drawing.Rectangle((int)r.Left, (int)r.Bottom + abaixo, Math.Max(1, (int)r.Width), faixa),
         };
@@ -613,7 +655,7 @@ internal sealed class Ilha : IDisposable
 
     private void Desmontar()
     {
-        foreach (var v in new[] { _vagaCorpo, _vagaBolha })
+        foreach (var v in new[] { _vagaCorpo, _vagaBolha, _vagaBolhaE })
         {
             if (v?.Atual == null) continue;
             Limpar(v.Atual);
@@ -1103,7 +1145,9 @@ internal sealed class Ilha : IDisposable
         }
         var vis = Visiveis();
         var daBolha = DaBolha(vis);
+        var daBolhaE = DaBolhaE(vis);
         if (_temBolha && _rBolha.Contains(x, y) && daBolha != null) _foco = daBolha;
+        else if (_temBolhaE && _rBolhaE.Contains(x, y) && daBolhaE != null) _foco = daBolhaE;
         else if (_estado == Estado.Compacta && _pontosVisiveis && _extraPontos > 0
                  && x >= _rCorpo.Right - _p.Px(COMPACTA_FOLGA + _extraPontos)
                  && vis.FirstOrDefault(a => a.Tipo == "privacidade") is { } privacidade) _foco = privacidade;
@@ -1283,7 +1327,7 @@ internal sealed class Ilha : IDisposable
     // ------------------------------------------------------------------ estado e layout
 
     private sealed record Plano(Estado Estado, Vector2 Corpo, float Raio, string? ChaveCorpo, Func<Cena>? CenaCorpo,
-        bool Bolha, string? ChaveBolha, Func<Cena>? CenaBolha);
+        bool Bolha, string? ChaveBolha, Func<Cena>? CenaBolha, bool BolhaE = false, string? ChaveBolhaE = null, Func<Cena>? CenaBolhaE = null);
 
     private Plano Planejar()
     {
@@ -1355,7 +1399,17 @@ internal sealed class Ilha : IDisposable
                 cb = $"bol:{b.GetHashCode()}:{b.Versao}";
                 fb = () => b.Criar(_p, Forma.Bolha);
             }
-            return new Plano(Estado.Compacta, new Vector2(l, h), h / 2, ch, criar, bolha, cb, fb);
+            var terceira = DaBolhaE(vis);
+            bool bolhaE = bolha && terceira != null;
+            string? cbe = null;
+            Func<Cena>? fbe = null;
+            if (bolhaE)
+            {
+                var b = terceira!;
+                cbe = $"bolE:{b.GetHashCode()}:{b.Versao}";
+                fbe = () => b.Criar(_p, Forma.Bolha);
+            }
+            return new Plano(Estado.Compacta, new Vector2(l, h), h / 2, ch, criar, bolha, cb, fb, bolhaE, cbe, fbe);
         }
 
         if (_zonaDeSoltar || !_ctx.Competitivo && _cfg.PilulaVazia)
@@ -1457,7 +1511,7 @@ internal sealed class Ilha : IDisposable
     {
         if (_raiz == null) return;
         var pl = Planejar();
-        var assinatura = (pl.Estado, pl.Corpo, pl.Raio, pl.ChaveCorpo, pl.Bolha, pl.ChaveBolha, _janelasVisiveis || pl.Estado == Estado.Oculta,
+        var assinatura = (pl.Estado, pl.Corpo, pl.Raio, pl.ChaveCorpo, pl.Bolha, pl.ChaveBolha + "|" + pl.ChaveBolhaE, _janelasVisiveis || pl.Estado == Estado.Oculta,
             (_indicadores?.Camera ?? false) && PontosDevemAparecer(pl.Estado, _foco), (_indicadores?.Microfone ?? false) && PontosDevemAparecer(pl.Estado, _foco));
         if (animar && pl.Estado == _estado && assinatura.Equals(_ultimoPlano) && pl.CenaCorpo == null)
         {
@@ -1480,8 +1534,10 @@ internal sealed class Ilha : IDisposable
             _vigiaClique.Stop();
             TrocarCena(_vagaCorpo, null, null, 0, animar);
             TrocarCena(_vagaBolha, null, null, 0, animar);
+            TrocarCena(_vagaBolhaE, null, null, 0, animar);
             AnimarEscalar(_pontos, "Opacity", 0, 120, animar);
             AnimarEscalar(_formaBolha, "Opacity", 0, 150, animar);
+            AnimarEscalar(_formaBolhaE, "Opacity", 0, 150, animar);
             if (!_janelasVisiveis) { _raiz.Offset = new Vector3(0, -_p.Px(ALTURA_MAX), 0); return; }
             var lote = c.CreateScopedBatch(CompositionBatchTypes.Animation);
             float acima = _cfg.Colada ? 0 : _p.Px(_cfg.DistanciaDoTopo);
@@ -1516,6 +1572,8 @@ internal sealed class Ilha : IDisposable
             MolaV2(_geoCorpo, "CornerRadius", new Vector2(raioPx * 0.6f), false, mola);
             MolaV2(_geoBolha, "Size", new Vector2(bolhaPx * 0.4f), false, mola);
             MolaV2(_geoBolha, "CornerRadius", new Vector2(bolhaPx * 0.2f), false, mola);
+            MolaV2(_geoBolhaE, "Size", new Vector2(bolhaPx * 0.4f), false, mola);
+            MolaV2(_geoBolhaE, "CornerRadius", new Vector2(bolhaPx * 0.2f), false, mola);
             _raiz.Offset = new Vector3(0, -(topo + corpoPx.Y + _p.Px(SOMBRA)), 0);
             MostrarJanelas(true);
         }
@@ -1537,6 +1595,18 @@ internal sealed class Ilha : IDisposable
             MolaV2(_geoBolha, "CornerRadius", new Vector2(bolhaPx * 0.2f), animar, mola);
             AnimarEscalar(_formaBolha, "Opacity", 0, 140, animar);
         }
+        if (pl.BolhaE)
+        {
+            MolaV2(_geoBolhaE, "Size", new Vector2(bolhaPx, bolhaPx + (colada ? bolhaPx / 2 : 0)), animar, mola);
+            MolaV2(_geoBolhaE, "CornerRadius", new Vector2(bolhaPx / 2), animar, mola);
+            AnimarEscalar(_formaBolhaE, "Opacity", 1, 160, animar);
+        }
+        else
+        {
+            MolaV2(_geoBolhaE, "Size", new Vector2(bolhaPx * 0.4f, bolhaPx * 0.4f + (colada ? bolhaPx * 0.2f : 0)), animar, mola);
+            MolaV2(_geoBolhaE, "CornerRadius", new Vector2(bolhaPx * 0.2f), animar, mola);
+            AnimarEscalar(_formaBolhaE, "Opacity", 0, 140, animar);
+        }
 
         TrocarCena(_vagaCorpo, pl.ChaveCorpo, pl.CenaCorpo, corpoPx.Y, animar);
         // o conteúdo da compacta desliza para a esquerda quando as bolinhas pedem espaço
@@ -1544,6 +1614,7 @@ internal sealed class Ilha : IDisposable
         Mover(_vagaCorpo.Host, new Vector3(cx - MathF.Round(extra / 2), topo, 0), animar);
         PosicionarPontos(pl.Estado, corpoPx, topo, cx, animar);
         TrocarCena(_vagaBolha, pl.Bolha ? pl.ChaveBolha : null, pl.CenaBolha, bolhaPx, animar);
+        TrocarCena(_vagaBolhaE, pl.BolhaE ? pl.ChaveBolhaE : null, pl.CenaBolhaE, bolhaPx, animar);
         lote2.End();
 
         // região de toque: o formato final da pílula (e da bolha). Encolhendo, vale na hora; crescendo, só quando a mola
@@ -1551,10 +1622,12 @@ internal sealed class Ilha : IDisposable
         _rCorpo = new System.Drawing.RectangleF(cx - corpoPx.X / 2, topo, corpoPx.X, corpoPx.Y);
         _temBolha = pl.Bolha;
         _rBolha = new System.Drawing.RectangleF(cx + corpoPx.X / 2 + _p.Px(VAO), topo, bolhaPx, bolhaPx);
+        _temBolhaE = pl.BolhaE;
+        _rBolhaE = new System.Drawing.RectangleF(cx - corpoPx.X / 2 - _p.Px(VAO) - bolhaPx, topo, bolhaPx, bolhaPx);
         var final = System.Drawing.Rectangle.Round(_rCorpo);
         bool cresce = !_sobre && !_regiaoAplicada.IsEmpty && (final.Width > _regiaoAplicada.Width || final.Height > _regiaoAplicada.Height);
-        var regiao = (rc: _rCorpo, rb: _rBolha, bolha: pl.Bolha, raio: raioPx, bolhaPx, topo, colada);
-        Action aplicar = () => AplicarRegiao(regiao.rc, regiao.rb, regiao.bolha, regiao.raio, regiao.bolhaPx, regiao.topo, regiao.colada);
+        var regiao = (rc: _rCorpo, rb: _rBolha, bolha: pl.Bolha, raio: raioPx, bolhaPx, topo, colada, rbe: _rBolhaE, bolhaE: pl.BolhaE);
+        Action aplicar = () => AplicarRegiao(regiao.rc, regiao.rb, regiao.bolha, regiao.raio, regiao.bolhaPx, regiao.topo, regiao.colada, regiao.rbe, regiao.bolhaE);
         _relogioRegiao.Stop();
         if (cresce) { _regiaoPendente = aplicar; _relogioRegiao.Start(); }
         else { _regiaoPendente = null; aplicar(); }
@@ -1572,14 +1645,16 @@ internal sealed class Ilha : IDisposable
 
     private (Estado, Vector2, float, string?, bool, string?, bool, bool, bool) _ultimoPlano;
 
-    private void AplicarRegiao(System.Drawing.RectangleF rc, System.Drawing.RectangleF rb, bool bolha, float raioPx, float bolhaPx, float topo, bool colada)
+    private void AplicarRegiao(System.Drawing.RectangleF rc, System.Drawing.RectangleF rb, bool bolha, float raioPx, float bolhaPx, float topo, bool colada,
+        System.Drawing.RectangleF rbe = default, bool bolhaE = false)
     {
         int r2 = (int)(raioPx * 2);
         var rgn = Nativo.CreateRoundRectRgn((int)rc.Left, (int)(topo - (colada ? raioPx : 0)), (int)rc.Right + 1, (int)rc.Bottom + 1, r2, r2);
-        if (bolha)
+        foreach (var (on, b) in new[] { (bolha, rb), (bolhaE, rbe) })
         {
+            if (!on) continue;
             int b2 = (int)bolhaPx;
-            var r = Nativo.CreateRoundRectRgn((int)rb.Left, (int)(topo - (colada ? bolhaPx / 2 : 0)), (int)rb.Right + 1, (int)rb.Bottom + 1, b2, b2);
+            var r = Nativo.CreateRoundRectRgn((int)b.Left, (int)(topo - (colada ? bolhaPx / 2 : 0)), (int)b.Right + 1, (int)b.Bottom + 1, b2, b2);
             Nativo.CombineRgn(rgn, rgn, r, Nativo.RGN_OR);
             Nativo.DeleteObject(r);
         }
@@ -1591,6 +1666,9 @@ internal sealed class Ilha : IDisposable
 
     /// <summary>Quem vai para a bolha: a segunda da fila, menos a privacidade (as bolinhas dela já ficam na pílula).</summary>
     private static Atividade? DaBolha(List<Atividade> vis) => vis.Skip(1).FirstOrDefault(a => a.Tipo != "privacidade");
+
+    /// <summary>Who goes to the left bubble: the one after the right bubble's, the privacy one left out the same way.</summary>
+    private static Atividade? DaBolhaE(List<Atividade> vis) => vis.Skip(1).Where(a => a.Tipo != "privacidade").Skip(1).FirstOrDefault();
 
     private void AvisarCartao(Atividade? cartao)
     {

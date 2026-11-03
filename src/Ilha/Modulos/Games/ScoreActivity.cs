@@ -164,10 +164,10 @@ internal sealed class ScoreActivity : Atividade
                 var sz = p.Texto.Medir(tx, 13, FontWeight.SemiBold, tabular: true);
                 p.Texto.Desenhar(dc, tx, new Vector2(L - sz.X, 1), 13, Cor.Branco, FontWeight.SemiBold, tabular: true);
             }
-            string mode = string.Join(" · ", new[] { x.Badge.Length > 0 ? "" : x.Mode, x.Map }.Where(s => s.Length > 0));
+            // Premier's badge is its name; Rush's is a symbol, with the name after it
+            string mode = string.Join(" · ", new[] { x.Badge == "premier" ? "" : x.Mode, x.Map }.Where(s => s.Length > 0));
             float mx = 0;
-            // Premier shows its own badge in place of the mode's name
-            if (x.Badge == "premier") mx = Marks.Badge(dc, x.Badge, 0, 27, 17) + 8;
+            if (x.Badge.Length > 0 && Marks.Badge(dc, x.Badge, 0, x.Badge == "rush" ? 24 : 27, x.Badge == "rush" ? 22 : 17) is float bw and > 0) mx = bw + 8;
             p.Texto.Desenhar(dc, mode.Length > 0 ? mode : Lang.T("Partida", "Match"), new Vector2(mx, 24), 16, Cor.Branco, largura: L - 90 - mx);
             if (x.Stage.Length > 0)
             {
@@ -377,7 +377,8 @@ internal static class Marks
     /// <summary>A mode badge at (x, y), `h` DIP tall; returns its width.</summary>
     public static float Badge(ID2D1DeviceContext dc, string badge, float x, float y, float h)
     {
-        if (badge == "premier" && GameArt.Cs2Svg(GameArt.Premier) is { } svg)
+        string? entry = badge switch { "premier" => GameArt.Premier, "rush" => GameArt.Rush, _ => null };
+        if (entry != null && GameArt.Cs2Svg(entry) is { } svg)
         {
             float w = h * GameArt.Aspect(svg);
             if (GameArt.DrawSvg(dc, svg, x, y, w, h)) return w;

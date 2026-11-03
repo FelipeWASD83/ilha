@@ -81,7 +81,8 @@ internal sealed class Cs2State
         m.RawMode = Str(map, "mode");
         m.Mode = ModeName(m.RawMode);
         // Premier's value in the integration was not seen yet: anything that names it gets the badge
-        m.Badge = m.RawMode.Contains("premier", StringComparison.OrdinalIgnoreCase) ? "premier" : "";
+        m.Badge = m.RawMode.Contains("premier", StringComparison.OrdinalIgnoreCase) ? "premier"
+            : string.Equals(m.RawMode, "rush", StringComparison.OrdinalIgnoreCase) ? "rush" : "";
         m.Map = MapName(Str(map, "name"));
 
         bool local = me.Length > 0 && Str(p, "player", "steamid") == me;

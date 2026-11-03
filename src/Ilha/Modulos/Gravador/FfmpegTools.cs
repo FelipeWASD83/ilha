@@ -102,7 +102,8 @@ internal static class FfmpegTools
     /// The color tags of every video: NVENC turns the RGB frames into BT.601 limited YUV (measured on 02/11/2026), the
     /// screen is sRGB. Without them the file said "GBR, full range" and an editor could read the colors wrong.
     /// </summary>
-    private const string Tags = "setparams=range=tv:colorspace=bt470bg:color_primaries=bt709:color_trc=iec61966-2-1";
+    internal const string ColorTags = "setparams=range=tv:colorspace=bt470bg:color_primaries=bt709:color_trc=iec61966-2-1";
+    private const string Tags = ColorTags;
 
     public static string Seconds(double s) => s.ToString("0.000000", Inv);
 

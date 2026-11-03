@@ -64,15 +64,13 @@ internal sealed class FocoModule : Modulo
         S.Ilha.Adicionar(_activity);
         S.Menu.Adicionar(new ItemDoMenu
         {
-            Id = "foco", Nome = Lang.T("Foco", "Focus"), Ordem = 6,
+            // a 2x1 block right after the batteries (3.7.0, his request): under them while they are 2x1, beside them
+            // (under the sliders) when they grow to 2x2, since the blocks are packed in menu order
+            Id = "foco", Nome = Lang.T("Foco", "Focus"), Ordem = 91, Cols = 2,
             Abrir = () => _activity?.Open(),
-            Icone = (dc, p, r) =>
-            {
-                if (_active is { } m) FocusIcons.Draw(dc, p.G.Fabrica, r, m.Icone, Cor.Branco);
-                else FocusIcons.Draw(dc, p.G.Fabrica, r, "lua", Cor.Branco);
-            },
+            Icone = (dc, p, r) => FocusIcons.Draw(dc, p.G.Fabrica, r, _active?.Icone ?? "lua", Cor.Branco),
             BodyColor = () => _active is { } m ? FocusIcons.ColorOf(m.Cor) : null,
-            Detalhe = () => _active?.Name,
+            Draw = DrawTile,
         });
         S.Menu.Adicionar(new ItemDoMenu
         {
@@ -87,6 +85,20 @@ internal sealed class FocoModule : Modulo
         _tick.Tick += (_, _) => Evaluate();
         _tick.Start();
         S.NaInterface(Evaluate);
+    }
+
+    /// <summary>The 2x1 block: the symbol in a round badge, "Focus" and the mode on (or "Off").</summary>
+    private void DrawTile(Vortice.Direct2D1.ID2D1DeviceContext dc, Palco p, System.Drawing.RectangleF cell)
+    {
+        var body = Menu.Corpo(cell);
+        var c = new System.Numerics.Vector2(body.X + 8 + 19, body.Y + body.Height / 2);
+        bool on = _active != null;
+        Icone.Circulo(dc, c, 19, on ? new Vortice.Mathematics.Color4(1, 1, 1, 0.25f) : new Vortice.Mathematics.Color4(1, 1, 1, 0.1f));
+        FocusIcons.Draw(dc, p.G.Fabrica, new System.Drawing.RectangleF(c.X - 11, c.Y - 11, 22, 22), _active?.Icone ?? "lua", Cor.Branco);
+        float x = c.X + 27, w = body.Right - x - 8;
+        p.Texto.Desenhar(dc, Lang.T("Foco", "Focus"), new System.Numerics.Vector2(x, body.Y + 9), 13.5f, Cor.Branco, largura: w);
+        p.Texto.Desenhar(dc, _active?.Name ?? Lang.T("Desligado", "Off"), new System.Numerics.Vector2(x, body.Y + 28), 11.5f,
+            on ? Cor.Branco : Cor.Secundario, Vortice.DirectWrite.FontWeight.Normal, largura: w);
     }
 
     private static ConfigFoco Read(JsonObject cfg)

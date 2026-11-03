@@ -10,7 +10,7 @@ namespace Ilha.Games;
 
 internal enum Outcome { Win, Loss, Draw }
 
-internal enum MomentKind { Kill, Death, Goal, Round, End, Ace }
+internal enum MomentKind { Kill, Death, Goal, Round, End, Ace, EpicSave }
 
 /// <summary>Something that happened in the match: what the animations react to.</summary>
 internal sealed record Moment(MomentKind Kind, bool Ours = true, string? Who = null, Outcome? Outcome = null);
