@@ -817,7 +817,9 @@ internal sealed class Ilha : IDisposable
         LigarSonda();
     }
 
-    private bool Permitida(Atividade a) => !_ctx.Competitivo || a.PermitidaNoCompetitivo;
+    // in the live score mode the other activities stay (the score goes ahead of them); their arrival alerts and sounds
+    // still do not show over the game
+    private bool Permitida(Atividade a) => !_ctx.Competitivo || a.PermitidaNoCompetitivo || _cfg.ModoCompetitivo == ModosCompetitivos.Placar;
 
     private int Prioridade(string tipo)
     {

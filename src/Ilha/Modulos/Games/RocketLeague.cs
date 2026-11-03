@@ -242,6 +242,12 @@ internal sealed class RocketLeagueSource : GameSource
     private readonly int _port;
 
     public override string Game => "rl";
+    public override string Process => "RocketLeague";
+
+    public override void Drop()
+    {
+        lock (_state) _state.Apply("MatchDestroyed", default, DateTime.Now);
+    }
 
     public RocketLeagueSource(int port, Action<Action> dispatch) : base(dispatch)
     {

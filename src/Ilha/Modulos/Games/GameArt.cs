@@ -30,13 +30,40 @@ internal static class GameArt
 
     // ------------------------------------------------------------------ game icons
 
+    private static readonly Dictionary<string, string> _seenExes = new();
+
+    [DllImport("user32.dll")] private static extern uint GetWindowThreadProcessId(IntPtr h, out uint pid);
+    [DllImport("kernel32.dll")] private static extern IntPtr OpenProcess(uint access, bool inherit, uint pid);
+    [DllImport("kernel32.dll")] private static extern bool CloseHandle(IntPtr h);
+    [DllImport("kernel32.dll", CharSet = CharSet.Unicode)] private static extern bool QueryFullProcessImageNameW(IntPtr p, uint flags, StringBuilder name, ref uint size);
+
+    /// <summary>
+    /// Keeps the .exe path of a game's window (only PROCESS_QUERY_LIMITED_INFORMATION, the one right that anti-cheats
+    /// leave alone), for the icon of games the island has no source for.
+    /// </summary>
+    public static void Remember(string game, IntPtr window)
+    {
+        lock (_lock) if (_seenExes.ContainsKey(game)) return;
+        if (window == IntPtr.Zero) return;
+        GetWindowThreadProcessId(window, out uint pid);
+        IntPtr h = OpenProcess(0x1000, false, pid);
+        if (h == IntPtr.Zero) return;
+        try
+        {
+            var sb = new StringBuilder(1024);
+            uint n = (uint)sb.Capacity;
+            if (QueryFullProcessImageNameW(h, 0, sb, ref n)) lock (_lock) _seenExes[game] = sb.ToString();
+        }
+        finally { CloseHandle(h); }
+    }
+
     public static string? ExeOf(string game) => game switch
     {
         "cs2" => GameSetup.SteamAppFolder(730) is { } d ? Path.Combine(d, "game", "bin", "win64", "cs2.exe") : null,
         "bf6" => GameSetup.SteamAppFolder(2807960) is { } d ? Path.Combine(d, "bf6.exe") : null,
         "rl" => (GameSetup.EpicAppFolder("Rocket League") ?? GameSetup.SteamAppFolder(252950)) is { } d
             ? Path.Combine(d, "Binaries", "Win64", "RocketLeague.exe") : null,
-        _ => null,
+        _ => _seenExes.TryGetValue(game, out var seen) ? seen : null,
     };
 
     [DllImport("user32.dll", CharSet = CharSet.Unicode)]

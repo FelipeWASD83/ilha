@@ -327,6 +327,12 @@ internal sealed class Bf6Source : GameSource
     private volatile bool _front, _stop;
 
     public override string Game => "bf6";
+    public override string Process => "bf6";
+
+    public override void Drop()
+    {
+        lock (_state) _state.Drop();
+    }
 
     /// <param name="reading">Called with true while looking at the game (the island leaves screen captures then).</param>
     public Bf6Source(Func<string> myName, Action<bool> reading, Action<Action> dispatch) : base(dispatch)

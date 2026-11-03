@@ -23,6 +23,8 @@ internal sealed partial class GamesModule : Modulo
     private readonly List<GameSource> _sources = new();
     private readonly Dictionary<string, (Match M, DateTime At)> _matches = new();
     private readonly System.Windows.Forms.Timer _linger = new() { Interval = 9000 };
+    // only while a match is on: is its game still running? (closed mid-match, the match goes at once)
+    private readonly System.Windows.Forms.Timer _alive = new() { Interval = 2000 };
     private Alerta? _killAlert;
     private DateTime _lastKill;
     private int _streak;
@@ -41,7 +43,10 @@ internal sealed partial class GamesModule : Modulo
         S.Ilha.Adicionar(_activity);
         // a finished match stays on the pill a few seconds with its result, then the pill goes back to normal
         _linger.Tick += (_, _) => { _linger.Stop(); Refresh(); };
+        _alive.Tick += (_, _) => CheckAlive();
         StartSources();
+        // opened (or restarted) with a game already in front: the pill shows it right away
+        Contexto(S.ContextoAtual());
         if (_cfg.InstalarIntegracoes) Task.Run(Install);
     }
 
@@ -100,7 +105,50 @@ internal sealed partial class GamesModule : Modulo
     public override void Contexto(Contexto ctx)
     {
         foreach (var s in _sources) s.Foreground(ctx.Processo);
+        // a competitive game in front: the pill stays as that game even with no match read (menus, queue, loading),
+        // instead of the island vanishing; since when it counts from the first time it came to the front
+        var now = DateTime.Now;
+        if (_front.Length > 0 && _inFront.TryGetValue(_front, out var left)) _inFront[_front] = (left.Since, now);
+        if (ctx.Jogo.Length > 0)
+        {
+            // away for more than 10 minutes counts as a new session (the game was most likely closed)
+            if (!_inFront.TryGetValue(ctx.Jogo, out var seen) || now - seen.Last > TimeSpan.FromMinutes(10)) _inFront[ctx.Jogo] = (now, now);
+            // the .exe of the window in front, for the icon of a game the island has no source for
+            GameArt.Remember(GameOf(ctx.Jogo), ctx.Janela);
+        }
+        _front = ctx.Jogo;
         Refresh();
+    }
+
+    private string _front = "";
+    private readonly Dictionary<string, (DateTime Since, DateTime Last)> _inFront = new(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>The game's id for an .exe in the competitive list ("cs2", "rl", "bf6"; the name without .exe for others).</summary>
+    internal static string GameOf(string exe) => exe.ToLowerInvariant() switch
+    {
+        "cs2.exe" => "cs2",
+        "rocketleague.exe" => "rl",
+        "bf6.exe" => "bf6",
+        var x => x.EndsWith(".exe") ? x[..^4] : x,
+    };
+
+    /// <summary>The pill with the game in front and no match: its mark, its name and how long it has been open.</summary>
+    private Match? Idle()
+    {
+        if (_front.Length == 0) return null;
+        string game = GameOf(_front);
+        var since = _inFront.TryGetValue(_front, out var t) ? t.Since : DateTime.Now;
+        return new Match
+        {
+            Game = game,
+            Idle = true,
+            Exe = _front,
+            Start = since,
+            Clock = (DateTime.Now - since).TotalSeconds,
+            ClockRead = DateTime.Now,
+            ClockUp = true,
+            Stage = Lang.T("Fora de partida", "Not in a match"),
+        };
     }
 
     private void OnChanged(string game, Match? m)
@@ -129,7 +177,10 @@ internal sealed partial class GamesModule : Modulo
         foreach (var k in _matches.Where(x => x.Value.M.Outcome != null && now - x.Value.At > TimeSpan.FromSeconds(8)).Select(x => x.Key).ToList())
             _matches.Remove(k);
         var pick = _matches.OrderByDescending(x => x.Value.At).Select(x => x.Value.M).FirstOrDefault();
-        _activity.Show(ScoreMode ? pick : null);
+        _activity.Show(ScoreMode ? pick ?? Idle() : null);
+        bool live = _matches.Values.Any(x => x.M.Outcome == null);
+        if (live && !_alive.Enabled) _alive.Start();
+        else if (!live) _alive.Stop();
         string shown = pick == null ? "" : $"{pick.Game}|{pick.Mode}|{pick.Map}";
         if (shown != _shown)
         {
@@ -138,6 +189,31 @@ internal sealed partial class GamesModule : Modulo
             Log.Escrever(pick == null ? "jogos: sem partida na pílula"
                 : $"jogos: partida de {pick.Game} na pílula ({pick.Mode}, {pick.Map}{(pick.RawMode.Length > 0 ? ", modo bruto " + pick.RawMode : "")})");
         }
+    }
+
+    /// <summary>
+    /// The game of a live match closed (by the process list, the same way the island names the window in front: no
+    /// handle is opened on the game): the match goes now, with no result.
+    /// </summary>
+    private void CheckAlive()
+    {
+        if (_stopped) return;
+        foreach (var s in _sources)
+        {
+            if (!_matches.TryGetValue(s.Game, out var v) || v.M.Outcome != null || Running(s.Process)) continue;
+            s.Drop();
+            _matches.Remove(s.Game);
+            _lastSeen.Remove(s.Game);
+            Log.Escrever($"jogos: {s.Game} fechou no meio da partida");
+        }
+        Refresh();
+    }
+
+    internal static bool Running(string process)
+    {
+        var list = System.Diagnostics.Process.GetProcessesByName(process);
+        foreach (var p in list) p.Dispose();
+        return list.Length > 0;
     }
 
     private void OnMoment(string game, Moment x)
@@ -205,6 +281,8 @@ internal sealed partial class GamesModule : Modulo
         _stopped = true;
         _linger.Stop();
         _linger.Dispose();
+        _alive.Stop();
+        _alive.Dispose();
         StopSources();
     }
 }

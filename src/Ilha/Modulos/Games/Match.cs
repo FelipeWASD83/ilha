@@ -40,6 +40,10 @@ internal sealed class Match
     /// <summary>What the clock is ("Round 7", "Overtime", "Warmup").</summary>
     public string Stage = "";
     public Outcome? Outcome;
+    /// <summary>No match: the game is just in front (menus, queue, loading). Shows its name and the time it is open.</summary>
+    public bool Idle;
+    /// <summary>The game's .exe (for the icon of a game the island has no source for).</summary>
+    public string Exe = "";
 
     public string GameName => NameOf(Game);
 
@@ -48,6 +52,17 @@ internal sealed class Match
         "cs2" => "Counter-Strike 2",
         "rl" => "Rocket League",
         "bf6" => "Battlefield 6",
+        "valorant-win64-shipping" => "Valorant",
+        "r5apex" or "r5apex_dx12" => "Apex Legends",
+        "fortniteclient-win64-shipping" => "Fortnite",
+        "overwatch" => "Overwatch 2",
+        "league of legends" => "League of Legends",
+        "rainbowsix" => "Rainbow Six Siege",
+        "tslgame" => "PUBG",
+        "cod" => "Call of Duty",
+        "deadlock" => "Deadlock",
+        "dota2" => "Dota 2",
+        "marvelrivals-win64-shipping" => "Marvel Rivals",
         _ => game,
     };
 
@@ -179,6 +194,12 @@ internal abstract class GameSource : IDisposable
 
     /// <summary>The foreground changed (only the BF6 reader cares: it reads the screen, so the game must be in front).</summary>
     public virtual void Foreground(string process) { }
+
+    /// <summary>The game's process name (no .exe): the module drops the match as soon as it is gone.</summary>
+    public abstract string Process { get; }
+
+    /// <summary>The game closed: forget the match now.</summary>
+    public abstract void Drop();
 
     public abstract void Dispose();
 }

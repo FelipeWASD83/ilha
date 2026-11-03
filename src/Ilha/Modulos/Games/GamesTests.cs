@@ -58,8 +58,8 @@ internal sealed partial class GamesModule
         Ok("cs2: rodada ganha (pelo nosso lado, mesmo vendo outro jogador)", x.Any(m => m.Kind == MomentKind.Round && m.Ours) && s.Current?.Kills == 2);
         var m1 = s.Current!;
         Ok("cs2: nosso lado é o TR e o placar segue o lado", m1.Us == 1 && m1.Them == 0 && m1.UsLabel == Lang.T("TR", "T"), $"{m1.Us}:{m1.Them} {m1.UsLabel}");
-        Ok("cs2: modo, mapa e relógio", m1.Mode == Lang.T("Competitivo", "Competitive") && m1.Map == "Dust II" && Math.Abs((m1.ClockAt(now.AddSeconds(5)) ?? 0) - 90.4) < 0.01,
-            $"{m1.Mode} {m1.Map} {m1.ClockAt(now.AddSeconds(5))}");
+        Ok("cs2: modo, mapa e tempo de partida contando desde o fim do aquecimento", m1.Mode == Lang.T("Competitivo", "Competitive") && m1.Map == "Dust II"
+            && m1.ClockUp && Math.Abs((m1.ClockAt(now.AddSeconds(5)) ?? 0) - 5) < 0.01, $"{m1.Mode} {m1.Map} {m1.ClockAt(now.AddSeconds(5))}");
         x = s.Apply(Json(Cs2Payload("1", "1", "T", 20, 9, "gameover", 24, 11, 13)), now);
         Ok("cs2: fim de jogo com vitória", x.Any(m => m.Kind == MomentKind.End && m.Outcome == Outcome.Win) && s.Current?.Outcome == Outcome.Win);
         Ok("cs2: abates que chegam todos de uma vez (2 para 20) não animam", x.All(m => m.Kind != MomentKind.Kill) && s.Current?.Kills == 20);
@@ -284,6 +284,9 @@ internal sealed partial class GamesModule
 
     private static void TestCelebrationWords()
     {
+        Ok("jogo fechado: pela lista de processos", Running("explorer") && !Running("jogo-que-nao-existe-ilha"));
+        Ok("jogo na frente sem partida: nome pelo .exe", GameOf("bf6.exe") == "bf6" && GameOf("RocketLeague.exe") == "rl"
+            && Match.NameOf(GameOf("VALORANT-Win64-Shipping.exe")) == "Valorant" && Match.NameOf(GameOf("jogo-novo.exe")) == "jogo-novo");
         Ok("fim: EZ na lavada, GG na apertada e na derrota",
             Celebrations.EndWord(Outcome.Win, 13, 4) == "EZ" && Celebrations.EndWord(Outcome.Win, 13, 11) == "GG"
             && Celebrations.EndWord(Outcome.Loss, 4, 13) == "GG" && Celebrations.EndWord(Outcome.Win, 3, 0) == "EZ" && Celebrations.EndWord(Outcome.Win, 2, 1) == "GG");

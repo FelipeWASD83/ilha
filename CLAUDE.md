@@ -392,6 +392,11 @@ and the points that matter are here.
   worst case. **Only Conquest is calibrated**: other modes show the mode, kills and the time, and need photos of a
   match to calibrate (the self test reads `ILHA_TESTE_BF6`: point it at `fotos-teste-bf6/`, 23 photos of that match,
   ignored by git because they show other players' names).
+- **3.1.1 (his bugs on 03/11/2026)**: in `placar` mode with a competitive game in front and no match read (menus,
+  queue, loading), nothing was allowed and the island vanished; now `GamesModule.Idle` shows the game in front (icon
+  from its .exe through `GameArt.Remember`, name, time open; a new session after 10 min away). Closing the game
+  mid-match left the match up (BF6 kept it 3 min for Alt+Tab, CS2 waited 40 s for a post): `CheckAlive` looks at the
+  process list every 2 s while a match is live (`GameSource.Process`, `Drop`).
 - **History**: `~/.ilha/partidas.json` (newest 300) for the card's last five. The module keeps it in memory: deleting
   the file with the island open does not clear it (a test left fake results until the island restarted).
 - **Animations** (`Celebrations`): alerts drawn once and animated only in the compositor: kill (skull, then a red X

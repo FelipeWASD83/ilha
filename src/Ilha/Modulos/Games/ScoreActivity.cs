@@ -54,7 +54,7 @@ internal sealed class ScoreActivity : Atividade
         _m = m;
         if (m == null) { Desligar(); return; }
         Ligar();
-        string layout = $"{m.Game}|{m.Kills != null}|{m.Extras.Count}|{m.Mode.Length > 0}";
+        string layout = $"{m.Game}|{m.Idle}|{m.Kills != null}|{m.Extras.Count}|{m.Mode.Length > 0}";
         if (layout != _layout) { _layout = layout; MudouTamanho(); }
         else if (old != null && old.Game == m.Game && (old.Us != m.Us || old.Them != m.Them) && _compact is { } c && TemCenaViva)
         {
@@ -122,6 +122,14 @@ internal sealed class ScoreActivity : Atividade
     private void DrawScore(ID2D1DeviceContext dc, Match m, Vector2 t)
     {
         var p = S.Palco;
+        if (m.Idle)
+        {
+            // no match: the game's name where the score goes
+            var sn = p.Texto.Medir(m.GameName, 13, FontWeight.SemiBold);
+            float w = MathF.Min(sn.X, t.X);
+            p.Texto.Desenhar(dc, m.GameName, new Vector2((t.X - w) / 2, (t.Y - sn.Y) / 2), 13, Cor.Branco, FontWeight.SemiBold, largura: t.X);
+            return;
+        }
         float mid = 96 - ScoreX;
         string us = m.Us?.ToString() ?? "–", them = m.Them?.ToString() ?? "–";
         var su = p.Texto.Medir(us, 16, FontWeight.Bold, tabular: true);
@@ -138,6 +146,7 @@ internal sealed class ScoreActivity : Atividade
     private Cena Card(Palco p)
     {
         var m = _m;
+        if (m is { Idle: true }) return IdleCard(p);
         bool stats = m != null && (m.Kills != null || m.Extras.Count > 0);
         float h = 176 + (stats ? 34 : 0);
         var c = p.NovaCena(new Vector2(L, h));
@@ -222,6 +231,55 @@ internal sealed class ScoreActivity : Atividade
         return c;
     }
 
+    /// <summary>The card with the game open and no match: its icon, name, the time it is open and the last results.</summary>
+    private Cena IdleCard(Palco p)
+    {
+        var c = p.NovaCena(new Vector2(L, 104));
+        p.Desenho(c, Vector2.Zero, c.Tamanho, (dc, t) =>
+        {
+            var x = _m;
+            if (x == null) return;
+            Marks.Game(dc, p.G.Fabrica, x.Game, new Vector2(20, 22), 40, Cor.Branco);
+            p.Texto.Desenhar(dc, x.GameName, new Vector2(52, 2), 18, Cor.Branco, largura: L - 120);
+            p.Texto.Desenhar(dc, x.Stage, new Vector2(52, 26), 13, Cor.Secundario, FontWeight.Normal, largura: L - 120);
+            if (x.ClockAt(DateTime.Now) is double open)
+            {
+                _drawnSecond = (long)open;
+                string tx = Match.Time(open);
+                var sz = p.Texto.Medir(tx, 15, FontWeight.SemiBold, tabular: true);
+                p.Texto.Desenhar(dc, tx, new Vector2(L - sz.X, 4), 15, Cor.Branco, FontWeight.SemiBold, tabular: true);
+                var sl = p.Texto.Medir(Lang.T("aberto há", "open for"), 11, FontWeight.Normal);
+                p.Texto.Desenhar(dc, Lang.T("aberto há", "open for"), new Vector2(L - sl.X, 26), 11, Cor.Secundario, FontWeight.Normal);
+            }
+            LastFive(dc, p, x.Game, 62);
+        });
+        return c;
+    }
+
+    private void LastFive(ID2D1DeviceContext dc, Palco p, string game, float y)
+    {
+        p.Texto.Desenhar(dc, Lang.T("Últimas partidas", "Last matches"), new Vector2(0, y + 4), 12, Cor.Secundario, FontWeight.Normal);
+        var last = _last(game);
+        float bx = L - 5 * 26 + 4;
+        for (int i = 0; i < 5; i++)
+        {
+            var center = new Vector2(bx + i * 26 + 9, y + 12);
+            if (i < last.Count)
+            {
+                var o = last[i];
+                Icone.Circulo(dc, center, 9.5f, o == Outcome.Win ? TeamColors.Win : o == Outcome.Loss ? TeamColors.Loss : Cor.Fraco);
+                string letter = o == Outcome.Win ? Lang.T("V", "W") : o == Outcome.Loss ? Lang.T("D", "L") : Lang.T("E", "D");
+                var ls = p.Texto.Medir(letter, 11, FontWeight.Bold);
+                p.Texto.Desenhar(dc, letter, center - ls / 2 + new Vector2(0, -0.5f), 11, new Color4(0, 0, 0, 0.82f), FontWeight.Bold);
+            }
+            else
+            {
+                using var b = dc.CreateSolidColorBrush(Cor.Fraco);
+                dc.DrawEllipse(new Ellipse(center, 8.5f, 8.5f), b, 1.6f);
+            }
+        }
+    }
+
     /// <summary>A team on the card: its mark big at the outer edge, the name under it in the team color.</summary>
     private static void Team(ID2D1DeviceContext dc, Palco p, string label, string art, Color4 color, Vector2 at, bool left)
     {
@@ -243,8 +301,19 @@ internal static class Marks
 {
     public static void Game(ID2D1DeviceContext dc, ID2D1Factory1 f, string game, Vector2 c, float side, Color4 fallback)
     {
-        if (GameArt.GameIcon(game) is { } icon) GameArt.Draw(dc, icon, c.X - side / 2, c.Y - side / 2, side);
+        if (GameArt.GameIcon(game) is { } icon)
+            Rounded(dc, f, c.X - side / 2, c.Y - side / 2, side, () => GameArt.Draw(dc, icon, c.X - side / 2, c.Y - side / 2, side));
         else Glyphs.Draw(dc, f, game, c, side * 0.42f, fallback);
+    }
+
+    /// <summary>Draws inside a square with rounded corners (square logos get the corners every icon on the island has).</summary>
+    private static void Rounded(ID2D1DeviceContext dc, ID2D1Factory1 f, float x, float y, float side, Action draw)
+    {
+        var rr = new RoundedRectangle(new System.Drawing.RectangleF(x, y, side, side), side * 0.22f, side * 0.22f);
+        using var geo = f.CreateRoundedRectangleGeometry(rr);
+        dc.PushLayer(new LayerParameters1 { ContentBounds = new Vortice.RawRectF(x, y, x + side, y + side), GeometricMask = geo, Opacity = 1, MaskTransform = System.Numerics.Matrix3x2.Identity }, null!);
+        draw();
+        dc.PopLayer();
     }
 
     public static void Team(ID2D1DeviceContext dc, ID2D1Factory1 f, string art, Color4 color, Vector2 c, float side)
@@ -260,11 +329,7 @@ internal static class Marks
                 if (GameArt.Emblem(faction) is { } em)
                 {
                     // the emblem as the loading screen shows it, in a rounded tile
-                    var rr = new RoundedRectangle(new System.Drawing.RectangleF(x, y, side, side), side * 0.18f, side * 0.18f);
-                    using var geo = f.CreateRoundedRectangleGeometry(rr);
-                    dc.PushLayer(new LayerParameters1 { ContentBounds = new Vortice.RawRectF(x, y, x + side, y + side), GeometricMask = geo, Opacity = 1, MaskTransform = System.Numerics.Matrix3x2.Identity }, null!);
-                    GameArt.Draw(dc, em, x, y, side);
-                    dc.PopLayer();
+                    Rounded(dc, f, x, y, side, () => GameArt.Draw(dc, em, x, y, side));
                     return;
                 }
                 Faction(dc, f, faction, c, side, color);

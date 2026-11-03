@@ -1,5 +1,21 @@
 # Changelog
 
+## 3.1.1 (03/11/2026)
+
+**Fixed**
+- In live score mode the island vanished over a competitive game whenever no match was being read (menus, queue,
+  loading). Now the pill stays as the game in front: its icon, its name and how long it has been open, and turns into
+  the score when the match starts. The card shows the same with the last five results.
+- Closing the game in the middle of a match left the match on the pill (for minutes in Battlefield 6). The island now
+  checks every 2 seconds, only while a match is on, whether the game is still running, and drops the match at once.
+- In live score mode the other activities (music, timer, Claude Code...) were hidden over the game. They show again,
+  with the score always in front; their arrival alerts and sounds still stay quiet over the game.
+- The Counter-Strike 2 match time vanished: the game did not send the round countdown it was read from. The pill now
+  shows the match time counted by the island from the end of warmup, which also keeps the score centered.
+
+**Changed**
+- Square logos (the games' icons, the Battlefield 6 emblems) have rounded corners.
+
 ## 3.1.0 (03/11/2026)
 
 **New**

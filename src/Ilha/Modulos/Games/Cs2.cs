@@ -21,7 +21,7 @@ internal sealed class Cs2State
     private string _side = "";
     private int _kills = -1, _deaths = -1;
     private int _lastRoundWon = -1;
-    private bool _ended;
+    private bool _ended, _warmup;
 
     public Match? Current => _match;
 
@@ -134,13 +134,17 @@ internal sealed class Cs2State
             moments.Add(new Moment(MomentKind.Round, Ours: win == side));
         }
 
-        if (p.TryGetProperty("phase_countdowns", out var pc) && double.TryParse(Str(pc, "phase_ends_in"), NumberStyles.Float, CultureInfo.InvariantCulture, out var left))
+        // the match time, counted by the island: the real game did not send its round countdown (phase_countdowns) on
+        // 03/11/2026, and a round timer jumping between phases is not the match's time anyway. It restarts when
+        // warmup ends.
+        if (m.Clock == null || (_warmup && phase != "warmup"))
         {
-            m.Clock = left;
+            m.Clock = 0;
             m.ClockRead = now;
-            m.ClockUp = false;
-            if (Str(pc, "phase") == "bomb") m.Stage = Lang.T("Bomba plantada", "Bomb planted");
+            m.ClockUp = true;
         }
+        _warmup = phase == "warmup";
+        if (p.TryGetProperty("phase_countdowns", out var pc) && Str(pc, "phase") == "bomb") m.Stage = Lang.T("Bomba plantada", "Bomb planted");
 
         if (phase == "gameover" && !_ended)
         {
@@ -193,6 +197,12 @@ internal sealed class Cs2Source : GameSource
     private readonly Timer _idle;
 
     public override string Game => "cs2";
+    public override string Process => "cs2";
+
+    public override void Drop()
+    {
+        lock (_state) _state.Reset();
+    }
 
     public Cs2Source(int port, Action<Action> dispatch) : base(dispatch)
     {
