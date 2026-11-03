@@ -17,7 +17,7 @@ namespace Ilha;
 /// módulo montados por reflexão da classe de config dele). Janela comum na thread da interface, sem ser modal: a
 /// ilha continua respondendo com ela aberta. Salvar grava o config.json e o núcleo relê sozinho.
 /// </summary>
-internal sealed class JanelaDeConfiguracoes : Form
+internal sealed partial class JanelaDeConfiguracoes : Form
 {
     private static JanelaDeConfiguracoes? _aberta;
 
@@ -166,6 +166,7 @@ internal sealed class JanelaDeConfiguracoes : Form
         AdicionarSecao(Lang.T("Geral", "General"), MontarGeral());
         AdicionarSecao(Lang.T("Sons", "Sounds"), MontarSons());
         AdicionarSecao("Menu", MontarMenu(itensDoMenu));
+        AdicionarSecao(Lang.T("Foco", "Focus"), MontarFoco());
         AdicionarSecao(Lang.T("Atalhos", "Shortcuts"), MontarAtalhos(atalhosDosModulos));
         AdicionarSecao(Lang.T("Jogos competitivos", "Competitive games"), MontarJogos());
         AdicionarSecao(Lang.T("Prioridades", "Priorities"), MontarPrioridades());
@@ -701,6 +702,7 @@ internal sealed class JanelaDeConfiguracoes : Form
         c.JogosCompetitivos = _jogos.Items.Cast<string>().ToList();
         c.ModoCompetitivo = ModosDeJogo[Math.Clamp(_modoJogo.SelectedIndex, 0, ModosDeJogo.Length - 1)];
         c.Prioridades = new List<string>(_listaPrioridades);
+        ColetarFoco(c);
 
         foreach (var m in _modulos)
         {

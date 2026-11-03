@@ -136,7 +136,7 @@ internal sealed partial class GamesModule
         var s = new Bf6State();
         var t0 = new DateTime(2026, 11, 3, 12, 56, 0);
         var none = new List<Line>();
-        s.Apply(new Bf6Frame(null, null, "Conquista", "Lago Groom", none, null), t0, "Jogador_um");
+        s.Apply(new Bf6Frame(null, null, "Conquista", "Lago Groom", none, null) { Faction = "nato" }, t0, "Jogador_um");
         s.Apply(new Bf6Frame(894, null, null, null, none, null), t0.AddSeconds(1), "Jogador_um");
         Ok("bf6: um número lido uma vez só ainda não vale", s.Current?.Us == null && s.Current?.Mode == "Conquista" && s.Current.Map == "Lago Groom");
         s.Apply(new Bf6Frame(894, 268, null, null, none, null), t0.AddSeconds(2), "Jogador_um");
@@ -150,6 +150,24 @@ internal sealed partial class GamesModule
         for (int i = 0; i < 80; i++) s.Apply(new Bf6Frame(30 + (i < 1 ? 1 : 0), 0 + (i < 1 ? 1 : 0), null, null, none, null), t0.AddSeconds(10 + i), "Jogador_um");
         var end = s.Apply(new Bf6Frame(null, null, null, null, none, null), t0.AddSeconds(120), "Jogador_um");
         Ok("bf6: o placar some no fim e quem estava na frente ganhou", end.Any(m => m.Kind == MomentKind.End && m.Outcome == Outcome.Win) && s.Current == null, string.Join(",", end));
+
+        // the menu (03/11/2026): numbers that never move where the tickets go, and the career "VITÓRIAS"
+        Ok("bf6: \"VITÓRIAS\" do menu não é tela de vitória", Bf6Reader.EndFrom(new[] { L("VITÓRIAS", "128") }) == null
+            && Bf6Reader.EndFrom(new[] { L("DERROTAS") }) == null && Bf6Reader.EndFrom(new[] { L("VITÓRIA") }) == Outcome.Win);
+        var menu = new Bf6State();
+        var anyMoment = new List<Moment>();
+        for (int i = 0; i < 240; i++)
+            anyMoment.AddRange(menu.Apply(new Bf6Frame(12, 34, i % 30 == 0 ? "Conquista" : null, null, none, i % 5 == 0 ? Outcome.Win : null),
+                t0.AddSeconds(i * 0.7), "Jogador_um"));
+        Ok("bf6: no menu não abre partida nem conta vitória", menu.Current == null && anyMoment.Count == 0, string.Join(",", anyMoment));
+        var late = new Bf6State();
+        for (int i = 0; i < 40; i++) late.Apply(new Bf6Frame(700 - i / 4, 650 - i / 6, null, null, none, null), t0.AddSeconds(i), "Jogador_um");
+        bool before = late.Current == null;
+        for (int i = 40; i < 60; i++) late.Apply(new Bf6Frame(700 - i / 4, 650 - i / 6, null, null, none, null), t0.AddSeconds(i), "Jogador_um");
+        Ok("bf6: entrou sem ver a tela de carregamento, vale depois de 45 s com o placar andando", before && late.Current != null);
+        var once = late.Apply(new Bf6Frame(null, null, null, null, none, Outcome.Loss), t0.AddSeconds(61), "Jogador_um");
+        var twice = late.Apply(new Bf6Frame(null, null, null, null, none, Outcome.Loss), t0.AddSeconds(64), "Jogador_um");
+        Ok("bf6: tela de fim só vale lida duas vezes", !once.Any(m => m.Kind == MomentKind.End) && twice.Any(m => m.Kind == MomentKind.End && m.Outcome == Outcome.Loss));
     }
 
     /// <summary>

@@ -153,14 +153,18 @@ internal static class Bf6Reader
 
     public static string FactionLabel(string faction) => faction == "nato" ? Lang.T("OTAN", "NATO") : "PAX";
 
+    /// <summary>
+    /// The end screen's word, whole: "VITORIAS" or "DERROTAS" in the menu's career numbers counted as matches won on
+    /// 03/11/2026, so only the word alone counts.
+    /// </summary>
     public static Outcome? EndFrom(IEnumerable<Line> lines)
     {
         foreach (var l in lines)
-        {
-            string t = Normalize(l.Text);
-            if (t.Contains("VITORIA") || t.Contains("VICTORY")) return Outcome.Win;
-            if (t.Contains("DERROTA") || t.Contains("DEFEAT")) return Outcome.Loss;
-        }
+            foreach (var w in Normalize(l.Text).Split(' '))
+            {
+                if (w is "VITORIA" or "VICTORY") return Outcome.Win;
+                if (w is "DERROTA" or "DEFEAT") return Outcome.Loss;
+            }
         return null;
     }
 
@@ -214,6 +218,12 @@ internal static class Bf6Reader
 /// The BF6 match out of a stream of looks. Tickets only count after two looks in a row agree (a misread digit never
 /// reaches the pill); the feed lines with our name first are our kills, with our name after the first word our deaths,
 /// each counted once even while it stays on screen and OCR reads it a little differently.
+/// <para>
+/// A match is only real (on the pill, with kills and an end) once the loading screen was seen (mode and faction read in
+/// the same look) or the tickets of both sides were read, moved at least once and the HUD stayed 45 s: numbers in the
+/// menu read as tickets started "matches" that ended in a win every few seconds (03/11/2026). The end screen also has to
+/// be read twice within 15 s.
+/// </para>
 /// </summary>
 internal sealed class Bf6State
 {
@@ -222,14 +232,22 @@ internal sealed class Bf6State
     private DateTime _hudSeen, _hudFirst;
     private string? _mode, _map, _faction;
     private readonly List<(string Key, DateTime At)> _feed = new();
-    private bool _ended;
+    private bool _ended, _live;
+    private DateTime _loadingAt = DateTime.MinValue;
+    private int _moves;
+    private Outcome? _endSeen;
+    private DateTime _endSeenAt;
 
-    public Match? Current => _match;
+    public static readonly TimeSpan LiveAfter = TimeSpan.FromSeconds(45);
+
+    public Match? Current => _live ? _match : null;
 
     public List<Moment> Apply(Bf6Frame f, DateTime now, string myName)
     {
         var moments = new List<Moment>();
         if (f.Mode != null) { _mode = f.Mode; _map = f.Map ?? _map; _faction = f.Faction ?? _faction; }
+        // the loading screen shows the mode and the faction together; the menu can show a mode name, never a faction
+        if (f.Mode != null && f.Faction != null) _loadingAt = now;
         bool hud = f.Us != null || f.Them != null;
         if (hud)
         {
@@ -254,11 +272,17 @@ internal sealed class Bf6State
                 _usSeen = _themSeen = null;
                 _hudFirst = now;
                 _ended = false;
+                _live = now - _loadingAt < TimeSpan.FromMinutes(3);
+                _moves = 0;
+                _endSeen = null;
                 _feed.Clear();
             }
+            int? usBefore = _match.Us, themBefore = _match.Them;
             if (f.Us is int u) { if (_usSeen == u) _match.Us = u; _usSeen = u; }
             if (f.Them is int t) { if (_themSeen == t) _match.Them = t; _themSeen = t; }
+            if ((usBefore != null && _match.Us != usBefore) || (themBefore != null && _match.Them != themBefore)) _moves++;
             _hudSeen = now;
+            if (!_live && _match.Us != null && _match.Them != null && _moves > 0 && now - _hudFirst >= LiveAfter) _live = true;
         }
         if (_match == null) return moments;
         var m = _match;
@@ -284,7 +308,7 @@ internal sealed class Bf6State
             }
         }
 
-        if (!_ended && f.EndScreen is Outcome o)
+        if (!_ended && _live && f.EndScreen is Outcome o && _endSeen == o && now - _endSeenAt <= TimeSpan.FromSeconds(15))
         {
             _ended = true;
             m.Outcome = o;
@@ -292,26 +316,32 @@ internal sealed class Bf6State
             moments.Add(new Moment(MomentKind.End, Outcome: o));
         }
 
+        if (f.EndScreen is Outcome seen) { _endSeen = seen; _endSeenAt = now; }
+        bool report = _live;
+
         // the HUD gone for a while: the match ended (or he left). Near the end of the tickets, the side ahead won
         if (!hud && now - _hudSeen > TimeSpan.FromSeconds(25))
         {
-            if (!_ended && _hudSeen - _hudFirst > TimeSpan.FromSeconds(60) && m.Us is int a && m.Them is int b && Math.Min(a, b) <= 40 && a != b)
+            if (_live && !_ended && _hudSeen - _hudFirst > TimeSpan.FromSeconds(60) && m.Us is int a && m.Them is int b && Math.Min(a, b) <= 40 && a != b)
             {
                 m.Outcome = a > b ? Outcome.Win : Outcome.Loss;
                 moments.Add(new Moment(MomentKind.End, Outcome: m.Outcome));
             }
             _match = null;
-            _ended = false;
+            _ended = _live = false;
+            _loadingAt = DateTime.MinValue;
             _mode = _map = _faction = null;
         }
-        return moments;
+        // nothing is said about a match that is not real yet
+        return report ? moments : new List<Moment>();
     }
 
     /// <summary>The game left the front for good (closed or minimized for minutes): forget the match.</summary>
     public void Drop()
     {
         _match = null;
-        _ended = false;
+        _ended = _live = false;
+        _loadingAt = DateTime.MinValue;
     }
 }
 

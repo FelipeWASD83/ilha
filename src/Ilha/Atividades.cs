@@ -154,6 +154,8 @@ internal abstract class Atividade
     public virtual bool EhFerramenta => false;
     /// <summary>Largura mínima da pílula compacta (null = a padrão); a de privacidade é só as bolinhas.</summary>
     public virtual float? LarguraCompactaMinima => null;
+    /// <summary>Goes behind every other activity of the same priority (the focus mark: only on an otherwise empty pill).</summary>
+    public virtual bool AoFundo => false;
     /// <summary>Quando liga, aparece expandindo por um instante (o volume e a privacidade só aparecem).</summary>
     public virtual bool AnunciaChegada => TemExpandida;
     /// <summary>Rodinha do mouse em cima da ilha com esta atividade na frente (delta 120 por dente; true = tratou).</summary>

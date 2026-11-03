@@ -119,7 +119,7 @@ internal sealed partial class GamesModule : Modulo
         {
             Id = "conquistas", Nome = Lang.T("Conquistas", "Achievements"), Ordem = 62,
             Abrir = _room.Open,
-            Icone = (dc, p, r) => TrophyRoom.Cup(dc, p.G.Fabrica, new System.Numerics.Vector2(r.X + r.Width / 2, r.Y + r.Height / 2 + 1), r.Width * 0.8f, Cor.Branco),
+            Icone = (dc, p, r) => TrophyRoom.MenuIcon(dc, p.G.Fabrica, r),
             Detalhe = () => _trophies.Unlocked.Count > 0 ? _trophies.Unlocked.Count.ToString() : null,
         });
         // once a minute: the island's clock counts the games outside Steam and the Steam game running now gets its

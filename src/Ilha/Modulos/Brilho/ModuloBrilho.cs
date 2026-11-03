@@ -23,8 +23,22 @@ internal sealed class ModuloBrilho : Modulo
     private int _roda;
     private bool _noMenu, _parado;
 
+    private static ModuloBrilho? _atual;
+
+    /// <summary>The main monitor's brightness (0 to 1) as last read, null when the module is off or has no reading.</summary>
+    internal static float? NivelAtual => _atual is { _parado: false, _nivel: >= 0 } m ? m._nivel : null;
+
+    /// <summary>Sets the brightness from another module (the focus modes), on the interface thread.</summary>
+    internal static bool DefinirDeFora(float nivel)
+    {
+        if (_atual is not { _parado: false } m || m._nivel < 0) return false;
+        m.Definir(nivel);
+        return true;
+    }
+
     protected override void Iniciar(JsonObject cfg)
     {
+        _atual = this;
         _ddc = new Ddc(nivel => S.NaInterface(() => Leu(nivel)));
         _ddc.Iniciar();
     }

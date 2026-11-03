@@ -1,5 +1,28 @@
 # Changelog
 
+## 3.6.0 (03/11/2026)
+
+**New**
+- Focus, like the iPhone's: modes you turn on from the menu (the "Focus" ball) or that turn on by themselves on a
+  schedule ("mon-fri 09:00-18:00", "all 23:30-07:00") or while an app is open (bf6.exe turns on Gaming). While a mode
+  is on it can silence all of the island's sounds, turn on Windows' Do Not Disturb, let through all alerts, only the
+  important ones or none, put a Fundo Vivo wallpaper on the main monitor and set the volume and the monitor's
+  brightness. All of it goes back when the mode turns off, and Do Not Disturb that was already on stays on.
+  - Comes with Do Not Disturb, Work, Gaming and Sleep (Sleep turns on by itself from 23:30 to 07:00); the modes are
+    edited, added and ordered in the settings' new "Focus" section.
+  - The mode that is on shows its symbol and name on the pill when nothing else is there, a short notice says when one
+    turns on or off, and a mode turned on by hand stays on after the island restarts.
+- Do Not Disturb in the menu: a ball with a bell crossed out in red that turns the Do Not Disturb mode on and off.
+
+**Changed**
+- New achievements icon: a gold trophy with handles, a star and a dark base.
+- In a competitive game with the score on the pill, the menu and the "<" back to it work like outside the game.
+
+**Fixed**
+- Battlefield 6: the menu no longer counts as a match that keeps ending in a win. A match only counts after its
+  loading screen, or after the tickets of both sides moved for 45 s, and the end screen needs the whole word
+  (VICTORY/DEFEAT, not the menu's "victories") read twice.
+
 ## 3.5.0 (03/11/2026)
 
 **New**

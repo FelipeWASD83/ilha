@@ -49,6 +49,8 @@ internal sealed class ItemDoMenu
     public Func<Vortice.Mathematics.Color4?>? DetailSwatch;
     /// <summary>A bigger block that draws in the label space under its body, like the balls' names (the batteries).</summary>
     public bool LabelBelow;
+    /// <summary>The body's color instead of the gray (an "on" toggle, like the focus and Do Not Disturb balls).</summary>
+    public Func<Vortice.Mathematics.Color4?>? BodyColor;
 }
 
 /// <summary>A lista do menu principal. O núcleo marca o dono enquanto o módulo liga e tira as entradas dele ao desligar.</summary>
@@ -279,7 +281,7 @@ internal sealed class Menu : Atividade
             }
             foreach (var (item, r) in blocos)
             {
-                Fundo(dc, Corpo(r), Simples(item));
+                Fundo(dc, Corpo(r), Simples(item), item.BodyColor?.Invoke());
                 try
                 {
                     if (item.Draw != null) item.Draw(dc, p, r);
@@ -399,10 +401,11 @@ internal sealed class Menu : Atividade
         new(largura - MARGEM - CANTO - k * (CANTO + 2), LINHA - CANTO / 2, CANTO, CANTO);
 
     /// <summary>The gray body: a ball for a 1x1 tile, a block with the balls' curve for a bigger one.</summary>
-    internal static void Fundo(ID2D1DeviceContext dc, System.Drawing.RectangleF r, bool bola)
+    internal static void Fundo(ID2D1DeviceContext dc, System.Drawing.RectangleF r, bool bola, Vortice.Mathematics.Color4? cor = null)
     {
-        if (bola) { Icone.Circulo(dc, new Vector2(r.X + r.Width / 2, r.Y + r.Height / 2), r.Width / 2, FundoBloco); return; }
-        Icone.Retangulo(dc, r.X, r.Y, r.Width, r.Height, MathF.Min(RAIO_BLOCO, MathF.Min(r.Width, r.Height) / 2), FundoBloco);
+        var c = cor ?? FundoBloco;
+        if (bola) { Icone.Circulo(dc, new Vector2(r.X + r.Width / 2, r.Y + r.Height / 2), r.Width / 2, c); return; }
+        Icone.Retangulo(dc, r.X, r.Y, r.Width, r.Height, MathF.Min(RAIO_BLOCO, MathF.Min(r.Width, r.Height) / 2), c);
     }
 
     private static void DesenharPadrao(ID2D1DeviceContext dc, Palco p, ItemDoMenu item, System.Drawing.RectangleF r)

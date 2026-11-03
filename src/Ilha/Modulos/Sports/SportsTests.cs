@@ -99,6 +99,7 @@ internal sealed partial class SportsModule
                 (dc, f, box) => SportIcons.Draw(dc, f, box, "tennis"),
                 (dc, f, box) => SportIcons.Draw(dc, f, box, "basketball"),
                 (dc, f, box) => SportIcons.Draw(dc, f, box, "football"),
+                (dc, f, box) => global::Ilha.Games.TrophyRoom.MenuIcon(dc, f, box),
             });
             Ok("esportes: ícones do menu (jogos e os cinco esportes) desenhados em " + png, System.IO.File.Exists(png));
         }

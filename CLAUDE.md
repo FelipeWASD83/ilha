@@ -488,6 +488,40 @@ and the points that matter are here.
   the island back after a crash or hang (Windows does it only after 60 s of running; the log says "a ilha fechou
   sozinha e o Windows abriu de novo"). Next step to confirm the media module: a session with it turned off.
 
+## Focus (3.6.0, `Modulos/Foco/`, his request on 03/11/2026)
+
+- **Modes** (`FocusModes.cs`): `ConfigFoco.Modos` in the "foco" module section, edited only in the settings' own
+  "Foco" section (`Configuracoes/SecaoFoco.cs`, the window is now `partial`), written by `ColetarFoco` before the
+  generated module forms run (they keep the section's unknown keys). `Schedule.Parse` reads "seg-sex 09:00-18:00",
+  "todos 23:30-07:00", "sab,dom ..." (English day names too); a window crossing midnight belongs to its start day.
+  `FocusRules.Wanted` = the first mode in list order with a schedule on or an app running.
+- **State machine** (`FocoModule`): automation is checked every 30 s and on every context change when a mode has
+  apps; when the wanted mode changes it turns on (over a manual one), and a mode an automation turned on goes off
+  when no longer wanted. A mode turned on by hand is kept in `~/.ilha/foco.json` and comes back at start (a
+  schedule already on at start does not replace it). Turning a scheduled mode off by hand keeps it off until the next
+  change.
+- **Actions** and their undo: `Sons.Silencio` (no sound at all, important ones too) and `Ilha.FiltroDoFoco` (alerts:
+  all / important / none; the focus's own "foco" notices always pass) are static hooks in the core; volume through
+  `VolumeDoSistema`, brightness through `ModuloBrilho.DefinirDeFora` (put back only if still at the value the mode set);
+  wallpaper through `FundoVivoBridge` on the main monitor (the previous item comes back).
+- **Windows Do Not Disturb** (`WindowsDnd.cs`): the shell's undocumented QuietHoursSettings COM server
+  (CLSID F53321FA-..., IID 6BFF4732-..., vtable 3 = get, 4 = put of UserSelectedProfile). On his build 26300 it
+  works: the quiet hours WNF state follows it both ways. What failed first: writing that WNF state (the value
+  changes, the taskbar does not) and `FocusSessionManager.TryStartFocusSession` ("access denied" outside a packaged
+  app). On = PriorityOnly, and only when it was Unrestricted; off puts back what was there. His Windows keeps Do Not
+  Disturb on (PriorityOnly or AlarmsOnly), so in practice it stays on. Calls run in order on a background chain.
+  The live test only runs with `ILHA_TESTE_DND=1` (it switches it off and back for ~3 s).
+- **On screen**: menu balls "foco" (order 6, the mode's symbol, body in its color while on) and "nao-perturbe"
+  (order 7, the bell crossed out in red); `ItemDoMenu.BodyColor` is new. `FocusActivity` is the modes card (a tap
+  toggles) and, with `AoFundo` (new in `Atividade`), the mark on the pill only when nothing else is there.
+
+- **Also in 3.6.0:** BF6 in the menu kept making matches that ended in a win (numbers read in the ticket boxes, the
+  career "VITÓRIAS" read as the end screen). `Bf6State.Current` is now null until the match is real: the loading
+  screen seen (mode and faction in the same look, valid 3 minutes) or both tickets read, moved at least once and the
+  HUD on for 45 s (`LiveAfter`); `EndFrom` wants the whole word, read twice within 15 s. In a competitive game with
+  `modoCompetitivo = placar`, `Ilha.MenuFechado` is false: the menu and the "<" work (keyboard focus still never goes
+  to the island in a competitive game).
+
 ## Approving Claude Code permissions from the island
 
 - `ferramentas/hook_permissao.py` is the `PermissionRequest` hook, installed on 01/11/2026 in his

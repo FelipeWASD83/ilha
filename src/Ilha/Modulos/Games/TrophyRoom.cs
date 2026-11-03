@@ -131,7 +131,53 @@ internal sealed class TrophyRoom : Atividade
         dc.FillGeometry(g, b);
     }
 
-    /// <summary>A trophy cup (the menu icon and the unlock animation).</summary>
+    /// <summary>
+    /// The menu icon (3.6.0, his request for a better one): a gold cup in a gradient with its handles, a stem on a dark
+    /// base with a gold plate, a white star and a shine down its left side. Drawn in a 24-unit box.
+    /// </summary>
+    public static void MenuIcon(ID2D1DeviceContext dc, ID2D1Factory1 f, System.Drawing.RectangleF r)
+    {
+        float u = r.Width / 24f;
+        Vector2 P(float x, float y) => new(r.X + x * u, r.Y + y * u);
+        var gold = new Color4(0.98f, 0.78f, 0.22f, 1);
+        var deep = new Color4(0.82f, 0.52f, 0.08f, 1);
+        // the handles behind the bowl
+        using (var hb = dc.CreateSolidColorBrush(deep))
+            foreach (float side in new[] { -1f, 1f })
+                dc.DrawEllipse(new Ellipse(P(12 + side * 7.4f, 6.6f), 2.6f * u, 2.9f * u), hb, 1.5f * u);
+        // the bowl
+        using (var g = f.CreatePathGeometry())
+        {
+            using (var s = g.Open())
+            {
+                s.BeginFigure(P(5.6f, 2.6f), FigureBegin.Filled);
+                s.AddLine(P(18.4f, 2.6f));
+                s.AddBezier(new BezierSegment { Point1 = P(18.4f, 9.6f), Point2 = P(15.4f, 12.8f), Point3 = P(12, 12.9f) });
+                s.AddBezier(new BezierSegment { Point1 = P(8.6f, 12.8f), Point2 = P(5.6f, 9.6f), Point3 = P(5.6f, 2.6f) });
+                s.EndFigure(FigureEnd.Closed);
+                s.Close();
+            }
+            using var stops = dc.CreateGradientStopCollection(new[]
+            {
+                new GradientStop { Position = 0, Color = new Color4(1, 0.92f, 0.55f, 1) },
+                new GradientStop { Position = 0.45f, Color = gold },
+                new GradientStop { Position = 1, Color = deep },
+            });
+            using var b = dc.CreateLinearGradientBrush(new LinearGradientBrushProperties { StartPoint = P(6, 2), EndPoint = P(18, 13) }, stops);
+            dc.FillGeometry(g, b);
+        }
+        // the rim, the shine and the star
+        Icone.Retangulo(dc, P(5, 0).X, P(0, 1.8f).Y, 14 * u, 1.6f * u, 0.8f * u, new Color4(1, 0.86f, 0.4f, 1));
+        Icone.Retangulo(dc, P(7.2f, 0).X, P(0, 4).Y, 1.4f * u, 5.2f * u, 0.7f * u, new Color4(1, 1, 1, 0.45f));
+        Star(dc, f, P(12.6f, 6.8f), 3.1f * u, new Color4(1, 1, 1, 0.95f));
+        // the stem, the knot and the base with its plate
+        Icone.Retangulo(dc, P(11, 0).X, P(0, 12.6f).Y, 2 * u, 3.4f * u, 0.4f * u, deep);
+        Icone.Retangulo(dc, P(9.4f, 0).X, P(0, 15.6f).Y, 5.2f * u, 1.6f * u, 0.8f * u, gold);
+        Icone.Retangulo(dc, P(6.6f, 0).X, P(0, 17.4f).Y, 10.8f * u, 4.8f * u, 1.2f * u, new Color4(0.24f, 0.16f, 0.12f, 1));
+        Icone.Retangulo(dc, P(9.2f, 0).X, P(0, 18.7f).Y, 5.6f * u, 2.2f * u, 0.5f * u, gold);
+    }
+
+    /// <summary>A trophy cup (the unlock animation).</summary>
     public static void Cup(ID2D1DeviceContext dc, ID2D1Factory1 f, Vector2 c, float s, Color4 color)
     {
         using var b = dc.CreateSolidColorBrush(color);

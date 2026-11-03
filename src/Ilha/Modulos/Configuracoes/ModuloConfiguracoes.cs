@@ -204,6 +204,13 @@ internal sealed class ModuloConfiguracoes : Modulo
                     sem.AtalhosModulos.ContainsKey("timer") && !sem.AtalhosModulos.ContainsKey("calculadora"));
                 Conferir("sem mexer, a seção do teste mantém chave desconhecida", sem.Modulos["teste"]?["outra"]?.GetValue<int>() == 1 && sem.Modulos["teste"]?["vezes"]?.GetValue<int>() == 4);
                 Conferir("sem mexer, o atualizador continua desligado", sem.Modulos["atualizador"]?["ligado"]?.GetValue<bool>() == false);
+                Conferir("foco: a seção mostra os modos de fábrica e grava de volta", j.ListaDoFoco.Items.Count == 4 && sem.Modulos["foco"]?["modos"] is JsonArray fm && fm.Count == 4);
+                j.NovoModoDoFoco();
+                j.CampoNomeDoFoco.Text = "Leitura";
+                var comFoco = j.Coletar();
+                var modos = comFoco.Modulos["foco"]?["modos"]?.Deserialize<List<global::Ilha.Focus.FocusMode>>(Config.Json);
+                Conferir("foco: modo novo com o nome digitado vai para o salvar", modos?.Count == 5 && modos[4].Nome == "Leitura" && j.ListaDoFoco.Items[4] as string == "Leitura",
+                    string.Join(",", modos?.Select(m => m.Nome) ?? Array.Empty<string>()));
                 Conferir("seção ilegível fica sem campos e sai do salvar intacta",
                     j.ModulosNaTela.First(m => m.Id == "ilegivel").Campos.Count == 0 && JsonNode.DeepEquals(sem.Modulos["ilegivel"], cfg.Modulos["ilegivel"]),
                     sem.Modulos["ilegivel"]?.ToJsonString() ?? "null");

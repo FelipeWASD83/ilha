@@ -233,6 +233,15 @@ internal sealed class Ilha : IDisposable
     /// </summary>
     public static Func<bool>? Discreto { get; set; }
 
+    /// <summary>The active focus mode's rule for alerts (Modulos/Foco): true = this alert does not show.</summary>
+    public static Func<Alerta, bool>? FiltroDoFoco { get; set; }
+
+    private static bool FocoBarra(Alerta a)
+    {
+        try { return FiltroDoFoco?.Invoke(a) == true; }
+        catch (Exception) { return false; }
+    }
+
     /// <summary>The discreet hook says so; a hook that throws counts as discreet.</summary>
     public static bool Discreta
     {
@@ -821,6 +830,12 @@ internal sealed class Ilha : IDisposable
     // still do not show over the game
     private bool Permitida(Atividade a) => !_ctx.Competitivo || a.PermitidaNoCompetitivo || _cfg.ModoCompetitivo == ModosCompetitivos.Placar;
 
+    /// <summary>
+    /// The menu (and the "&lt;" back to it) is shut in a competitive game, except in score mode, where the island is
+    /// meant to be there: he could open the score but not get back to the menu (03/11/2026).
+    /// </summary>
+    private bool MenuFechado => _ctx.Competitivo && _cfg.ModoCompetitivo != ModosCompetitivos.Placar;
+
     private int Prioridade(string tipo)
     {
         int i = _cfg.Prioridades.FindIndex(p => string.Equals(p, tipo, StringComparison.OrdinalIgnoreCase));
@@ -831,6 +846,7 @@ internal sealed class Ilha : IDisposable
         .Where(a => a.Ativa && Permitida(a))
         .OrderByDescending(a => a.NaFrente)
         .ThenBy(a => Prioridade(a.Tipo))
+        .ThenBy(a => a.AoFundo ? 1 : 0)
         .ThenByDescending(a => a.Desde)
         .ToList();
 
@@ -842,6 +858,7 @@ internal sealed class Ilha : IDisposable
         if (a.Dono != null && a.Dono != _painel && !_atividades.Contains(a.Dono)) return;
         if (_ctx.Competitivo && !a.PermitidoNoCompetitivo) return;
         if (_ctx.NaoPerturbe && _cfg.RespeitarNaoPerturbe && !a.Importante) return;
+        if (FocoBarra(a)) return;
         if (a.Importante)
         {
             // alarme (timer acabou) fura a fila
@@ -860,7 +877,7 @@ internal sealed class Ilha : IDisposable
     private bool PodeMostrar(Alerta a) =>
         !_cfg.Pausada && (!_ctx.Competitivo || a.PermitidoNoCompetitivo) && !(_ctx.NaoPerturbe && _cfg.RespeitarNaoPerturbe && !a.Importante)
         && !(_ctx.ConteudoEmTelaCheia && !_revelada && !a.Importante)
-        && !(a.Privado && Discreta);
+        && !(a.Privado && Discreta) && !FocoBarra(a);
 
     private void ProximoAlerta()
     {
@@ -1091,7 +1108,7 @@ internal sealed class Ilha : IDisposable
                  && x >= _rCorpo.Right - _p.Px(COMPACTA_FOLGA + _extraPontos)
                  && vis.FirstOrDefault(a => a.Tipo == "privacidade") is { } privacidade) _foco = privacidade;
         else if (vis.Count > 0) _foco = vis[0];
-        else _foco = _ctx.Competitivo ? null : _painel;
+        else _foco = MenuFechado ? null : _painel;
         if (_foco == null || !_foco.TemExpandida) return;
         _expandida = true;
         _porAtalho = false;
@@ -1125,7 +1142,7 @@ internal sealed class Ilha : IDisposable
     {
         if (_estado == Estado.Alerta && _alerta != null) { _relogioAlerta.Stop(); ProximoAlerta(); return _expandida; }
         if (_estado != Estado.Expandida) return false;
-        if (_clicada && _foco != null && _foco != _painel && _painel != null && !_ctx.Competitivo) { AbrirMenu(); return true; }
+        if (_clicada && _foco != null && _foco != _painel && _painel != null && !MenuFechado) { AbrirMenu(); return true; }
         Recolher();
         return false;
     }
@@ -1157,7 +1174,7 @@ internal sealed class Ilha : IDisposable
         if (_alerta != null) { _relogioAlerta.Stop(); _fila.Clear(); _alerta = null; }
         _clicada = false;
         var vis = Visiveis();
-        _foco = vis.FirstOrDefault(a => a.TemExpandida) ?? (_ctx.Competitivo ? null : _painel);
+        _foco = vis.FirstOrDefault(a => a.TemExpandida) ?? (MenuFechado ? null : _painel);
         if (_foco == null) return;
         _expandida = true;
         _porAtalho = true;
@@ -1287,10 +1304,10 @@ internal sealed class Ilha : IDisposable
         }
 
         bool avulsa = _foco == _painel || _foco?.EhFerramenta == true;
-        if (_expandida && _foco != null && (_foco.Ativa || avulsa) && (Permitida(_foco) || avulsa && !_ctx.Competitivo))
+        if (_expandida && _foco != null && (_foco.Ativa || avulsa) && (Permitida(_foco) || avulsa && !MenuFechado))
         {
             var f = _foco;
-            bool voltar = f != _painel && _painel != null && !_ctx.Competitivo;
+            bool voltar = f != _painel && _painel != null && !MenuFechado;
             return Cartao(Estado.Expandida, $"exp:{f.GetHashCode()}:{(voltar ? 1 : 0)}:{f.Versao}",
                 voltar ? () => ComVoltar(f.Criar(_p, Forma.Expandida)) : () => f.Criar(_p, Forma.Expandida), RAIO_EXPANDIDA);
         }

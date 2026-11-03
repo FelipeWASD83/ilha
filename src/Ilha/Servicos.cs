@@ -18,6 +18,15 @@ internal sealed class Sons
     private readonly Func<Contexto> _ctx;
     private readonly List<Windows.Media.Playback.MediaPlayer> _tocando = new();
 
+    /// <summary>A focus mode that silences the island (Modulos/Foco): true = no sound at all, important ones too.</summary>
+    public static Func<bool>? Silencio { get; set; }
+
+    private static bool Silenciada()
+    {
+        try { return Silencio?.Invoke() == true; }
+        catch (Exception) { return false; }
+    }
+
     public Sons(Func<Config> cfg, Func<Contexto> ctx)
     {
         _cfg = cfg;
@@ -42,7 +51,7 @@ internal sealed class Sons
     {
         var cfg = _cfg();
         var ctx = _ctx();
-        if (!cfg.Sons.Ligados || cfg.Sons.Volume <= 0 || cfg.Pausada) return null;
+        if (!cfg.Sons.Ligados || cfg.Sons.Volume <= 0 || cfg.Pausada || Silenciada()) return null;
         if (ctx.Competitivo && !importante) return null;
         if (ctx.NaoPerturbe && cfg.RespeitarNaoPerturbe && !importante) return null;
         var arq = Arquivo(tipo);
@@ -77,7 +86,7 @@ internal sealed class Sons
         var cfg = _cfg();
         var ctx = _ctx();
         if (!cfg.Sons.Ligados || cfg.Sons.Volume <= 0) return;
-        if (cfg.Pausada) return;
+        if (cfg.Pausada || Silenciada()) return;
         if (ctx.Competitivo && !importante) return;
         if (ctx.NaoPerturbe && cfg.RespeitarNaoPerturbe && !importante) return;
         var arq = Arquivo(tipo) ?? Arquivo("alerta");
