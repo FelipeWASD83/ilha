@@ -39,6 +39,11 @@ $linhas = $changelog -split "`r?`n"
 $topo = $linhas | Where-Object { $_ -match '^## ' } | Select-Object -First 1
 if (-not $topo -or $topo -notmatch '^## ([0-9]+\.[0-9]+\.[0-9]+)') { throw 'CHANGELOG.md does not have a "## X.Y.Z" section at the top.' }
 if ($Matches[1] -ne $versao) { throw "The csproj says $versao and the top of CHANGELOG.md says $($Matches[1]). Fix that first." }
+# versao.json is the shared release file of the setup's apps (clave, relogio-mond, ilha-cursors): it has to agree
+$arquivoVersao = Join-Path $raiz 'versao.json'
+if (-not (Test-Path $arquivoVersao)) { throw 'versao.json is missing.' }
+$daJson = ([IO.File]::ReadAllText($arquivoVersao) | ConvertFrom-Json).versao
+if ($daJson -ne $versao) { throw "The csproj says $versao and versao.json says $daJson. Fix that first." }
 Write-Host "Version $versao"
 
 # --- notas: só a seção desta versão

@@ -1,5 +1,18 @@
 # Changelog
 
+## 4.0.2 (03/11/2026)
+
+**Fixed**
+- The "Copied" notice showed about 1 in 6 random keys and passwords as if they were plain text: any run of six lowercase
+  letters inside the key was taken for a word. Now only a whole word between separators (`relatorio-final-v2-2026`,
+  `Screenshot_20261103-153012`) is let through; file names with dates are still shown.
+
+**New**
+- `Ilha.exe --quit` closes the island, the same as `--sair`. It is the word the Fundo Vivo and the Relógio Mond use, and
+  what the setup (Pacote Windows Bonito) sends to the apps before updating them.
+- `versao.json` at the root of the project, in the release format shared by the setup's apps; `publicar-versao.ps1`
+  refuses to publish if it disagrees with the version in the project.
+
 ## 4.0.1 (03/11/2026)
 
 **Fixed**

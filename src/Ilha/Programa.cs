@@ -65,7 +65,8 @@ public static class Programa
             return;
         }
 
-        bool sair = Array.IndexOf(args, "--sair") >= 0;
+        // --sair, and --quit as the same word the other apps of the setup use (Fundo Vivo, Relógio Mond)
+        bool sair = Array.IndexOf(args, "--sair") >= 0 || Array.IndexOf(args, "--quit") >= 0;
         using var instancia = new Mutex(true, @"Local\Ilha.Instancia", out bool primeira);
         if (!primeira)
         {

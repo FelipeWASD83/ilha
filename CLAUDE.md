@@ -666,6 +666,12 @@ and the points that matter are here.
 - Publishing: `ferramentas/publicar-versao.ps1` (refuses if the `.csproj` and the top of `CHANGELOG.md` do not match;
   `-SoGerar` only builds the package; it builds with `compilar.ps1 -Publico`, so no private module goes into the
   release). **Publishing a release is his decision.** There is no release yet (01/11/2026).
+- **Shared release format (4.0.2, 03/11/2026):** `versao.json` (`versao`, `repositorio`) at the root, the model of
+  `clave`, `relogio-mond` and `ilha-cursors`; `publicar-versao.ps1` refuses if it disagrees with the csproj. The zip
+  stays `Ilha-X.Y.Z.zip`. `Ilha.exe --quit` is `--sair` under the name the other apps use; the setup
+  (`pacote-windows-bonito`) closes the island with either.
+- **`LooksSecret` (4.0.2):** "no plain word" means a whole segment between `-`, `_`, `.` or the ends
+  (`(^|[-_.])[A-Za-z]?[a-z]{5,}([-_.]|$)`). The old `[a-z]{6,}` anywhere let about 1 in 6 random keys through.
 - The release executable is compiled here and has the hash of this build; Smart App Control may block the downloaded
   `.exe` even after accepting the local one. Test the package before publishing.
 

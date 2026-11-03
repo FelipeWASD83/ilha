@@ -235,10 +235,11 @@ internal sealed class ReactionsModule : Modulo
         if (prefixes.Any(p => s.StartsWith(p, StringComparison.Ordinal))) return true;
         // a file name (IMG_20261103_153012.jpg, relatorio-v2.pdf) is not a key (4.0.1: dated names were hidden)
         if (System.Text.RegularExpressions.Regex.IsMatch(s, @"\.[A-Za-z][A-Za-z0-9]{1,4}$")) return false;
-        // random-looking: upper and lower case and digits mixed, most characters different, and no run of a plain
-        // lowercase word (relatorio-final-v2-2026 is words and a date, not a token)
+        // random-looking: upper and lower case and digits mixed, most characters different, and no plain word between
+        // separators (relatorio-final-v2-2026 is words and a date, not a token). The word has to be a whole segment: a
+        // bare run of 6 lowercase letters also shows up in about 1 of 6 random keys (4.0.2)
         if (!s.Any(char.IsUpper) || !s.Any(char.IsLower) || s.Count(char.IsDigit) < 3) return false;
-        if (System.Text.RegularExpressions.Regex.IsMatch(s, "[a-z]{6,}")) return false;
+        if (System.Text.RegularExpressions.Regex.IsMatch(s, @"(^|[-_.])[A-Za-z]?[a-z]{5,}([-_.]|$)")) return false;
         return s.Distinct().Count() / (double)s.Length > 0.45;
     }
 
@@ -379,7 +380,8 @@ internal sealed class ReactionsModule : Modulo
             "cópia: texto vira uma linha curta entre aspas");
         Check(Private(new[] { "Text", "ExcludeClipboardContentFromMonitorProcessing" }, _ => null), "cópia: marcada como privada pelo gerenciador de senha não aparece");
         Check(LooksSecret("0123456789ABCDEF0123456789ABCDEF") && LooksSecret("sk-proj-abcDEF123ghiJKL456mnoPQR789") && LooksSecret("ghp_a1B2c3D4e5F6g7H8i9J0k1L2m3N4o5P6q7R8")
-              && LooksSecret("eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxMjMifQ.abc123") && LooksSecret("Xk9_mQ2-vT7pLw4zR8nB3cY6"),
+              && LooksSecret("eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxMjMifQ.abc123") && LooksSecret("Xk9_mQ2-vT7pLw4zR8nB3cY6")
+              && LooksSecret("Q7zXabcdefGH9k2LmN4pRs8T") && LooksSecret("p4Rtqwertyui8Zk2NvB7cLm3") && LooksSecret("Z9mKjhgfdsaP3x7QwEr5T2yU"),
             "cópia: chave, token e senha aleatória ficam escondidos");
         Check(!LooksSecret("https://steamcommunity.com/dev/apikey") && !LooksSecret("C:\\Users\\alguem\\arquivo.txt") && !LooksSecret("olá, tudo bem com você?")
               && !LooksSecret("paralelepipedoparalelepipedo") && !LooksSecret("2026-11-03") && !LooksSecret("alguem.exemplo@gmail.com")

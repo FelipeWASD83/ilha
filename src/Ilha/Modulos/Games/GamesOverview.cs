@@ -62,11 +62,7 @@ internal sealed class GamesOverview : Atividade
     private const float CLIP_W = (L - 3 * 8) / 4, CLIP_H = CLIP_W * 9 / 16, MATCH_ROW = 56;
 
     /// <summary>
-    /// One finished match: a card tinted green (win) or red (loss), the game's icon, the result and the mode, the score,
-    /// kills and deaths, the MVP (a crown in Rocket League, the round MVP stars in CS2) and when.
-    /// </summary>
-    /// <summary>
-    /// The mode as shown now: Rocket League matches saved before 4.0.0 keep the old names in the history (and "Playlist N"
+    /// The mode as shown now: Rocket League matches saved before 3.9.0 keep the old names in the history (and "Playlist N"
     /// for events), so they are read through today's names; an event shows no mode (4.0.1).
     /// </summary>
     internal static string ModeName(string game, string saved)
@@ -84,6 +80,10 @@ internal sealed class GamesOverview : Atividade
         return id is int i ? RocketLeagueState.PlaylistName(i) : saved;
     }
 
+    /// <summary>
+    /// One finished match: a card tinted green (win) or red (loss), the game's icon, the result and the mode, the score,
+    /// kills and deaths, the MVP (a crown in Rocket League, the round MVP stars in CS2) and when.
+    /// </summary>
     private static void MatchCard(ID2D1DeviceContext dc, Palco p, Record r, float y)
     {
         var o = r.Read ?? Outcome.Draw;
