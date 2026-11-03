@@ -308,6 +308,8 @@ internal sealed class RecorderActivity : Atividade
 
     private void Refresh()
     {
+        // the red dot on the score pill (3.9.0): the recording card itself is not shown over a competitive game
+        S.Indicadores.Gravacao("gravador", _phase == Phase.Recording, Lang.T("Gravador da ilha", "Island recorder"));
         MenuChanged?.Invoke();
         EvaluateWave();
         string k = $"{_phase}|{_panel}|{_kind}|{_error != null}";
@@ -651,6 +653,7 @@ internal sealed class RecorderActivity : Atividade
 
     public override void Dispose()
     {
+        S.Indicadores.Gravacao("gravador", false, "");
         _second.Dispose();
         _waveTick.Dispose();
     }

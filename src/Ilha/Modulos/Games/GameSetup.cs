@@ -21,7 +21,7 @@ internal static class GameSetup
 
     private static readonly Regex Pair = new("\"((?:[^\"\\\\]|\\\\.)*)\"\\s+\"((?:[^\"\\\\]|\\\\.)*)\"", RegexOptions.Compiled);
 
-    private static IEnumerable<(string Key, string Value)> Pairs(string vdf) =>
+    internal static IEnumerable<(string Key, string Value)> Pairs(string vdf) =>
         Pair.Matches(vdf).Select(m => (m.Groups[1].Value, m.Groups[2].Value));
 
     public static string? SteamFolder()

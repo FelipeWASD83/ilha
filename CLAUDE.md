@@ -569,6 +569,49 @@ and the points that matter are here.
 - **Achievements (3.8.0):** every game with hours, `VISIBLE` = 8 rows, `Rolar` scrolls a clipped list with a thin bar;
   `SteamNames.Fetch` now asks for all missing names in one run at a time (busy flag), saving every ten.
 
+## 3.9.0 (his requests on 03/11/2026)
+
+- **Crashes:** the three real ones (02/11 21:38, 03/11 15:17 and 15:32; every other "Application Error" for Ilha.exe in
+  the Event Viewer is Smart App Control blocking a build during `compilar.ps1`, with a 1.4 MB dump) all ran on the
+  finalizer thread releasing a WinRT object, once inside `Windows.Media.MediaControl.dll`. Measured with a probe in the
+  media self test: **the system media wrappers are cached by identity** (the same session, the same PlaybackInfo and
+  the same timeline object come back on every call, so releasing one by hand makes the next reading throw
+  ObjectDisposedException), while the session lists, async operations, media properties and event args are new on
+  every call. `WinRtRelease.Now` releases only those short-lived ones, on the interface thread, right after use; the
+  cached ones are never released by hand. Inference, not proof: the dumps' heaps were too damaged to name the object.
+  If it crashes again, `dotnet-dump analyze` the new dump (`%LOCALAPPDATA%\CrashDumps`, the 30 MB ones).
+- **Dots on the score pill:** `PontosDevemAparecer` now allows the camera and microphone dots over a competitive game
+  in `placar` mode, and `Indicadores.Gravacao(owner, on, apps)` adds a red one (owners `gravador` and `gravando`: the
+  island's recorder, OBS, another app capturing the screen), drawn only over a competitive game. `Capturas.AnelDeClipes`
+  keeps the clip ring's ffmpeg from counting as a screen capture. **Not seen on screen**: it needs a real competitive
+  game in front.
+- **Ping** (`Modulos/Rede`, id `ping`): `System.Net.NetworkInformation.Ping` (ICMP, no admin) once a second to `alvo`
+  (1.1.1.1) and the IPv4 gateway while `Contexto.Jogo` is set, 30 s after it leaves. `NetQuality.Evaluate`: median of
+  the last five replies, loss over 30 samples (after 10), bad above `limiteMs` or at `perdaPct`, good again below 80%;
+  "rede local" when the router's median is over 20 ms or it drops. `ScoreActivity` widens by the mark's width. The game
+  server's own ping is impossible here: UDP tables carry no remote address and anything deeper is admin or kernel.
+- **Steam downloads** (`Modulos/SteamDownloads`, id `downloads-steam`): appmanifest StateFlags (EAppState bits:
+  UpdateRunning 256, UpdatePaused 512, UpdateStarted 1024, Preallocating, Downloading, Staging, Committing), progress =
+  max(BytesDownloaded, size of `steamapps\downloading\<app>`); Workshop = non-empty `workshop\downloads\<app>`. One
+  FileSystemWatcher per library (filtered to manifests, `downloading`, Workshop downloads), a look every 2 s while
+  something downloads, else one a minute. **Not seen with a real download** (nothing was downloading on 03/11/2026):
+  whether Steam rewrites the manifest during a download is the open question the folder size covers.
+- **Steam friends** (`Modulos/Amigos`, id `amigos`): Web API key in Credential Manager `Ilha/steam` (pasted in the
+  card), SteamID64 from `ActiveProcess\ActiveUser` (+76561197960265728) or the MostRecent account of loginusers.vdf.
+  Friend list every 30 min, GetPlayerSummaries every minute; notices for online and game start/switch (offline off by
+  default), three per reading at most; avatars in `~/.ilha/amigos/avatares/`, circle cut into the alpha. **Not tested
+  live**: there is no key yet; whether a private friend list answers to its owner's key is unknown.
+- **Weather** (`Modulos/Clima`, id `clima`): Open-Meteo forecast every 10 min; the city's coordinates from its
+  geocoding, cached in `~/.ilha/clima.json`. `SkyWatch`: a new sky group must be read twice in a row to count; the first
+  reading only learns. His city is in his local config. Photo hook `ILHA_FOTO_CLIMA=1`.
+- **Rocket League names:** ranked by team size and the game's Brazilian names (Rixa, Basquete, Dia de Neve); casual
+  Chaos (4) is "4v4 casual"; an unknown id (events, like 81) shows no mode and goes to the log once.
+- **ALTURA_MAX 880** (was 640): the menu's sixth row (friends, weather, and the private server ball) lost the black body.
+- **Private, outside git** (`ilha/privado/ServerHealth.cs`, id `servidor`): the mini PC through one read-only `ssh`
+  (BatchMode) every 2 minutes; notices for a failed or restarting service, a stopped one, the server unreachable twice
+  in a row, disk 90% and 80 °C; what was said is kept in `~/.ilha/servidor-avisos.json`, so a service failing for days
+  is told once. Listed in public mode's `PrivateOwners`. The live test needs `ILHA_TESTE_SERVIDOR=user@ip`.
+
 ## Approving Claude Code permissions from the island
 
 - `ferramentas/hook_permissao.py` is the `PermissionRequest` hook, installed on 01/11/2026 in his

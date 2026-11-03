@@ -31,7 +31,13 @@ internal static class Capturas
     /// </summary>
     public static volatile bool GravadorAtivo;
 
-    public static bool EhDoGravador(string exe) => GravadorAtivo && exe.Equals("ffmpeg.exe", StringComparison.OrdinalIgnoreCase);
+    /// <summary>
+    /// The clip ring (3.7.0) records the screen through ffmpeg the whole time a competitive game is in front: that is
+    /// not "recording" for the red dot on the score pill (3.9.0), or the dot would be lit for the whole match.
+    /// </summary>
+    public static volatile bool AnelDeClipes;
+
+    public static bool EhDoGravador(string exe) => (GravadorAtivo || AnelDeClipes) && exe.Equals("ffmpeg.exe", StringComparison.OrdinalIgnoreCase);
 
     /// <summary>FILETIME do registro em UTC; inválido ou zero: null.</summary>
     public static DateTime? Instante(long filetime)

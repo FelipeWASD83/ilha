@@ -24,32 +24,36 @@ internal sealed class RocketLeagueState
 
     public Match? Current => _match;
 
-    // the API gives only the number; from the community lists, plus 63 seen on 03/11/2026 (Heatseeker, ranked)
+    // the API gives only the number; from the community lists, plus 63 seen on 03/11/2026 (Heatseeker, ranked). 3.9.0
+    // (his request): the ranked ones by team size and the game's Brazilian names (Rixa, Basquete, Dia de Neve), casual
+    // Chaos as 4v4. Any other id is an event or a limited mode: no name on the pill (the id goes to the log).
+    private int _unnamed = -1;
+
     public static string PlaylistName(int id) => id switch
     {
-        1 => Lang.T("Duelo", "Duel"),
-        2 => Lang.T("Duplas", "Doubles"),
-        3 => Lang.T("Padrão", "Standard"),
-        4 => Lang.T("Caos", "Chaos"),
+        1 => "1v1",
+        2 => "2v2",
+        3 => "3v3",
+        4 => Lang.T("4v4 casual", "Casual 4v4"),
         6 => Lang.T("Partida particular", "Private match"),
         8 => Lang.T("Exibição", "Exhibition"),
-        10 => Lang.T("Duelo ranqueado", "Ranked Duel"),
-        11 => Lang.T("Duplas ranqueado", "Ranked Doubles"),
-        13 => Lang.T("Padrão ranqueado", "Ranked Standard"),
-        15 => "Snow Day",
-        17 => "Hoops",
-        18 => "Rumble",
+        10 => Lang.T("1v1 ranqueado", "Ranked 1v1"),
+        11 => Lang.T("2v2 ranqueado", "Ranked 2v2"),
+        13 => Lang.T("3v3 ranqueado", "Ranked 3v3"),
+        15 => Lang.T("Dia de Neve", "Snow Day"),
+        17 => Lang.T("Basquete", "Hoops"),
+        18 => Lang.T("Rixa", "Rumble"),
         22 or 34 => Lang.T("Torneio", "Tournament"),
         23 => "Dropshot",
-        27 => Lang.T("Hoops ranqueado", "Ranked Hoops"),
-        28 => Lang.T("Rumble ranqueado", "Ranked Rumble"),
+        27 => Lang.T("Basquete ranqueado", "Ranked Hoops"),
+        28 => Lang.T("Rixa ranqueada", "Ranked Rumble"),
         29 => Lang.T("Dropshot ranqueado", "Ranked Dropshot"),
-        30 => Lang.T("Snow Day ranqueado", "Ranked Snow Day"),
+        30 => Lang.T("Dia de Neve ranqueado", "Ranked Snow Day"),
         38 => "Heatseeker",
         41 => "Gridiron",
         43 => "Knockout",
         63 => Lang.T("Heatseeker ranqueado", "Ranked Heatseeker"),
-        _ => Lang.T($"Playlist {id}", $"Playlist {id}"),
+        _ => "",
     };
 
     // free play, training and the like: one player, nothing to score
@@ -149,6 +153,7 @@ internal sealed class RocketLeagueState
         }
         int us = _myTeam == 1 ? 1 : 0;
         m.Mode = PlaylistName(playlist);
+        if (m.Mode.Length == 0 && _unnamed != playlist) { _unnamed = playlist; Log.Escrever($"jogos: rocket league na playlist {playlist} (sem nome)"); }
         m.Map = ArenaName(Str(g, "Arena"));
 
         int blue = 0, orange = 0;

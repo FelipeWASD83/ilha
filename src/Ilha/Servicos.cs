@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Runtime.InteropServices;
 using System.Text;
 using System.Windows.Forms;
@@ -279,6 +280,20 @@ internal sealed class Indicadores
     public event Action? Mudou;
 
     public bool Algum => Camera || Microfone;
+
+    // something recording the screen (3.9.0), by owner: the island's recorder, OBS or another app capturing the screen.
+    // Only drawn on the score pill: everywhere else the recording activities show themselves.
+    private readonly Dictionary<string, string> _gravando = new();
+    public bool Gravando => _gravando.Count > 0;
+    public string GravandoApps => string.Join(", ", _gravando.Values.Where(v => v.Length > 0).Distinct());
+
+    public void Gravacao(string dono, bool ligado, string apps)
+    {
+        bool antes = _gravando.TryGetValue(dono, out var velho);
+        if (ligado == antes && (!ligado || velho == apps)) return;
+        if (ligado) _gravando[dono] = apps; else _gravando.Remove(dono);
+        Mudou?.Invoke();
+    }
 
     public void Definir(bool camera, string cameraApps, bool microfone, string microfoneApps)
     {

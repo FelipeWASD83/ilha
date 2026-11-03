@@ -1,5 +1,29 @@
 # Changelog
 
+## 3.9.0 (03/11/2026)
+
+**New**
+- The score pill carries the dots: green for the camera, orange for the microphone and a red one while something
+  records the screen (the island's recorder, OBS or another app). The clip ring does not light the red one.
+- Ping: while a competitive game is in front, the island pings the router and an internet host once a second; when
+  the connection turns bad the score pill shows a small mark ("ping 180 · perda 3%", or "rede local" when the router
+  itself is slow). It measures your connection, not the game server, which Windows does not show.
+- Steam downloads: games, updates and Workshop items on the pill with the game's icon, the percentage and a bar; the
+  card lists every download with the speed and the time left, and a notice says when a game is ready to play.
+- Steam friends: with your Steam Web API key (pasted on the island, kept in Credential Manager), a notice when a
+  friend comes online or starts a game, and a "Friends" card in the menu with who is online and playing what.
+- Weather: Open-Meteo for the city in the settings. When the sky changes (clear, cloudy, fog, drizzle, rain, snow,
+  storm) the collapsed island says so, "Cloudy → Rain · 24°"; the "Weather" ball in the menu opens the next hours.
+
+**Changed**
+- Rocket League modes: the ranked ones by team size (1v1, 2v2, 3v3) with the game's names (Rumble, Hoops, Snow Day,
+  Dropshot, Heatseeker) and casual Chaos as "Casual 4v4". Event playlists show no name instead of "Playlist 81".
+
+**Fixed**
+- The crashes of the last days all happened while .NET's cleanup thread released Windows media objects, most likely
+  while the island was using the media controls at the same time. The media module now releases the short-lived ones
+  itself, right away, so the cleanup thread no longer touches them.
+
 ## 3.8.0 (03/11/2026)
 
 **New**

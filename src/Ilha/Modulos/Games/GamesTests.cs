@@ -100,7 +100,7 @@ internal sealed partial class GamesModule
         Ok("rl: treino livre não vira partida", s.Current == null);
         s.ApplyMessage(RlState(0, 0, 0, 300), now);
         var m = s.Current;
-        Ok("rl: partida com modo, arena e nosso time", m != null && m.Mode == Lang.T("Duplas ranqueado", "Ranked Doubles") && m.Map == "DFH Stadium" && m.UsLabel == "Azul",
+        Ok("rl: partida com modo, arena e nosso time", m != null && m.Mode == Lang.T("2v2 ranqueado", "Ranked 2v2") && m.Map == "DFH Stadium" && m.UsLabel == "Azul",
             $"{m?.Mode} {m?.Map} {m?.UsLabel}");
         var x = s.ApplyMessage(RlState(1, 0, 1, 250), now);
         Ok("rl: gol nosso e demolição", x.Any(k => k.Kind == MomentKind.Goal && k.Ours) && x.Any(k => k.Kind == MomentKind.Kill), string.Join(",", x));
@@ -144,6 +144,8 @@ internal sealed partial class GamesModule
         var parts = RocketLeagueState.Split(buf);
         Ok("rl: separa as mensagens e guarda o pedaço incompleto", parts.Count == 1 && parts[0].Contains("\"A\"") && buf.ToString().TrimStart().StartsWith("{\"Event\":\"B\""));
         Ok("rl: nomes de playlist e arena", RocketLeagueState.PlaylistName(63) == Lang.T("Heatseeker ranqueado", "Ranked Heatseeker")
+            && RocketLeagueState.PlaylistName(13) == Lang.T("3v3 ranqueado", "Ranked 3v3") && RocketLeagueState.PlaylistName(4) == Lang.T("4v4 casual", "Casual 4v4")
+            && RocketLeagueState.PlaylistName(28) == Lang.T("Rixa ranqueada", "Ranked Rumble") && RocketLeagueState.PlaylistName(81) == ""
             && RocketLeagueState.ArenaName("cs_p") == "Champions Field" && RocketLeagueState.ArenaName("EuroStadium_Night_P") == "Mannfield");
     }
 

@@ -358,6 +358,46 @@ internal static class TestesMidia
 
     // ------------------------------------------------------------------ sondas (só leem)
 
+    /// <summary>
+    /// What the wrappers do (3.9.0, the crash hunt): does the same session or reading come back as the same managed
+    /// object, and does a reading still work after an earlier one was released by hand.
+    /// </summary>
+    private static string ReleaseProbe(GlobalSystemMediaTransportControlsSessionManager g)
+    {
+        var a = g.GetSessions();
+        var b = g.GetSessions();
+        if (a.Count == 0) return "sonda de liberação: nenhuma sessão";
+        bool sameSession = ReferenceEquals(a[0], b[0]), sameList = ReferenceEquals(a, b);
+        bool sameInfo = ReferenceEquals(a[0].GetPlaybackInfo(), a[0].GetPlaybackInfo());
+        bool sameTimeline = ReferenceEquals(a[0].GetTimelineProperties(), a[0].GetTimelineProperties());
+        var p1 = a[0].TryGetMediaPropertiesAsync();
+        var p2 = a[0].TryGetMediaPropertiesAsync();
+        bool sameOp = ReferenceEquals(p1, p2);
+        var r1 = p1.AsTask().Result;
+        var r2 = p2.AsTask().Result;
+        bool sameProps = ReferenceEquals(r1, r2);
+        bool sameThumb = r1?.Thumbnail != null && ReferenceEquals(r1.Thumbnail, r2?.Thumbnail);
+        // the real module's way: list by index, released, then read again
+        var byIndex = g.GetSessions();
+        int n = byIndex.Count;
+        for (int i = 0; i < n; i++) _ = byIndex[i].SourceAppUserModelId;
+        WinRtRelease.Now(byIndex);
+        WinRtRelease.Now(r1?.Thumbnail);
+        WinRtRelease.Now(r1);
+        string coverAgain;
+        try
+        {
+            var r3 = a[0].TryGetMediaPropertiesAsync().AsTask().Result;
+            coverAgain = r3?.Thumbnail == null ? "sem capa" : Capa.Decodificar(r3.Thumbnail).Result != null ? "capa ok" : "capa nula";
+        }
+        catch (Exception e) { coverAgain = "capa falhou: " + e.GetType().Name; }
+        // the lists are new on every call: releasing one by hand leaves the next reading working
+        WinRtRelease.Now(b);
+        int after = g.GetSessions().Count;
+        return $"sonda de liberação: mesma sessão {sameSession}, lista {sameList}, leitura {sameInfo}, linha do tempo {sameTimeline}, " +
+               $"operação {sameOp}, propriedades {sameProps}, capa {sameThumb}; lista solta e relida: {after}; propriedades soltas e relidas: {coverAgain}";
+    }
+
     private static void Sondas()
     {
         var smtc = Task.Run(async () =>
@@ -381,6 +421,7 @@ internal static class TestesMidia
                 }
                 catch (Exception e) { linhas.Add("FALHOU      capa: " + e.Message); }
             }
+            try { linhas.Add("ok      " + ReleaseProbe(g)); } catch (Exception e) { linhas.Add("FALHOU  sonda de liberação: " + e.Message); }
             return linhas;
         });
         if (smtc.Wait(8000)) foreach (var l in smtc.Result) _s.Append(l).Append('\n');

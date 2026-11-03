@@ -77,6 +77,7 @@ internal sealed class AtividadeGravando : Atividade
         _obsLigado = obsLigado;
         _capturaLigada = capturaLigada;
         if (Gravando) Ligar(); else Desligar();
+        S.Indicadores.Gravacao("gravando", Gravando, ObsNaFrente ? "OBS" : string.Join(", ", _capturas.Select(c => c.Nome)));
         if (Correndo && TemCenaViva && !_segundo.Enabled) _segundo.Start();
         AtualizarTela();
     }
@@ -105,6 +106,7 @@ internal sealed class AtividadeGravando : Atividade
         if (_digitando && S.Entrada.Aberta) S.Entrada.Fechar(devolverFoco: false);
         _digitando = false;
         if (Aberta) S.Ilha.Recolher();
+        S.Indicadores.Gravacao("gravando", false, "");
         Desligar();
     }
 

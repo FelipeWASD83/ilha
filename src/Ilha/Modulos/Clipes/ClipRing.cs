@@ -160,6 +160,7 @@ internal sealed class ClipRing : IDisposable
                 }) { IsBackground = true, Name = "ilha-clipes-som" };
                 _pump.Start();
             }
+            global::Ilha.Gravando.Capturas.AnelDeClipes = true;
             Log.Escrever($"clipes: anel ligado ({fps} fps, cq {cq}{(HasAudio ? ", com o som do PC " + _audio!.Format : ", sem som")})");
             return true;
         }
@@ -199,6 +200,7 @@ internal sealed class ClipRing : IDisposable
         }
         _pump?.Join(2000);
         _pump = null;
+        global::Ilha.Gravando.Capturas.AnelDeClipes = false;
         try { if (Directory.Exists(Folder)) Directory.Delete(Folder, true); } catch (Exception) { }
     }
 

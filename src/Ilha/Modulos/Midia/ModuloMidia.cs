@@ -108,8 +108,9 @@ internal sealed class ModuloMidia : Modulo
             var g = await GlobalSystemMediaTransportControlsSessionManager.RequestAsync();
             if (_parado) return;
             _gerente = g;
-            _sessoesMudaram = (_, _) => S.NaInterface(Ressincronizar);
-            _atualMudou = (_, _) => S.NaInterface(Ressincronizar);
+            // event arguments are new objects every time: released on the interface thread (see WinRtRelease)
+            _sessoesMudaram = (_, e) => S.NaInterface(() => { WinRtRelease.Now(e); Ressincronizar(); });
+            _atualMudou = (_, e) => S.NaInterface(() => { WinRtRelease.Now(e); Ressincronizar(); });
             g.SessionsChanged += _sessoesMudaram;
             g.CurrentSessionChanged += _atualMudou;
             Ressincronizar();
@@ -170,7 +171,17 @@ internal sealed class ModuloMidia : Modulo
     {
         if (_parado || _gerente == null) return;
         IReadOnlyList<Sessao> lista;
-        try { lista = _gerente.GetSessions(); }
+        try
+        {
+            // the list object is new on every call (the sessions inside are the same objects each time, cached by
+            // identity, so those are never released by hand): copied and released right away
+            var nativa = _gerente.GetSessions();
+            // by index, not foreach: an enumerator would be one more native object left to the finalizer
+            var copia = new List<Sessao>(nativa.Count);
+            for (int i = 0; i < nativa.Count; i++) copia.Add(nativa[i]);
+            lista = copia;
+            WinRtRelease.Now(nativa);
+        }
         catch (Exception e) { Log.Escrever("mídia: GetSessions: " + e.Message); return; }
 
         var agora = DateTime.Now;
@@ -254,9 +265,9 @@ internal sealed class ModuloMidia : Modulo
     private Acompanhada Acompanhar(Sessao s, IntPtr id, Rastro r)
     {
         var a = new Acompanhada { Sessao = s, Rastro = r, Identidade = id };
-        a.Info = (_, _) => S.NaInterface(() => InfoMudou(a));
-        a.Tempo = (_, _) => S.NaInterface(() => TempoMudou(a));
-        a.Props = (_, _) => S.NaInterface(() => PropsMudaram(a));
+        a.Info = (_, e) => S.NaInterface(() => { WinRtRelease.Now(e); InfoMudou(a); });
+        a.Tempo = (_, e) => S.NaInterface(() => { WinRtRelease.Now(e); TempoMudou(a); });
+        a.Props = (_, e) => S.NaInterface(() => { WinRtRelease.Now(e); PropsMudaram(a); });
         try
         {
             s.PlaybackInfoChanged += a.Info;
@@ -397,9 +408,13 @@ internal sealed class ModuloMidia : Modulo
         var a = _escolhida;
         if (a == null || _atv == null) return;
         int geracao = ++_geracaoProps;
+        GlobalSystemMediaTransportControlsSessionMediaProperties? props = null;
+        IAsyncOperation<GlobalSystemMediaTransportControlsSessionMediaProperties>? op = null;
         try
         {
-            var props = await a.Sessao.TryGetMediaPropertiesAsync();
+            // the operation, the properties and the cover reference are new on every call: released when done
+            op = a.Sessao.TryGetMediaPropertiesAsync();
+            props = await op;
             if (geracao != _geracaoProps || _parado || props == null) return;
             string titulo = props.Title ?? "";
             string artista = props.Artist ?? "";
@@ -416,6 +431,12 @@ internal sealed class ModuloMidia : Modulo
             _atv.Definir(titulo, artista, capa, cor);
         }
         catch (Exception e) { Log.Escrever("mídia: propriedades: " + e.Message); }
+        finally
+        {
+            try { WinRtRelease.Now(props?.Thumbnail); } catch (Exception) { }
+            WinRtRelease.Now(props);
+            WinRtRelease.Now(op);
+        }
     }
 
     // ------------------------------------------------------------------ comandos
@@ -424,8 +445,10 @@ internal sealed class ModuloMidia : Modulo
     {
         var a = _escolhida;
         if (a == null) return;
-        try { await acao(a.Sessao); }
+        IAsyncOperation<bool>? op = null;
+        try { op = acao(a.Sessao); await op; }
         catch (Exception e) { Log.Escrever("mídia: comando: " + e.Message); }
+        finally { WinRtRelease.Now(op); }
     }
 
     private void TocarOuPausar()
@@ -452,7 +475,9 @@ internal sealed class ModuloMidia : Modulo
             var linha = _atv.Linha;
             linha.Pedir(alvo, DateTimeOffset.Now);
             _atv.LinhaMudou();
-            bool ok = await a.Sessao.TryChangePlaybackPositionAsync(alvo.Ticks);
+            var op = a.Sessao.TryChangePlaybackPositionAsync(alvo.Ticks);
+            bool ok = await op;
+            WinRtRelease.Now(op);
             if (!ok && linha == _atv.Linha)
             {
                 linha.Recusado();

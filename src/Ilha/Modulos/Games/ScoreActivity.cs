@@ -31,7 +31,11 @@ internal sealed class ScoreActivity : Atividade
     public override bool PermitidaNoCompetitivo => true;
     public override bool NaFrente => Ativa;
     public override bool AnunciaChegada => false;
-    public override float? LarguraCompactaMinima => LC;
+    public override float? LarguraCompactaMinima => LC + NetWidth;
+
+    // the connection mark (3.9.0): "ping 180 · perda 3%" between the score and the clock while the connection is bad
+    private string? _net;
+    private float NetWidth => _net == null ? 0 : MathF.Ceiling(S.Palco.Texto.Medir(_net, 11.5f, FontWeight.SemiBold, tabular: true).X) + 14;
 
     public Match? Current => _m;
 
@@ -39,6 +43,7 @@ internal sealed class ScoreActivity : Atividade
     {
         S = s;
         _last = last;
+        global::Ilha.Network.NetQuality.Changed += NetChanged;
         // the clock moves on its own between readings: redraw when its second changes, only with a scene on screen
         _second.Tick += (_, _) =>
         {
@@ -69,7 +74,22 @@ internal sealed class ScoreActivity : Atividade
 
     public override void ExpandidaMudou(bool aberta) { if (aberta) Redesenhar(); }
 
-    public override void Dispose() => _second.Dispose();
+    public override void Dispose()
+    {
+        global::Ilha.Network.NetQuality.Changed -= NetChanged;
+        _second.Dispose();
+    }
+
+    private void NetChanged()
+    {
+        var r = global::Ilha.Network.NetQuality.Current;
+        string? mark = r.Bad ? r.Mark(global::Ilha.Network.NetQuality.LossLimit) : null;
+        if (mark == _net) return;
+        bool resize = mark == null || _net == null || MathF.Abs(S.Palco.Texto.Medir(mark, 11.5f, FontWeight.SemiBold, tabular: true).X + 14 - NetWidth) > 0.5f;
+        _net = mark;
+        if (_m == null) return;
+        if (resize) MudouTamanho(); else Redesenhar();
+    }
 
     protected override Cena Montar(Palco p, Forma f)
     {
@@ -90,7 +110,7 @@ internal sealed class ScoreActivity : Atividade
             }
             case Forma.Compacta:
             {
-                var c = p.NovaCena(new Vector2(LC, HC));
+                var c = p.NovaCena(new Vector2(LC + NetWidth, HC));
                 // the mark and the clock on one layer, the score on its own: only the score moves when it turns
                 p.Desenho(c, Vector2.Zero, c.Tamanho, (dc, t) => { if (_m != null) DrawFrame(dc, _m, t); });
                 var s = p.Desenho(c, new Vector2(ScoreX, 0), new Vector2(ScoreW, HC), (dc, t) => { if (_m != null) DrawScore(dc, _m, t); });
@@ -115,6 +135,14 @@ internal sealed class ScoreActivity : Atividade
             string tx = Match.Time(clock);
             var sz = p.Texto.Medir(tx, 13, FontWeight.SemiBold, tabular: true);
             p.Texto.Desenhar(dc, tx, new Vector2(t.X - sz.X, (t.Y - sz.Y) / 2), 13, Cor.Secundario, FontWeight.SemiBold, tabular: true);
+        }
+        if (_net is { } net)
+        {
+            // after the score layer, in the room the mark added; orange, red when nothing answers
+            var r = global::Ilha.Network.NetQuality.Current;
+            var color = r.Ms == null || r.Loss >= 0.1 ? Cor.Vermelho : Cor.Laranja;
+            var ns = p.Texto.Medir(net, 11.5f, FontWeight.SemiBold, tabular: true);
+            p.Texto.Desenhar(dc, net, new Vector2(ScoreX + ScoreW + 4, (t.Y - ns.Y) / 2), 11.5f, color, FontWeight.SemiBold, tabular: true);
         }
     }
 

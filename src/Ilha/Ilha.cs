@@ -18,8 +18,9 @@ internal sealed class Ilha : IDisposable
 {
     // medidas em DIP (multiplicadas pela escala do monitor e pelo "tamanho" da config)
     // ALTURA_MAX bounds the shape visuals: a card taller than it lost the bottom of its black body (the chat card at 380
-    // DIP did, on 01/11/2026); the window itself still follows the content
-    private const float LARGURA_JANELA = 760, ALTURA_MAX = 640;
+    // DIP did, on 01/11/2026); the window itself still follows the content. 880 since 3.9.0: the menu got a sixth row
+    // (friends, weather, server) and its last row lost the black body at 640
+    private const float LARGURA_JANELA = 760, ALTURA_MAX = 880;
     private const float OCIOSA_L = 128, OCIOSA_A = 32;
     private const float COMPACTA_A = 36, COMPACTA_FOLGA = 12, COMPACTA_MIN = 168;
     private const float PREVIA_L = 14, PREVIA_A = 4;
@@ -72,7 +73,7 @@ internal sealed class Ilha : IDisposable
     private Atividade? _painel;
     private Indicadores? _indicadores;
     private ContainerVisual _pontos = null!;
-    private SpriteVisual _pontoCamera = null!, _pontoMic = null!;
+    private SpriteVisual _pontoCamera = null!, _pontoMic = null!, _pontoGravando = null!;
     private bool _pontosVisiveis;
     private float _extraPontos;
 
@@ -414,8 +415,10 @@ internal sealed class Ilha : IDisposable
         _pontos.Opacity = 0;
         _pontoCamera = Ponto(c, Cor.Verde);
         _pontoMic = Ponto(c, Cor.Laranja);
+        _pontoGravando = Ponto(c, Cor.Vermelho);
         _pontos.Children.InsertAtTop(_pontoCamera);
         _pontos.Children.InsertAtTop(_pontoMic);
+        _pontos.Children.InsertAtTop(_pontoGravando);
         _raiz.Children.InsertAtTop(_pontos);
         // começa escondida acima da tela
         _raiz.Offset = new Vector3(0, -_p.Px(ALTURA_MAX), 0);
@@ -1518,7 +1521,8 @@ internal sealed class Ilha : IDisposable
         if (_raiz == null) return;
         var pl = Planejar();
         var assinatura = (pl.Estado, pl.Corpo, pl.Raio, pl.ChaveCorpo, pl.Bolha, pl.ChaveBolha + "|" + pl.ChaveBolhaE, _janelasVisiveis || pl.Estado == Estado.Oculta,
-            (_indicadores?.Camera ?? false) && PontosDevemAparecer(pl.Estado, _foco), (_indicadores?.Microfone ?? false) && PontosDevemAparecer(pl.Estado, _foco));
+            (_indicadores?.Camera ?? false) && PontosDevemAparecer(pl.Estado, _foco), (_indicadores?.Microfone ?? false) && PontosDevemAparecer(pl.Estado, _foco),
+            GravandoNoPlacar && PontosDevemAparecer(pl.Estado, _foco));
         if (animar && pl.Estado == _estado && assinatura.Equals(_ultimoPlano) && pl.CenaCorpo == null)
         {
             if (_expandida && _porAtalho) LigarVigia(); else _vigiaClique.Stop();
@@ -1649,7 +1653,7 @@ internal sealed class Ilha : IDisposable
         if (anterior != _estado) EstadoMudou?.Invoke(_estado);
     }
 
-    private (Estado, Vector2, float, string?, bool, string?, bool, bool, bool) _ultimoPlano;
+    private (Estado, Vector2, float, string?, bool, string?, bool, bool, bool, bool) _ultimoPlano;
 
     private void AplicarRegiao(System.Drawing.RectangleF rc, System.Drawing.RectangleF rb, bool bolha, float raioPx, float bolhaPx, float topo, bool colada,
         System.Drawing.RectangleF rbe = default, bool bolhaE = false)
@@ -1691,17 +1695,21 @@ internal sealed class Ilha : IDisposable
 
     private float LarguraPontos()
     {
-        int n = (_indicadores?.Camera == true ? 1 : 0) + (_indicadores?.Microfone == true ? 1 : 0);
+        int n = (_indicadores?.Camera == true ? 1 : 0) + (_indicadores?.Microfone == true ? 1 : 0) + (GravandoNoPlacar ? 1 : 0);
         return n == 0 ? 0 : n * PONTO + (n - 1) * PONTO_VAO;
     }
 
-    // a própria atividade de privacidade já mostra as bolinhas; no modo competitivo elas ficam escondidas. A hora com o
-    // anel em volta já avisa (compacta), e o menu põe as bolinhas do lado da hora dele
+    // a própria atividade de privacidade já mostra as bolinhas. A hora com o anel em volta já avisa (compacta), e o menu
+    // põe as bolinhas do lado da hora dele. In a competitive game they show only in score mode (3.9.0, his request: the
+    // score pill carries the dots, plus a red one while something records the screen; before, none showed over a game)
     private bool PontosDevemAparecer(Estado e, Atividade? principal) =>
-        _indicadores?.Algum == true && !_ctx.Competitivo && !_cfg.Pausada
+        (_indicadores?.Algum == true || GravandoNoPlacar) && (!_ctx.Competitivo || _cfg.ModoCompetitivo == ModosCompetitivos.Placar) && !_cfg.Pausada
         && e is Estado.Compacta or Estado.Expandida or Estado.Alerta
         && (e != Estado.Compacta || Visiveis().FirstOrDefault()?.Tipo != "privacidade" && !_anelNaPilula)
         && !(e == Estado.Expandida && principal?.Tipo is "privacidade" or "menu");
+
+    /// <summary>The red dot: only over a competitive game in score mode (elsewhere the recording activities show).</summary>
+    private bool GravandoNoPlacar => _indicadores?.Gravando == true && _ctx.Competitivo && _cfg.ModoCompetitivo == ModosCompetitivos.Placar;
 
     private void PosicionarPontos(Estado e, Vector2 corpoPx, float topo, float cx, bool animar)
     {
@@ -1712,7 +1720,7 @@ internal sealed class Ilha : IDisposable
         if (!mostrar) return;
         float d = _p.Px(PONTO), vao = _p.Px(PONTO_VAO);
         float x = 0;
-        foreach (var (ponto, ligado) in new[] { (_pontoMic, _indicadores!.Microfone), (_pontoCamera, _indicadores.Camera) })
+        foreach (var (ponto, ligado) in new[] { (_pontoGravando, GravandoNoPlacar), (_pontoMic, _indicadores!.Microfone), (_pontoCamera, _indicadores.Camera) })
         {
             ponto.Opacity = ligado ? 1 : 0;
             ponto.Offset = new Vector3(x, 0, 0);
