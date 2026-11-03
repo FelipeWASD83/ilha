@@ -10,12 +10,14 @@ namespace Ilha.Games;
 
 /// <summary>
 /// The "Achievements" card from the menu: how many are unlocked and the hours of all games, the five medals of the
-/// total, then the most played games, each with its six medals and a bar to the next one.
+/// total, then every game with hours (3.8.0: all of them, most played first, scrolled by the wheel with a thin bar at the
+/// side), each with its six medals and a bar to the next one.
 /// </summary>
 internal sealed class TrophyRoom : Atividade
 {
-    private const float L = 380, ROW = 44;
-    private const int GAMES = 8;
+    private const float L = 380, ROW = 44, LIST_TOP = 88;
+    private const int VISIBLE = 8;
+    private float _scroll;
 
     private readonly Servicos S;
     private readonly Func<List<GameHours>> _hours;
@@ -38,8 +40,24 @@ internal sealed class TrophyRoom : Atividade
     public void Open()
     {
         _refresh();
+        _scroll = 0;
+        // the names of every listed Steam game, a few at a time (cached)
+        SteamNames.Fetch(_hours().Where(g => g.SteamApp != null && g.Minutes > 0).OrderByDescending(g => g.Minutes).Select(g => g.SteamApp!.Value),
+            () => S.NaInterface(Changed));
         MudouTamanho();
         S.Ilha.Expandir(this);
+    }
+
+    public override bool Rolar(int delta)
+    {
+        if (S.Ilha.Expandida != this) return false;
+        int count = _hours().Count(g => g.Minutes > 0);
+        float max = MathF.Max(0, count * ROW - VISIBLE * ROW);
+        float next = Math.Clamp(_scroll - delta / 120f * ROW, 0, max);
+        if (next == _scroll) return true;
+        _scroll = next;
+        Redesenhar();
+        return true;
     }
 
     public void Changed()
@@ -49,12 +67,14 @@ internal sealed class TrophyRoom : Atividade
 
     protected override Cena Montar(Palco p, Forma f)
     {
-        var games = _hours().Where(g => g.Minutes > 0).OrderByDescending(g => g.Minutes).Take(GAMES).ToList();
-        var unlocked = _unlocked();
-        int totalMin = _hours().Sum(g => g.Minutes);
-        var c = p.NovaCena(new Vector2(L, 92 + games.Count * ROW));
+        int count = _hours().Count(g => g.Minutes > 0);
+        var c = p.NovaCena(new Vector2(L, LIST_TOP + 4 + Math.Min(count, VISIBLE) * ROW));
         p.Desenho(c, Vector2.Zero, c.Tamanho, (dc, t) =>
         {
+            // read at each drawing: the scroll redraws with no new scene, and names arrive while the card is open
+            var games = _hours().Where(g => g.Minutes > 0).OrderByDescending(g => g.Minutes).ToList();
+            var unlocked = _unlocked();
+            int totalMin = games.Sum(g => g.Minutes);
             var fab = p.G.Fabrica;
             p.Texto.Desenhar(dc, Lang.T("Conquistas", "Achievements"), new Vector2(0, 0), 15, Cor.Branco);
             // the hours are in the tile right under it: the line says only how many are unlocked
@@ -76,8 +96,11 @@ internal sealed class TrophyRoom : Atividade
                 p.Texto.Desenhar(dc, label, new Vector2(center.X - ls.X / 2, 60), 9.5f, got ? Cor.Branco : Cor.Fraco, FontWeight.SemiBold);
             }
 
-            float y = 88;
-            foreach (var g in games)
+            float listH = Math.Min(games.Count, VISIBLE) * ROW;
+            dc.PushAxisAlignedClip(new System.Drawing.RectangleF(0, LIST_TOP, L, listH + 4), AntialiasMode.Aliased);
+            int first = (int)(_scroll / ROW);
+            float y = LIST_TOP - (_scroll - first * ROW);
+            foreach (var g in games.Skip(first).Take(VISIBLE + 1))
             {
                 Marks.Game(dc, fab, g.Key, new Vector2(15, y + ROW / 2), 28, Cor.Secundario);
                 p.Texto.Desenhar(dc, g.Name, new Vector2(38, y + 4), 13, Cor.Branco, largura: 170);
@@ -90,9 +113,19 @@ internal sealed class TrophyRoom : Atividade
                     p.Texto.Desenhar(dc, $"{next.Hours} h", new Vector2(182, y + 22), 10.5f, Cor.Secundario, FontWeight.Normal);
                 }
                 for (int i = 0; i < Trophies.GameTiers.Length; i++)
-                    Medal(dc, fab, new Vector2(L - 12 - (Trophies.GameTiers.Length - 1 - i) * 26, y + ROW / 2), 9, i,
+                    Medal(dc, fab, new Vector2(L - 22 - (Trophies.GameTiers.Length - 1 - i) * 26, y + ROW / 2), 9, i,
                         unlocked.ContainsKey($"jogo:{g.Key}:{Trophies.GameTiers[i]}"));
                 y += ROW;
+            }
+            dc.PopAxisAlignedClip();
+            // the scroll bar: a thin track and its thumb, only when the list is longer than the card
+            if (games.Count > VISIBLE)
+            {
+                float track = listH - 8, thumb = MathF.Max(24, track * VISIBLE / games.Count);
+                float maxScroll = (games.Count - VISIBLE) * ROW;
+                float ty = LIST_TOP + 4 + (track - thumb) * (_scroll / maxScroll);
+                Icone.Retangulo(dc, L - 3, LIST_TOP + 4, 3, track, 1.5f, new Color4(1, 1, 1, 0.08f));
+                Icone.Retangulo(dc, L - 3, ty, 3, thumb, 1.5f, new Color4(1, 1, 1, 0.45f));
             }
         });
         return c;

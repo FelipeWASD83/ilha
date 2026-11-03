@@ -21,6 +21,7 @@ internal sealed class GamesOverview : Atividade
     private readonly Action _openLive;
     private readonly Func<string, List<Outcome>> _last;
     private readonly Func<IEnumerable<string>> _played;
+    private readonly Func<List<Record>> _recent;
     private Dictionary<int, int> _hours = new();
     private DateTime _hoursRead;
 
@@ -29,13 +30,15 @@ internal sealed class GamesOverview : Atividade
     public override bool EhFerramenta => true;
     public override bool AnunciaChegada => false;
 
-    public GamesOverview(Servicos s, Func<Match?> live, Action openLive, Func<string, List<Outcome>> last, Func<IEnumerable<string>> played)
+    public GamesOverview(Servicos s, Func<Match?> live, Action openLive, Func<string, List<Outcome>> last, Func<IEnumerable<string>> played,
+        Func<List<Record>> recent)
     {
         S = s;
         _live = live;
         _openLive = openLive;
         _last = last;
         _played = played;
+        _recent = recent;
     }
 
     public void Open()
@@ -56,7 +59,40 @@ internal sealed class GamesOverview : Atividade
     public static string Hours(int minutes) =>
         minutes <= 0 ? "–" : minutes < 60 ? Lang.T($"{minutes} min", $"{minutes} min") : (minutes / 60.0).ToString(minutes < 600 ? "0.0" : "0", Lang.Culture) + " h";
 
-    private const float CLIP_W = (L - 3 * 8) / 4, CLIP_H = CLIP_W * 9 / 16;
+    private const float CLIP_W = (L - 3 * 8) / 4, CLIP_H = CLIP_W * 9 / 16, MATCH_ROW = 56;
+
+    /// <summary>
+    /// One finished match: a card tinted green (win) or red (loss), the game's icon, the result and the mode, the score,
+    /// kills and deaths, the MVP (a crown in Rocket League, the round MVP stars in CS2) and when.
+    /// </summary>
+    private static void MatchCard(ID2D1DeviceContext dc, Palco p, Record r, float y)
+    {
+        var o = r.Read ?? Outcome.Draw;
+        var color = o == Outcome.Win ? TeamColors.Win : o == Outcome.Loss ? TeamColors.Loss : Cor.Secundario;
+        float h = MATCH_ROW - 6;
+        Icone.Retangulo(dc, 0, y, L, h, 12, new Color4(color.R, color.G, color.B, 0.16f));
+        Icone.Retangulo(dc, 0, y, 5, h, 2.5f, color);
+        Marks.Game(dc, p.G.Fabrica, r.Game, new Vector2(26, y + h / 2), 26, Cor.Secundario);
+        string result = o == Outcome.Win ? Lang.T("Vitória", "Win") : o == Outcome.Loss ? Lang.T("Derrota", "Loss") : Lang.T("Empate", "Draw");
+        string mode = r.Mode.Length > 0 ? r.Mode : Match.NameOf(r.Game);
+        p.Texto.Desenhar(dc, result, new Vector2(46, y + 6), 14, color, FontWeight.Bold);
+        var rs = p.Texto.Medir(result, 14, FontWeight.Bold);
+        p.Texto.Desenhar(dc, "· " + mode, new Vector2(46 + rs.X + 6, y + 8), 11.5f, Cor.Secundario, FontWeight.Normal, largura: L - 130 - rs.X);
+        string score = r.Us is int a && r.Them is int b ? $"{a} : {b}" : "– : –";
+        string kd = r.Kills != null || r.Deaths != null ? $"{r.Kills?.ToString() ?? "–"} K / {r.Deaths?.ToString() ?? "–"} D" : "K / D –";
+        p.Texto.Desenhar(dc, score + "   " + kd, new Vector2(46, y + 26), 12, Cor.Branco, FontWeight.SemiBold, tabular: true, largura: L - 130);
+        // the right side: MVP and when
+        string when = r.End.Date == DateTime.Today ? r.End.ToString("HH:mm") : r.End.ToString("dd/MM");
+        var wsz = p.Texto.Medir(when, 11, FontWeight.Normal);
+        p.Texto.Desenhar(dc, when, new Vector2(L - 10 - wsz.X, y + 28), 11, Cor.Fraco, FontWeight.Normal);
+        if (r.Mvp == true) Celebrations.Crown(dc, p.G.Fabrica, new System.Drawing.RectangleF(L - 40, y + 4, 28, 22));
+        else if (r.Stars is int st && st > 0)
+        {
+            string s = $"MVP ★{st}";
+            var ss = p.Texto.Medir(s, 11.5f, FontWeight.SemiBold);
+            p.Texto.Desenhar(dc, s, new Vector2(L - 10 - ss.X, y + 7), 11.5f, new Color4(1f, 0.82f, 0.25f, 1f), FontWeight.SemiBold);
+        }
+    }
 
     protected override Cena Montar(Palco p, Forma f)
     {
@@ -66,7 +102,10 @@ internal sealed class GamesOverview : Atividade
         // the last saved clips (3.7.0): their frames in a row under the games, a click opens the video
         var clips = Clips.ClipModule.Current is { } cm ? Clips.ClipStore.Recent(cm.SavedFolder, 4) : new List<Clips.ClipFile>();
         float clipsH = clips.Count > 0 ? 30 + CLIP_H + 24 : 0;
-        var c = p.NovaCena(new Vector2(L, 24 + top + games.Count * ROW + clipsH));
+        // the last five matches of every game, newest first (3.8.0, his request; kept in ~/.ilha/partidas.json)
+        var recent = _recent();
+        float recentH = recent.Count > 0 ? 30 + recent.Count * MATCH_ROW : 0;
+        var c = p.NovaCena(new Vector2(L, 24 + top + games.Count * ROW + recentH + clipsH));
         p.Desenho(c, Vector2.Zero, c.Tamanho, (dc, t) =>
         {
             p.Texto.Desenhar(dc, Lang.T("Jogos", "Games"), new Vector2(0, 0), 15, Cor.Branco);
@@ -93,19 +132,17 @@ internal sealed class GamesOverview : Atividade
                 int min = Playtime.SteamApp(g) is int app && _hours.TryGetValue(app, out var m) ? m : 0;
                 p.Texto.Desenhar(dc, min > 0 ? Lang.T("jogadas: ", "played: ") + Hours(min) : Lang.T("horas: sem dado", "hours: no data"),
                     new Vector2(40, y + 24), 11.5f, Cor.Secundario, FontWeight.Normal, largura: 170);
-                var last = _last(g);
-                for (int i = 0; i < 5; i++)
-                {
-                    var center = new Vector2(L - 5 * 22 + i * 22 + 9, y + ROW / 2);
-                    if (i < last.Count)
-                        Icone.Circulo(dc, center, 7.5f, last[i] == Outcome.Win ? TeamColors.Win : last[i] == Outcome.Loss ? TeamColors.Loss : Cor.Fraco);
-                    else
-                    {
-                        using var b = dc.CreateSolidColorBrush(Cor.Fraco);
-                        dc.DrawEllipse(new Ellipse(center, 6.5f, 6.5f), b, 1.4f);
-                    }
-                }
                 y += ROW;
+            }
+            if (recent.Count > 0)
+            {
+                p.Texto.Desenhar(dc, Lang.T("Últimas partidas", "Last matches"), new Vector2(0, y + 8), 12, Cor.Secundario, FontWeight.Normal);
+                y += 30;
+                foreach (var r in recent)
+                {
+                    MatchCard(dc, p, r, y);
+                    y += MATCH_ROW;
+                }
             }
             if (clips.Count > 0)
             {
@@ -124,7 +161,7 @@ internal sealed class GamesOverview : Atividade
         if (live != null) c.Botoes.Add(new Botao { Area = new System.Drawing.RectangleF(0, 24, L, 54), Acao = _openLive });
         if (clips.Count > 0)
         {
-            float cy = 24 + top + games.Count * ROW;
+            float cy = 24 + top + games.Count * ROW + recentH;
             c.Botoes.Add(new Botao { Area = new System.Drawing.RectangleF(L - 90, cy + 4, 90, 22), Acao = () => Clips.ClipStore.ShowInFolder(clips[0].Video) });
             for (int i = 0; i < clips.Count; i++)
             {

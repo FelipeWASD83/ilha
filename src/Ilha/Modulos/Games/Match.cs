@@ -31,6 +31,10 @@ internal sealed class Match
     /// <summary>The mode exactly as the game sent it (logged once per match: Premier's value is not known yet).</summary>
     public string RawMode = "";
     public int? Kills, Deaths, Assists;
+    /// <summary>The match's MVP (Rocket League: the best score of the winning team); null = the game does not say.</summary>
+    public bool? Mvp;
+    /// <summary>CS2's round MVP stars (CS2 has no match MVP the island can see: only our own numbers come).</summary>
+    public int? MvpStars;
     /// <summary>Other numbers worth a line on the card ("Goals", "2").</summary>
     public List<(string Name, string Value)> Extras = new();
     /// <summary>The clock the game shows: seconds at <see cref="ClockRead"/>, running down (or up).</summary>
@@ -112,6 +116,11 @@ internal sealed class Record
     [JsonPropertyName("us")] public int? Us { get; set; }
     [JsonPropertyName("them")] public int? Them { get; set; }
     [JsonPropertyName("end")] public DateTime End { get; set; }
+    // 3.8.0: older records have none of these
+    [JsonPropertyName("kills")] public int? Kills { get; set; }
+    [JsonPropertyName("deaths")] public int? Deaths { get; set; }
+    [JsonPropertyName("mvp")] public bool? Mvp { get; set; }
+    [JsonPropertyName("stars")] public int? Stars { get; set; }
 
     [JsonIgnore]
     public Outcome? Read => Outcome switch
@@ -149,7 +158,11 @@ internal sealed class History
     public void Add(Match m)
     {
         if (m.Outcome is not Outcome o) return;
-        _list.Add(new Record { Game = m.Game, Mode = m.Mode, Map = m.Map, Outcome = Record.Text(o), Us = m.Us, Them = m.Them, End = DateTime.Now });
+        _list.Add(new Record
+        {
+            Game = m.Game, Mode = m.Mode, Map = m.Map, Outcome = Record.Text(o), Us = m.Us, Them = m.Them, End = DateTime.Now,
+            Kills = m.Kills, Deaths = m.Deaths, Mvp = m.Mvp, Stars = m.MvpStars,
+        });
         if (_list.Count > 300) _list.RemoveRange(0, _list.Count - 300);
         try
         {
@@ -160,6 +173,9 @@ internal sealed class History
         }
         catch (Exception e) { Log.Escrever("jogos: não gravou o histórico: " + e.Message); }
     }
+
+    /// <summary>The newest `n` finished matches of every game, newest first (the Games card).</summary>
+    public List<Record> Recent(int n = 5) => _list.Where(x => x.Read != null).TakeLast(n).Reverse().ToList();
 
     /// <summary>Every game with a finished match kept.</summary>
     public IEnumerable<string> Games() => _list.Select(x => x.Game).Distinct().ToList();

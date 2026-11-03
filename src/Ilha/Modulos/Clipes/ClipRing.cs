@@ -22,7 +22,8 @@ internal sealed class QueueStream : Stream
     private long _waiting;
     private bool _warned;
 
-    public QueueStream(long limit) => _limit = limit;
+    /// <param name="quiet">The test: no line in the log when it drops.</param>
+    public QueueStream(long limit, bool quiet = false) { _limit = limit; _warned = quiet; }
 
     public override void Write(ReadOnlySpan<byte> buffer)
     {

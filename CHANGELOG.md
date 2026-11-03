@@ -1,5 +1,22 @@
 # Changelog
 
+## 3.8.0 (03/11/2026)
+
+**New**
+- MVP: when you are the match's MVP, a crown drops above the GG or EZ and the word turns gold, glowing, with a shine
+  running over it. Rocket League says who it is (the best score of the winning team); CS2 only gives your own numbers,
+  so there the island shows your round MVP stars instead.
+- The Games card lists the last five matches of every game, newest first: a green or red card with the game, the
+  result, the mode, the score, kills and deaths, the MVP and when. Kept on this PC, so they are there after a restart.
+- Achievements list every game with hours (not only the eight most played), scrolled by the mouse wheel with a thin
+  bar at the side; the names of Steam games not installed arrive from the store a few at a time.
+
+**Changed**
+- The Games card no longer shows the five result dots next to each game (the last matches list replaces them).
+
+**Fixed**
+- Two false Battlefield 6 wins (from the menu bug fixed in 3.6.0) were taken out of the match history.
+
 ## 3.7.1 (03/11/2026)
 
 **Fixed**

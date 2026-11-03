@@ -219,19 +219,30 @@ internal static class SteamNames
         }
     }
 
-    /// <summary>Asks the store for the missing names (a few per run, one at a time); `done` runs when something arrived.</summary>
+    private static bool _busy;
+    // apps the store has no page for (removed games): not asked again until the island restarts
+    private static readonly HashSet<int> _none = new();
+
+    /// <summary>
+    /// Asks the store for the missing names, one at a time 1.5 s apart (all of them since 3.8.0: the achievements list
+    /// every game); `done` runs every ten names that arrived and at the end. One run at a time.
+    /// </summary>
     public static void Fetch(IEnumerable<int> apps, Action done)
     {
         List<int> missing;
         lock (_lock)
         {
             Load();
-            missing = apps.Where(a => !_names!.ContainsKey(a)).Take(40).ToList();
+            if (_busy) return;
+            missing = apps.Where(a => !_names!.ContainsKey(a) && !_none.Contains(a)).Distinct().ToList();
+            if (missing.Count == 0) return;
+            _busy = true;
         }
-        if (missing.Count == 0) return;
         _ = Task.Run(async () =>
         {
             int got = 0;
+            try
+            {
             foreach (var app in missing)
             {
                 try
@@ -242,23 +253,34 @@ internal static class SteamNames
                         && data.TryGetProperty("name", out var n) && n.GetString() is { Length: > 0 } name)
                     {
                         lock (_lock) _names![app] = name;
-                        got++;
+                        if (++got % 10 == 0) { Save(); done(); }
                     }
+                    else lock (_lock) _none.Add(app);
                 }
                 catch (Exception) { }
                 await Task.Delay(1500).ConfigureAwait(false);
             }
-            if (got == 0) return;
-            lock (_lock)
-            {
-                try
-                {
-                    Directory.CreateDirectory(GameArt.Folder);
-                    File.WriteAllText(File_, JsonSerializer.Serialize(_names));
-                }
-                catch (Exception) { }
             }
+            finally
+            {
+                lock (_lock) _busy = false;
+            }
+            if (got == 0) return;
+            Save();
             done();
         });
+    }
+
+    private static void Save()
+    {
+        lock (_lock)
+        {
+            try
+            {
+                Directory.CreateDirectory(GameArt.Folder);
+                File.WriteAllText(File_, JsonSerializer.Serialize(_names));
+            }
+            catch (Exception) { }
+        }
     }
 }

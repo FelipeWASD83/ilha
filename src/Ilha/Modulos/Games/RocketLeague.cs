@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Net.Sockets;
 using System.Text;
 using System.Text.Json;
@@ -86,6 +87,7 @@ internal sealed class RocketLeagueState
                 {
                     _ended = true;
                     _match.Outcome = winner == _myTeam ? Outcome.Win : Outcome.Loss;
+                    _match.Mvp = _me.Length > 0 && Mvp(_scores, winner) is { } best ? best == _me : null;
                     _match.Stage = Lang.T("Fim de jogo", "Game over");
                     moments.Add(new Moment(MomentKind.End, Outcome: _match.Outcome));
                 }
@@ -109,6 +111,12 @@ internal sealed class RocketLeagueState
     }
 
     private int _epicSaves;
+    // everyone's name, team and score in the last update: the MVP is picked from them when the match ends
+    private List<(string Name, int Team, int Score)> _scores = new();
+
+    /// <summary>Rocket League's MVP: the best score of the winning team (null when nobody of that team is known).</summary>
+    internal static string? Mvp(IEnumerable<(string Name, int Team, int Score)> scores, int winner) =>
+        scores.Where(s => s.Team == winner).OrderByDescending(s => s.Score).Select(s => s.Name).FirstOrDefault();
 
     private void SetEpicSaves(Match m)
     {
@@ -128,6 +136,7 @@ internal sealed class RocketLeagueState
             _match = new Match { Game = "rl", Start = now };
             _blue = _orange = _demos = -1;
             _epicSaves = 0;
+            _scores = new();
             _myTeam = -1;
             _ended = false;
         }
@@ -165,6 +174,8 @@ internal sealed class RocketLeagueState
         m.UsArt = us == 0 ? "rl:blue" : "rl:orange";
         m.ThemArt = us == 0 ? "rl:orange" : "rl:blue";
 
+        if (ps.ValueKind == JsonValueKind.Array)
+            _scores = ps.EnumerateArray().Select(p => (Str(p, "Name"), Int(p, "TeamNum") ?? -1, Int(p, "Score") ?? 0)).ToList();
         if (ps.ValueKind == JsonValueKind.Array)
             foreach (var p in ps.EnumerateArray())
             {

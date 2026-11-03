@@ -103,7 +103,7 @@ internal sealed class Cs2State
                 m.Deaths = d;
                 m.Assists = Int(st, "assists");
                 m.Extras.Clear();
-                if (Int(st, "mvps") is int mvps) m.Extras.Add(("MVPs", mvps.ToString()));
+                if (Int(st, "mvps") is int mvps) { m.Extras.Add(("MVPs", mvps.ToString())); m.MvpStars = mvps; }
                 if (Int(st, "score") is int score) m.Extras.Add((Lang.T("Pontos", "Score"), score.ToString()));
             }
             // an ace: the whole enemy team in one round (5 in competitive and Premier, 2 in Wingman), once per round

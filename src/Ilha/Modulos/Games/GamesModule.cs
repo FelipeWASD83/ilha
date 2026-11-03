@@ -97,7 +97,7 @@ internal sealed partial class GamesModule : Modulo
         _activity = new ScoreActivity(S, g => _history.Last(g));
         S.Ilha.Adicionar(_activity);
         var overview = new GamesOverview(S, () => _activity.Ativa ? _activity.Current : null,
-            () => { if (_activity.Ativa) S.Ilha.Expandir(_activity); }, g => _history.Last(g), () => _history.Games());
+            () => { if (_activity.Ativa) S.Ilha.Expandir(_activity); }, g => _history.Last(g), () => _history.Games(), () => _history.Recent(5));
         S.Ilha.Adicionar(overview);
         S.Menu.Adicionar(new ItemDoMenu
         {
@@ -140,6 +140,13 @@ internal sealed partial class GamesModule : Modulo
         _minute.Start();
         CheckTrophies(announce: true);
         StartSources();
+        // for photos: ILHA_FOTO_MVP=1 shows a won match's ending with the MVP crown 5 s after opening
+        if (Environment.GetEnvironmentVariable("ILHA_FOTO_MVP") == "1")
+        {
+            var demo = new System.Windows.Forms.Timer { Interval = 5000 };
+            demo.Tick += (_, _) => { demo.Stop(); demo.Dispose(); Show("jogo-fim", p => Celebrations.End(p, Outcome.Win, 3, 1, mvp: true), 5f, ""); };
+            demo.Start();
+        }
         // opened (or restarted) with a game already in front: the pill shows it right away
         Contexto(S.ContextoAtual());
         if (_cfg.InstalarIntegracoes) Task.Run(Install);
@@ -362,8 +369,9 @@ internal sealed partial class GamesModule : Modulo
                     if (_cfg.Animacoes)
                     {
                         int? us = m.Us, them = m.Them;
+                        bool mvp = m.Mvp == true;
                         string sound = !_cfg.Sons ? "" : o == Outcome.Win ? "vitoria" : o == Outcome.Loss ? "derrota" : "";
-                        Show("jogo-fim", p => Celebrations.End(p, o, us, them), 4f, sound);
+                        Show("jogo-fim", p => Celebrations.End(p, o, us, them, mvp), mvp ? 5f : 4f, sound);
                     }
                 }
                 break;

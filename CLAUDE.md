@@ -551,6 +551,24 @@ and the points that matter are here.
   "rush" gets the badge `panorama/images/map_icons/mapgroup_icon_rush.vsvg_c` (a cream "R" tile), with the name next
   to it.
 
+## 3.7.1 and 3.8.0 (his requests on 03/11/2026)
+
+- **Media (3.7.1):** `ModuloMidia.Quebrou` drops a session only when `Morta(e)` (COM disconnected/server unavailable,
+  disposed). Apple Music returns a null timeline for a moment now and then; 3.5.0 dropped the player for 2 minutes on
+  any error and the music bubble kept vanishing. `LerInstante` returns null for an empty timeline (skipped).
+- **Menu reflow (3.7.1):** the panel (`Menu`) is not in `_atividades`, so `MudouTamanho` reached no one; `DefinirPainel`
+  now listens and calls `Aplicar` while the menu is open. `ItemDoMenu.Follows` (focus follows `baterias`): right under
+  a one-row block, else at the left of the row after it (his drawing).
+- **MVP (3.8.0):** Rocket League: at `MatchEnded`, the best `Score` of the winning team among the last `Players`
+  (`RocketLeagueState.Mvp`) against our target name. CS2 has no match MVP for the island (GSI only sends our own
+  player): `Match.MvpStars` = our round MVPs. `Celebrations.End(..., mvp)`: a crown (`Celebrations.Crown`) drops above
+  the word, which turns gold with the glow and the shine of the goal. Photo hook: `ILHA_FOTO_MVP=1`.
+- **History (3.8.0):** `Record` got `kills`, `deaths`, `mvp`, `stars` (older files read fine with them empty);
+  `History.Recent(5)` feeds the Games card's "Last matches" (green/red cards); the per-game dots are gone. The two
+  false BF6 wins of 03/11 15:46 and 15:48 (menu bug) were removed from his `partidas.json` (his approval).
+- **Achievements (3.8.0):** every game with hours, `VISIBLE` = 8 rows, `Rolar` scrolls a clipped list with a thin bar;
+  `SteamNames.Fetch` now asks for all missing names in one run at a time (busy flag), saving every ten.
+
 ## Approving Claude Code permissions from the island
 
 - `ferramentas/hook_permissao.py` is the `PermissionRequest` hook, installed on 01/11/2026 in his

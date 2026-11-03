@@ -348,20 +348,43 @@ internal static class Celebrations
         return a - b >= Math.Max(3, a * 0.5) ? "EZ" : "GG";
     }
 
-    public static Cena End(Palco p, Outcome o, int? us, int? them)
+    private static readonly Color4 MvpGold = new(1f, 0.82f, 0.25f, 1f);
+
+    /// <param name="mvp">
+    /// He was the match's MVP (3.8.0, his request): a crown drops above the word, the word turns gold with a glow and a
+    /// shine runs over it.
+    /// </param>
+    public static Cena End(Palco p, Outcome o, int? us, int? them, bool mvp = false)
     {
         string word = EndWord(o, us, them);
-        Color4 color = o == Outcome.Win ? TeamColors.Win : o == Outcome.Loss ? Cor.Branco : Cor.Secundario;
-        string sub = (o == Outcome.Win ? Lang.T("Vitória", "Victory") : o == Outcome.Loss ? Lang.T("Derrota", "Defeat") : Lang.T("Empate", "Draw"))
+        Color4 color = mvp ? MvpGold : o == Outcome.Win ? TeamColors.Win : o == Outcome.Loss ? Cor.Branco : Cor.Secundario;
+        string sub = (mvp ? "MVP · " : "") + (o == Outcome.Win ? Lang.T("Vitória", "Victory") : o == Outcome.Loss ? Lang.T("Derrota", "Defeat") : Lang.T("Empate", "Draw"))
                      + (us is int a && them is int b ? $"  {a} : {b}" : "");
         var ws = p.Texto.Medir(word, 46, FontWeight.Black);
         var ss = p.Texto.Medir(sub, 14, FontWeight.SemiBold, tabular: true);
-        float w = MathF.Max(ws.X + 24, ss.X + 24), h = 84;
+        float crown = mvp ? 30 : 0;
+        float w = MathF.Max(ws.X + 24, ss.X + 24), h = 84 + crown;
         var c = p.NovaCena(new Vector2(MathF.Max(w, 150), h));
         float cw = c.Tamanho.X;
-        var big = Layer(p, c, new Vector2((cw - ws.X) / 2, 2), ws, (dc, _) => p.Texto.Desenhar(dc, word, Vector2.Zero, 46, color, FontWeight.Black));
-        var small = Layer(p, c, new Vector2((cw - ss.X) / 2, h - ss.Y - 4), ss, (dc, _) => p.Texto.Desenhar(dc, sub, Vector2.Zero, 14, Cor.Secundario, FontWeight.SemiBold, tabular: true));
+        var origin = new Vector2((cw - ws.X) / 2, 2 + crown);
+        SpriteVisual? glow = null;
+        if (mvp)
+        {
+            glow = Layer(p, c, origin - new Vector2(14, 14), ws + new Vector2(28, 28), (dc, _) => Glow(dc, p, word, 46, MvpGold, new Vector2(14, 14)));
+            Opacity(p.C, glow, 0, 1, new[] { (0f, 0f) });
+        }
+        var big = Layer(p, c, origin, ws, (dc, _) => p.Texto.Desenhar(dc, word, Vector2.Zero, 46, color, FontWeight.Black));
+        var small = Layer(p, c, new Vector2((cw - ss.X) / 2, h - ss.Y - 4), ss, (dc, _) => p.Texto.Desenhar(dc, sub, Vector2.Zero, 14, mvp ? MvpGold : Cor.Secundario, FontWeight.SemiBold, tabular: true));
         var cc = p.C;
+        if (mvp)
+        {
+            var king = Layer(p, c, new Vector2(cw / 2 - 20, 0), new Vector2(40, 32), (dc, s) => Crown(dc, p.G.Fabrica, new System.Drawing.RectangleF(2, 2, s.X - 4, s.Y - 4)));
+            Fade(cc, king, 380, 140);
+            Slide(cc, king, 380, 520, new Vector2(0, -24), bounce: true);
+            Rotate(cc, king, 380, 520, new[] { (0f, -18f), (0.7f, 6f), (1f, 0f) });
+            Opacity(cc, glow!, 600, 1800, new[] { (0f, 0f), (0.2f, 1f), (0.45f, 0.45f), (0.7f, 1f), (1f, 0.7f) });
+            Shine(p, c, word, 46, origin, ws, 700, 2);
+        }
         if (o == Outcome.Win)
         {
             Scale(cc, big, 0, 420, new[] { (0f, 2.8f), (0.6f, 0.9f), (0.8f, 1.06f), (1f, 1f) });
@@ -372,6 +395,38 @@ internal static class Celebrations
         Fade(cc, small, 280, 260);
         Slide(cc, small, 280, 300, new Vector2(0, 10));
         return c;
+    }
+
+    /// <summary>A gold crown: five points with jewels on the tips and a band with three stones.</summary>
+    public static void Crown(ID2D1DeviceContext dc, ID2D1Factory1 f, System.Drawing.RectangleF r, float alpha = 1)
+    {
+        float W = r.Width, H = r.Height;
+        Vector2 P(float x, float y) => new(r.X + x * W, r.Y + y * H);
+        using var g = f.CreatePathGeometry();
+        using (var s = g.Open())
+        {
+            s.BeginFigure(P(0.06f, 0.82f), FigureBegin.Filled);
+            s.AddLine(P(0.02f, 0.26f));
+            s.AddLine(P(0.27f, 0.55f));
+            s.AddLine(P(0.5f, 0.12f));
+            s.AddLine(P(0.73f, 0.55f));
+            s.AddLine(P(0.98f, 0.26f));
+            s.AddLine(P(0.94f, 0.82f));
+            s.EndFigure(FigureEnd.Closed);
+            s.Close();
+        }
+        using (var stops = dc.CreateGradientStopCollection(new[]
+               {
+                   new GradientStop { Position = 0, Color = new Color4(1f, 0.93f, 0.55f, alpha) },
+                   new GradientStop { Position = 1, Color = new Color4(0.86f, 0.56f, 0.08f, alpha) },
+               }))
+        using (var b = dc.CreateLinearGradientBrush(new LinearGradientBrushProperties { StartPoint = P(0, 0.1f), EndPoint = P(0, 0.85f) }, stops))
+            dc.FillGeometry(g, b);
+        Icone.Retangulo(dc, P(0.06f, 0).X, P(0, 0.74f).Y, W * 0.88f, H * 0.18f, H * 0.06f, new Color4(0.8f, 0.5f, 0.06f, alpha));
+        foreach (var (x, y, col) in new[] { (0.02f, 0.24f, MvpGold), (0.5f, 0.1f, MvpGold), (0.98f, 0.24f, MvpGold) })
+            Icone.Circulo(dc, P(x, y), H * 0.08f, new Color4(col.R, col.G, col.B, alpha));
+        foreach (var (x, col) in new[] { (0.3f, new Color4(0.25f, 0.6f, 1f, alpha)), (0.5f, new Color4(1f, 0.3f, 0.35f, alpha)), (0.7f, new Color4(0.25f, 0.85f, 0.45f, alpha)) })
+            Icone.Circulo(dc, P(x, 0.83f), H * 0.055f, col);
     }
 
     // ------------------------------------------------------------------ composition helpers

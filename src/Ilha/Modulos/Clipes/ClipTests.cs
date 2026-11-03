@@ -33,7 +33,7 @@ internal static class ClipTests
             && ClipRing.SampleFormat(new FormatoAudio(TipoAmostra.Inteiro, 24, 2, 48000, 6)) == "s24le");
         Ok("clipes: nome do arquivo sem caractere proibido", ClipStore.Name("CS2", new DateTime(2026, 11, 3, 16, 21, 5), "ace, vitória/x") == "CS2 2026-11-03 16-21-05 ace, vitória-x");
 
-        var q = new QueueStream(10);
+        var q = new QueueStream(10, quiet: true);
         q.Write(new byte[8]);
         q.Write(new byte[8]);
         q.Write(new byte[8]);

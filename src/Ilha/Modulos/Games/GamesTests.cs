@@ -120,6 +120,24 @@ internal sealed partial class GamesModule
         Ok("rl: prorrogação conta para cima", s.Current?.ClockUp == true && s.Current.Stage == Lang.T("Prorrogação", "Overtime"));
         x = s.ApplyMessage("""{"Event":"MatchEnded","Data":"{\"MatchGuid\":\"A1\",\"WinnerTeamNum\":0}"}""", now);
         Ok("rl: vitória no fim", x.Any(k => k.Kind == MomentKind.End && k.Outcome == Outcome.Win));
+        Ok("rl: MVP é a maior pontuação do time que ganhou (e o nosso jogador foi)", s.Current?.Mvp == true
+            && RocketLeagueState.Mvp(new[] { ("A", 0, 300), ("B", 0, 500), ("C", 1, 900) }, 0) == "B"
+            && RocketLeagueState.Mvp(new[] { ("A", 0, 300) }, 1) == null);
+        string dir = Path.Combine(Path.GetTempPath(), "ilha-historico-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(dir);
+        try
+        {
+            string file = Path.Combine(dir, "partidas.json");
+            // a file of 3.7.x: no kills, deaths or MVP
+            File.WriteAllText(file, """[{"game":"cs2","mode":"Rush","map":"Rush 001","outcome":"win","us":6,"them":2,"end":"2026-11-03T15:38:48-03:00"}]""");
+            var h = new History(file);
+            h.Add(new Match { Game = "rl", Mode = "Duplas", Us = 3, Them = 1, Outcome = Outcome.Win, Kills = 2, Deaths = 1, Mvp = true });
+            var again = new History(file).Recent(5);
+            Ok("jogos: histórico antigo continua lendo e a partida nova guarda abates, mortes e MVP, a mais nova primeiro",
+                again.Count == 2 && again[0].Game == "rl" && again[0].Kills == 2 && again[0].Deaths == 1 && again[0].Mvp == true
+                && again[1].Game == "cs2" && again[1].Kills == null && again[1].Read == Outcome.Win);
+        }
+        finally { try { Directory.Delete(dir, true); } catch (Exception) { } }
         s.ApplyMessage("""{"Event":"MatchDestroyed","Data":"{\"MatchGuid\":\"A1\"}"}""", now);
         Ok("rl: sair da partida encerra", s.Current == null);
         var buf = new StringBuilder("{\"Event\":\"A\",\"Data\":\"{\\\"x\\\":\\\"}\\\"}\"}\n{\"Event\":\"B\",\"Da");
