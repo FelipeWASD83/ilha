@@ -43,7 +43,7 @@ internal sealed partial class SportsModule : Modulo
         {
             Id = "esportes", Nome = Lang.T("Esportes", "Sports"), Ordem = 61,
             Abrir = _card.Open,
-            Icone = (dc, p, r) => SportsCard.Icon(dc, p.G.Fabrica, r, Cor.Branco),
+            Icone = (dc, p, r) => SportsCard.Icon(dc, p.G.Fabrica, r, IconSport()),
             Detalhe = () => _pill?.Current is { League.Racing: false } e ? $"{e.Home?.Score ?? 0} : {e.Away?.Score ?? 0}"
                 : Leagues().Sum(l => _today.TryGetValue(l.Key, out var v) ? v.Count(x => x.State == EventState.Live) : 0) is int n and > 0
                     ? Lang.T($"{n} ao vivo", $"{n} live") : null,
@@ -150,7 +150,7 @@ internal sealed partial class SportsModule : Modulo
             .Where(e => !e.League.Racing || e.Session is "Race" or "Sprint" or "SR" or "Qual")
             .OrderBy(e => e.League.Racing).ToList();
         var show = live.FirstOrDefault();
-        foreach (var e in live.Where(e => !e.League.Racing)) Goals(e);
+        foreach (var e in live.Where(e => e.League.Sport == "soccer")) Goals(e);
         if (show?.Id != _pill?.Current?.Id)
             Log.Escrever(show == null ? "esportes: nenhum jogo seguido ao vivo" : $"esportes: na pílula {show.Name} ({show.League.Key}, {SportDraw.Status(show)})");
         _pill?.Show(show);
@@ -184,6 +184,16 @@ internal sealed partial class SportsModule : Modulo
         });
     }
 
+    /// <summary>The sport of the menu icon: a live game (a followed one first), else the next one today.</summary>
+    private string IconSport()
+    {
+        var today = _today.Values.SelectMany(x => x).ToList();
+        var pick = today.Where(e => e.State == EventState.Live).OrderByDescending(Followed).FirstOrDefault()
+            ?? today.Where(e => e.State == EventState.Pre && e.Start.Date == DateTime.Today && e.Start >= DateTime.Now.AddHours(-1))
+                .OrderByDescending(Followed).ThenBy(e => e.Start).FirstOrDefault();
+        return pick?.League.Sport ?? "soccer";
+    }
+
     private List<(string, List<SportEvent>)> Sections()
     {
         var today = _today.Values.SelectMany(x => x).ToList();
@@ -214,14 +224,14 @@ public sealed class ConfigEsportes
 {
     [Label("Ligas", "Leagues")]
     [Help("Uma por linha: bra.1 (Série A), bra.2 (Série B), bra.copa_do_brazil, conmebol.libertadores, conmebol.sudamericana, " +
-          "uefa.champions, eng.1 (Premier), esp.1 (La Liga), fifa.world (Copa do Mundo), f1, nba, nfl.",
+          "uefa.champions, eng.1 (Premier), esp.1 (La Liga), fifa.world (Copa do Mundo), f1, nba, nfl, atp e wta (tênis).",
         "One per line: bra.1 (Série A), bra.2 (Série B), bra.copa_do_brazil, conmebol.libertadores, conmebol.sudamericana, " +
-        "uefa.champions, eng.1 (Premier), esp.1 (La Liga), fifa.world (World Cup), f1, nba, nfl.")]
+        "uefa.champions, eng.1 (Premier), esp.1 (La Liga), fifa.world (World Cup), f1, nba, nfl, atp and wta (tennis).")]
     [JsonPropertyName("ligas")] public List<string> Ligas { get; set; } = new() { "bra.1", "bra.copa_do_brazil", "conmebol.libertadores", "f1" };
 
     [Label("Times que você segue", "Teams you follow")]
-    [Help("Um por linha, como a ESPN escreve (Flamengo, Atlético-MG, Real Madrid). O jogo deles ao vivo vai para a pílula.",
-        "One per line, as ESPN writes them (Flamengo, Atlético-MG, Real Madrid). Their live game goes to the pill.")]
+    [Help("Um por linha, como a ESPN escreve (Flamengo, Atlético-MG, Real Madrid; no tênis, o sobrenome do tenista). O jogo deles ao vivo vai para a pílula.",
+        "One per line, as ESPN writes them (Flamengo, Atlético-MG, Real Madrid; for tennis, the player's surname). Their live game goes to the pill.")]
     [JsonPropertyName("times")] public List<string> Times { get; set; } = new();
 
     [Label("Pilotos que você segue", "Drivers you follow")]

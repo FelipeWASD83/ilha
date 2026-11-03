@@ -116,32 +116,7 @@ internal sealed class SportsCard : Atividade
         p.Texto.Desenhar(dc, away, new Vector2(mid + sc.X / 2 + 8, y + 8), 12.5f, Cor.Branco, FontWeight.Normal, largura: nameW);
     }
 
-    /// <summary>The menu icon: a ball.</summary>
-    public static void Icon(ID2D1DeviceContext dc, ID2D1Factory1 f, System.Drawing.RectangleF r, Color4 color)
-    {
-        var c = new Vector2(r.X + r.Width / 2, r.Y + r.Height / 2);
-        float rad = r.Width * 0.38f;
-        using var b = dc.CreateSolidColorBrush(color);
-        dc.DrawEllipse(new Ellipse(c, rad, rad), b, r.Width * 0.08f);
-        // the pentagon in the middle and its seams
-        using var g = f.CreatePathGeometry();
-        using (var s = g.Open())
-        {
-            for (int i = 0; i < 5; i++)
-            {
-                float a = -MathF.PI / 2 + i * MathF.Tau / 5;
-                var pt = c + new Vector2(MathF.Cos(a), MathF.Sin(a)) * rad * 0.38f;
-                if (i == 0) s.BeginFigure(pt, FigureBegin.Filled); else s.AddLine(pt);
-            }
-            s.EndFigure(FigureEnd.Closed);
-            s.Close();
-        }
-        dc.FillGeometry(g, b);
-        for (int i = 0; i < 5; i++)
-        {
-            float a = -MathF.PI / 2 + i * MathF.Tau / 5;
-            var dir = new Vector2(MathF.Cos(a), MathF.Sin(a));
-            Icone.Linha(dc, c + dir * rad * 0.38f, c + dir * rad * 0.95f, r.Width * 0.06f, color, f);
-        }
-    }
+    /// <summary>The menu icon: the sport that is live, or the next one today (a soccer ball when nothing is on).</summary>
+    public static void Icon(ID2D1DeviceContext dc, ID2D1Factory1 f, System.Drawing.RectangleF r, string sport) =>
+        SportIcons.Draw(dc, f, r, sport);
 }

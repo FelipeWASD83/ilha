@@ -15,6 +15,9 @@ internal sealed record League(string Key, string Path, string Pt, string En, boo
 {
     public string Name => Lang.T(Pt, En);
 
+    /// <summary>The first part of the ESPN path: soccer, racing, basketball, football or tennis.</summary>
+    public string Sport => Path.Split('/')[0];
+
     public static readonly League[] All =
     {
         new("bra.1", "soccer/bra.1", "Brasileirão Série A", "Brasileirão Série A"),
@@ -29,6 +32,8 @@ internal sealed record League(string Key, string Path, string Pt, string En, boo
         new("f1", "racing/f1", "Fórmula 1", "Formula 1", Racing: true),
         new("nba", "basketball/nba", "NBA", "NBA"),
         new("nfl", "football/nfl", "NFL", "NFL"),
+        new("atp", "tennis/atp", "Tênis ATP", "ATP tennis"),
+        new("wta", "tennis/wta", "Tênis WTA", "WTA tennis"),
     };
 
     public static League? Find(string key) => All.FirstOrDefault(l => string.Equals(l.Key, key, StringComparison.OrdinalIgnoreCase));
@@ -63,20 +68,61 @@ internal static class Espn
     public static async Task<List<SportEvent>> Fetch(League l, DateTime? day, CancellationToken ct)
     {
         var text = await Http.GetStringAsync(Url(l, day), ct).ConfigureAwait(false);
-        return Parse(l, text);
+        return Parse(l, text, day);
     }
 
-    public static List<SportEvent> Parse(League l, string json)
+    public static List<SportEvent> Parse(League l, string json, DateTime? day = null)
     {
         var r = new List<SportEvent>();
         using var d = JsonDocument.Parse(json);
         if (!d.RootElement.TryGetProperty("events", out var events) || events.ValueKind != JsonValueKind.Array) return r;
         foreach (var e in events.EnumerateArray())
         {
-            try { if (Event(l, e) is { } ev) r.Add(ev); }
+            try
+            {
+                if (l.Sport == "tennis") r.AddRange(Matches(l, e, (day ?? DateTime.Today).Date));
+                else if (Event(l, e) is { } ev) r.Add(ev);
+            }
             catch (Exception) { }
         }
         return r;
+    }
+
+    /// <summary>
+    /// A tennis event is a whole tournament with every match inside its groupings: the singles matches of that day (and
+    /// any live one) become games of their own, scored in sets won.
+    /// </summary>
+    private static IEnumerable<SportEvent> Matches(League l, JsonElement e, DateTime day)
+    {
+        if (!e.TryGetProperty("groupings", out var groups) || groups.ValueKind != JsonValueKind.Array) yield break;
+        foreach (var g in groups.EnumerateArray())
+        {
+            if (!Str(g, "grouping", "slug").Contains("singles") || !g.TryGetProperty("competitions", out var comps) || comps.ValueKind != JsonValueKind.Array)
+                continue;
+            foreach (var comp in comps.EnumerateArray())
+            {
+                var state = State(comp);
+                DateTime.TryParse(Str(comp, "date"), CultureInfo.InvariantCulture, DateTimeStyles.AdjustToUniversal | DateTimeStyles.AssumeUniversal, out var start);
+                start = start.ToLocalTime();
+                if (state != EventState.Live && start.Date != day) continue;
+                var players = new List<Competitor>();
+                if (comp.TryGetProperty("competitors", out var cps) && cps.ValueKind == JsonValueKind.Array)
+                    foreach (var c in cps.EnumerateArray())
+                    {
+                        if (!c.TryGetProperty("athlete", out var a) || a.ValueKind != JsonValueKind.Object) continue;
+                        int sets = c.TryGetProperty("linescores", out var ls) && ls.ValueKind == JsonValueKind.Array
+                            ? ls.EnumerateArray().Count(s => s.TryGetProperty("winner", out var w) && w.ValueKind == JsonValueKind.True) : 0;
+                        string name = Str(a, "displayName");
+                        string shortName = Str(a, "shortName") is { Length: > 0 } sn ? sn : name;
+                        players.Add(new Competitor(Str(c, "id"), name, shortName, shortName, state == EventState.Pre ? null : sets,
+                            Str(a, "flag", "href"), Str(c, "homeAway") == "home", int.TryParse(Str(c, "order"), out var o) ? o : 99));
+                    }
+                if (players.Count < 2 || players.Any(p => p.Name == "TBD")) continue;
+                var status = comp.TryGetProperty("status", out var cs) ? cs : default;
+                yield return new SportEvent(Str(comp, "id"), l, $"{players[0].Short} x {players[1].Short}", start, state,
+                    Str(status, "type", "shortDetail"), "", players, Str(comp, "round", "displayName"));
+            }
+        }
     }
 
     private static SportEvent? Event(League l, JsonElement e)

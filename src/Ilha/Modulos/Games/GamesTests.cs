@@ -261,6 +261,16 @@ internal sealed partial class GamesModule
                      "     \"440\"\n     {\n      \"Playtime\"\t\t\"0\"\n     }\n    }\n   }\n  }\n }\n \"other\"\n {\n  \"Playtime\" \"9\"\n }\n}\n";
         var read = Playtime.Read(vdf);
         Ok("horas: Playtime de cada app da Steam (minutos), só dentro de apps", read.Count == 1 && read[0] == (730, 15822), string.Join(",", read));
+        // the session going on now counts on top of the saved hours, until Steam writes its own bigger number
+        var steamNow = new Dictionary<int, int> { [730] = 599 };
+        var live = new Dictionary<int, (int Baseline, int Extra)> { [730] = (599, 3) };
+        bool during = Playtime.WithLive(steamNow, live, 730)[730] == 602;
+        steamNow[730] = 603;
+        bool written = Playtime.WithLive(steamNow, live, 0)[730] == 603 && !live.ContainsKey(730);
+        var other = new Dictionary<int, (int Baseline, int Extra)> { [570] = (0, 2) };
+        bool fresh = Playtime.WithLive(new Dictionary<int, int>(), other, 570)[570] == 2;
+        Ok("horas: sessão ao vivo soma por cima da Steam e sai quando a Steam grava (conquista durante o jogo)", during && written && fresh);
+        Ok("horas: jogo da Steam rodando agora (registro)", true, Playtime.RunningSteamApp() is int run && run > 0 ? $"app {run}" : "nenhum");
         Ok("horas: formato", GamesOverview.Hours(15822) == (263.7).ToString("0", Lang.Culture) + " h" && GamesOverview.Hours(90) == 1.5.ToString("0.0", Lang.Culture) + " h" && GamesOverview.Hours(0) == "–",
             GamesOverview.Hours(15822));
         var real = Playtime.Steam();

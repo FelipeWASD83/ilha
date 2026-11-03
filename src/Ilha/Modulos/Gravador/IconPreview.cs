@@ -11,15 +11,23 @@ using Vortice.Mathematics;
 namespace Ilha.Recorder;
 
 /// <summary>
-/// Draws the recorder's two menu tiles (each icon on the menu's gray ball, idle and recording) into a PNG with no window,
-/// with the same drawing code the menu uses, so the icons can be checked without opening the island.
+/// Draws menu icons (each on the menu's gray ball) into a PNG with no window, with the same drawing code the menu uses,
+/// so the icons can be checked without opening the island. With no list: the recorder's two tiles, idle and recording.
 /// </summary>
 internal static class IconPreview
 {
-    public static void Render(string path, float scale = 6)
+    public static void Render(string path, float scale = 6) => Render(path, new Action<ID2D1DeviceContext, ID2D1Factory1, System.Drawing.RectangleF>[]
+    {
+        (dc, f, box) => Icons.Camera(dc, f, box, live: false),
+        (dc, f, box) => Icons.Camera(dc, f, box, live: true),
+        (dc, f, box) => Icons.MicTile(dc, f, box, live: false),
+        (dc, f, box) => Icons.MicTile(dc, f, box, live: true),
+    }, scale);
+
+    public static void Render(string path, Action<ID2D1DeviceContext, ID2D1Factory1, System.Drawing.RectangleF>[] icons, float scale = 6)
     {
         const float BALL = 54, CELL = 64;
-        int w = (int)(CELL * 4 * scale), h = (int)(CELL * scale);
+        int w = (int)(CELL * icons.Length * scale), h = (int)(CELL * scale);
         var levels = new[] { Vortice.Direct3D.FeatureLevel.Level_11_0, Vortice.Direct3D.FeatureLevel.Level_10_0 };
         using var d3d = D3D11.D3D11CreateDevice(DriverType.Warp, DeviceCreationFlags.BgraSupport, levels);
         using var dxgi = d3d.QueryInterface<IDXGIDevice>();
@@ -32,15 +40,14 @@ internal static class IconPreview
         dc.SetDpi(96 * scale, 96 * scale);
         dc.BeginDraw();
         dc.Clear(new Color4(0, 0, 0, 1));
-        for (int i = 0; i < 4; i++)
+        for (int i = 0; i < icons.Length; i++)
         {
             var center = new Vector2(CELL * i + CELL / 2, CELL / 2);
             Icone.Circulo(dc, center, BALL / 2, new Color4(1, 1, 1, 0.06f));
             var box = new System.Drawing.RectangleF(center.X - 12, center.Y - 12, 24, 24);
             // the menu draws icons for 24 DIP and scales them by 28/24
             dc.Transform = Matrix3x2.CreateScale(28f / 24f, center);
-            if (i < 2) Icons.Camera(dc, f, box, live: i == 1);
-            else Icons.MicTile(dc, f, box, live: i == 3);
+            icons[i](dc, f, box);
             dc.Transform = Matrix3x2.Identity;
         }
         dc.EndDraw();

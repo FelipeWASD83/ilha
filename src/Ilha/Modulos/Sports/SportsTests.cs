@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading;
@@ -29,6 +30,22 @@ internal sealed partial class SportsModule
             {"order":2,"athlete":{"displayName":"Kimi Antonelli"}},{"order":1,"athlete":{"displayName":"Charles Leclerc"}},{"order":3,"athlete":{"displayName":"Frederik Vesti"}}]}]}]}
         """;
 
+    // a tournament the way ESPN sends tennis: every match inside the groupings (the doubles and the TBD final are skipped)
+    private const string Tennis = """
+        {"events":[{"id":"t1","name":"Paris Masters","groupings":[
+          {"grouping":{"slug":"mens-singles"},"competitions":[
+            {"id":"m1","date":"2026-11-03T13:00Z","status":{"type":{"state":"in","shortDetail":"3rd Set"}},"round":{"displayName":"Round 2"},"competitors":[
+              {"homeAway":"home","order":1,"athlete":{"displayName":"Joao Fonseca","shortName":"J. Fonseca"},"linescores":[{"value":6,"winner":true},{"value":4,"winner":false},{"value":2}]},
+              {"homeAway":"away","order":2,"athlete":{"displayName":"Pablo Carreno Busta","shortName":"P. Carreno Busta"},"linescores":[{"value":3,"winner":false},{"value":6,"winner":true},{"value":1}]}]},
+            {"id":"m2","date":"2026-10-30T13:00Z","status":{"type":{"state":"post","shortDetail":"Final"}},"competitors":[
+              {"homeAway":"home","athlete":{"displayName":"A"}},{"homeAway":"away","athlete":{"displayName":"B"}}]},
+            {"id":"m3","date":"2026-11-03T18:00Z","status":{"type":{"state":"pre"}},"competitors":[
+              {"homeAway":"home","athlete":{"displayName":"TBD"}},{"homeAway":"away","athlete":{"displayName":"TBD"}}]}]},
+          {"grouping":{"slug":"mens-doubles"},"competitions":[
+            {"id":"d1","date":"2026-11-03T13:00Z","status":{"type":{"state":"in"}},"competitors":[
+              {"homeAway":"home","athlete":{"displayName":"C"}},{"homeAway":"away","athlete":{"displayName":"D"}}]}]}]}]}
+        """;
+
     public override string Autoteste()
     {
         var r = new StringBuilder();
@@ -51,6 +68,41 @@ internal sealed partial class SportsModule
         Ok("esportes: endereço da ESPN com e sem dia", Espn.Url(bra) == "https://site.api.espn.com/apis/site/v2/sports/soccer/bra.1/scoreboard"
             && Espn.Url(bra, new DateTime(2026, 11, 5)).EndsWith("?dates=20261105"));
         Ok("esportes: todas as ligas da configuração existem", new ConfigEsportes().Ligas.All(k => League.Find(k) != null));
+        var tennis = Espn.Parse(League.Find("atp")!, Tennis, new DateTime(2026, 11, 3));
+        Ok("esportes: tênis vira uma partida por jogo de simples, placar em sets ganhos (duplas e TBD ficam de fora)",
+            tennis.Count == 1 && tennis[0].State == EventState.Live && tennis[0].Home?.Score == 1 && tennis[0].Away?.Score == 1
+            && tennis[0].Name == "J. Fonseca x P. Carreno Busta" && Espn.Follows(tennis[0].Home!, new[] { "Fonseca" }),
+            string.Join(" | ", tennis.Select(e => $"{e.Name} {e.Home?.Score}:{e.Away?.Score}")));
+        Ok("esportes: esporte de cada liga (para o ícone do menu)", bra.Sport == "soccer" && League.Find("f1")!.Sport == "racing"
+            && League.Find("atp")!.Sport == "tennis" && League.Find("nba")!.Sport == "basketball" && League.Find("nfl")!.Sport == "football");
+        {
+            var saved = new Dictionary<string, List<SportEvent>>(_today);
+            _today.Clear();
+            string idle = IconSport();
+            _today["f1"] = new List<SportEvent> { f1 };
+            string race = IconSport();
+            _today["atp"] = tennis;
+            string both = IconSport();
+            _today.Clear();
+            foreach (var (k, v) in saved) _today[k] = v;
+            Ok("esportes: ícone do menu segue o que está ao vivo (bola sem nada, carro na corrida)", idle == "soccer" && race == "racing"
+                && (both is "racing" or "tennis"), $"{idle}, {race}, {both}");
+        }
+        try
+        {
+            var png = System.IO.Path.Combine(System.IO.Path.GetTempPath(), "ilha-icones-esportes.png");
+            global::Ilha.Recorder.IconPreview.Render(png, new Action<Vortice.Direct2D1.ID2D1DeviceContext, Vortice.Direct2D1.ID2D1Factory1, System.Drawing.RectangleF>[]
+            {
+                (dc, f, box) => global::Ilha.Games.GamesOverview.Icon(dc, f, box, Cor.Branco),
+                (dc, f, box) => SportIcons.Draw(dc, f, box, "soccer"),
+                (dc, f, box) => SportIcons.Draw(dc, f, box, "racing"),
+                (dc, f, box) => SportIcons.Draw(dc, f, box, "tennis"),
+                (dc, f, box) => SportIcons.Draw(dc, f, box, "basketball"),
+                (dc, f, box) => SportIcons.Draw(dc, f, box, "football"),
+            });
+            Ok("esportes: ícones do menu (jogos e os cinco esportes) desenhados em " + png, System.IO.File.Exists(png));
+        }
+        catch (Exception e) { Ok("esportes: ícones do menu: " + e.Message, false); }
 
         // the real thing, when the network answers (not a failure when it does not: the test may run offline)
         try

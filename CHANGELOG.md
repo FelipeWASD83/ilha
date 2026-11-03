@@ -1,5 +1,30 @@
 # Changelog
 
+## 3.5.0 (03/11/2026)
+
+**New**
+- Charging animation: when the G733, the mouse (through G HUB) or the AirPods case starts charging, the island shows
+  the device's photo with a battery filling up to its level and a lightning bolt popping over it. It can be turned off
+  in the settings (Headphones and Bluetooth).
+- Achievements unlock while you play: the minutes of the Steam game running now count right away (Steam itself only
+  writes its hours when the game closes), and a new trophy shows up over the game too.
+- Tennis (ATP and WTA) in the sports leagues: the day's singles matches, scored in sets.
+- The Sports icon in the menu follows what is on: a soccer ball, an F1 car, a tennis racket, a basketball or an
+  American football, by what is live now or the next game today.
+- The island comes back by itself if it ever closes on its own (Windows reopens it within a second).
+
+**Changed**
+- New icons: the audio recorder is a microphone with a black mesh grille on top (same stand as before), and Games is a
+  controller with grips, two sticks, the cross and four colored buttons.
+
+**Fixed**
+- AirPods (and other headphones whose name says nothing about the model) show their photo when they connect, not a
+  drawn icon: the island now waits a moment for Windows to tell which model they are.
+- The goal animation only plays for soccer (a basket in the NBA is not a goal).
+- The island could close on its own while a game was open (it did in a CS2 Rush match). A media player whose session
+  went dead was one trigger and is now dropped right away; the cause is not fully pinned down yet, so the island also
+  reopens by itself when that happens.
+
 ## 3.4.0 (03/11/2026)
 
 **New**

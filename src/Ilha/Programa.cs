@@ -1,5 +1,6 @@
 using System;
 using System.Linq;
+using System.Runtime.InteropServices;
 using System.Threading;
 using System.Windows.Forms;
 
@@ -8,6 +9,9 @@ namespace Ilha;
 public static class Programa
 {
     private static SynchronizationContext? _ui;
+
+    [DllImport("kernel32.dll", CharSet = CharSet.Unicode)] private static extern int RegisterApplicationRestart(string? args, int flags);
+    private const int RESTART_NO_PATCH = 4, RESTART_NO_REBOOT = 8;
 
     /// <summary>Roda na thread da interface (callbacks do sistema chegam em outras threads).</summary>
     public static void NaInterface(Action a)
@@ -70,6 +74,16 @@ public static class Programa
             return;
         }
         if (sair) return;
+        // a crash or a hang (a native one in a Windows DLL included, which no catch stops) brings the island back: Windows
+        // reopens it after it ran for at least 60 s, so a crash right at the start does not loop (3.5.0, after the media
+        // crash of 03/11/2026)
+        try
+        {
+            int hr = RegisterApplicationRestart("--reiniciada", RESTART_NO_PATCH | RESTART_NO_REBOOT);
+            if (hr != 0) Log.Escrever($"reinício automático não registrou (0x{hr:X8})");
+        }
+        catch (Exception e) { Log.Escrever("reinício automático: " + e.Message); }
+        if (Array.IndexOf(args, "--reiniciada") >= 0) Log.Escrever("a ilha fechou sozinha e o Windows abriu de novo");
 
         using var pedidoDeSair = new EventWaitHandle(false, EventResetMode.AutoReset, @"Local\Ilha.Sair");
         var nucleo = new Nucleo();

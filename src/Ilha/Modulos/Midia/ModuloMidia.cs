@@ -42,6 +42,11 @@ internal sealed class ModuloMidia : Modulo
     private readonly List<Acompanhada> _sessoes = new();
     private Acompanhada? _escolhida;
     private int _geracaoProps;
+    // sessions that started failing (Windows hands back null for a session whose app is going away), by identity: they
+    // are not followed again for a while. Calling them again and again ended in a native crash inside
+    // Windows.Media.MediaControl.dll on 03/11/2026, which no catch can stop.
+    private readonly Dictionary<IntPtr, DateTime> _quebradas = new();
+    private static readonly TimeSpan QUEBRADA = TimeSpan.FromMinutes(2);
 
     private readonly System.Windows.Forms.Timer _ressinc = new() { Interval = 20_000 };
     private readonly System.Windows.Forms.Timer _espera = new() { Interval = 150 };
@@ -173,15 +178,18 @@ internal sealed class ModuloMidia : Modulo
         var usadas = new HashSet<string>();
         var presentes = new HashSet<IntPtr>();
         foreach (var s in lista) presentes.Add(Identidade(s));
+        foreach (var k in _quebradas.Where(x => agora - x.Value > QUEBRADA || !presentes.Contains(x.Key)).Select(x => x.Key).ToList())
+            _quebradas.Remove(k);
         // a escolhida que ganhou outro objeto: o cartão precisa recarregar tudo dela
         Acompanhada? trocada = null;
         foreach (var s in lista)
         {
+            var id = Identidade(s);
+            if (_quebradas.ContainsKey(id)) continue;
             string aumid;
             try { aumid = s.SourceAppUserModelId ?? ""; } catch { continue; }
             string chave = aumid;
             for (int n = 2; !usadas.Add(chave); n++) chave = aumid + "#" + n;
-            var id = Identidade(s);
             // a mesma sessão segue com o histórico e os eventos dela, mesmo que o "#2" tenha passado para outra aba
             var a = _sessoes.Find(x => x.Identidade == id && !vistas.Contains(x));
             bool nova = false;
@@ -212,7 +220,14 @@ internal sealed class ModuloMidia : Modulo
                 }
                 a.Rastro.Atualizar(tocando, pausada, agora, ultima, nova);
             }
-            catch (Exception e) { Log.Escrever("mídia: estado da sessão: " + e.Message); }
+            catch (Exception e)
+            {
+                Log.Escrever($"mídia: estado da sessão {chave}: {e.Message} (largada)");
+                _quebradas[id] = agora;
+                Soltar(a);
+                if (_escolhida == a) _escolhida = null;
+                continue;
+            }
             vistas.Add(a);
         }
         foreach (var velha in _sessoes)
@@ -290,7 +305,7 @@ internal sealed class ModuloMidia : Modulo
             var (tocando, pausada, _) = Estado(a.Sessao);
             a.Rastro.Atualizar(tocando, pausada, DateTime.Now, null, false);
         }
-        catch (Exception e) { Log.Escrever("mídia: PlaybackInfo: " + e.Message); }
+        catch (Exception e) { Quebrou(a, "PlaybackInfo", e); return; }
         Reavaliar();
         if (a == _escolhida) AtualizarEstado(a, novaLinha: false);
     }
@@ -305,7 +320,22 @@ internal sealed class ModuloMidia : Modulo
             AtualizarEstado(a, novaLinha: false);
             _atv.LinhaMudou();
         }
-        catch (Exception e) { Log.Escrever("mídia: Timeline: " + e.Message); }
+        catch (Exception e) { Quebrou(a, "Timeline", e); }
+    }
+
+    /// <summary>
+    /// A call on a session failed: that session object is dead or dying. It stops being followed (events off, out of the
+    /// list, and skipped by the next readings for a while) and the list is read again, where the app usually shows up
+    /// with a new session.
+    /// </summary>
+    private void Quebrou(Acompanhada a, string onde, Exception e)
+    {
+        Log.Escrever($"mídia: {onde}: {e.Message} (sessão {a.Rastro.Chave} largada)");
+        _quebradas[a.Identidade] = DateTime.Now;
+        Soltar(a);
+        _sessoes.Remove(a);
+        if (_escolhida == a) _escolhida = null;
+        Ressincronizar();
     }
 
     private void PropsMudaram(Acompanhada a)
@@ -338,7 +368,7 @@ internal sealed class ModuloMidia : Modulo
                 c.IsPlaybackPositionEnabled && _atv.Linha.Atual.TemDuracao);
             _atv.LinhaMudou();
         }
-        catch (Exception e) { Log.Escrever("mídia: estado: " + e.Message); }
+        catch (Exception e) { Quebrou(a, "estado", e); }
     }
 
     private async void CarregarPropriedades()

@@ -190,6 +190,10 @@ internal static class TestesFones
         // ---- alertas de bateria baixa
         var al = new BatteryAlerts();
         int? F(int pct, bool carregando = false) => al.Feed("x", pct, carregando);
+        var carga = new Dictionary<string, bool>();
+        r.Conferir("carregar: primeira leitura não anima, nem carregando", !ChargingCard.Started(carga, "x", true) && !ChargingCard.Started(carga, "y", false));
+        r.Conferir("carregar: tirou e pôs no cabo anima uma vez", !ChargingCard.Started(carga, "x", false) && ChargingCard.Started(carga, "x", true)
+            && !ChargingCard.Started(carga, "x", true) && ChargingCard.Started(carga, "y", true));
         r.Conferir("alerta: primeira leitura alta não avisa", F(80) == null);
         r.Conferir("alerta: 52 nada, 49 cruza o 50, 48 não repete", F(52) == null && F(49) == 50 && F(48) == null);
         r.Conferir("alerta: 25", F(30) == null && F(25) == 25);

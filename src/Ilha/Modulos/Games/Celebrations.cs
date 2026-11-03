@@ -369,7 +369,7 @@ internal static class Celebrations
     /// A drawn layer. With `group` it goes inside that container instead of the scene's root: two animations of the
     /// same property on one visual replace each other, so a second motion goes on the group.
     /// </summary>
-    private static SpriteVisual Layer(Palco p, Cena c, Vector2 pos, Vector2 size, Action<ID2D1DeviceContext, Vector2> draw, ContainerVisual? group = null)
+    internal static SpriteVisual Layer(Palco p, Cena c, Vector2 pos, Vector2 size, Action<ID2D1DeviceContext, Vector2> draw, ContainerVisual? group = null)
     {
         var s = p.Desenho(c, pos, size, draw);
         SpriteVisual? v = null;
@@ -385,7 +385,7 @@ internal static class Celebrations
     }
 
     /// <summary>An empty container the size of the scene, on top of what is already there.</summary>
-    private static ContainerVisual Group(Palco p, Cena c)
+    internal static ContainerVisual Group(Palco p, Cena c)
     {
         var g = p.C.CreateContainerVisual();
         g.Size = c.Raiz.Size;
@@ -394,25 +394,25 @@ internal static class Celebrations
         return g;
     }
 
-    private static CompositionEasingFunction Out(Compositor c) => c.CreateCubicBezierEasingFunction(new Vector2(0.16f, 1f), new Vector2(0.3f, 1f));
+    internal static CompositionEasingFunction Out(Compositor c) => c.CreateCubicBezierEasingFunction(new Vector2(0.16f, 1f), new Vector2(0.3f, 1f));
 
-    private static void Scale(Compositor c, Visual v, int delay, int ms, (float At, float S)[] keys)
+    internal static void Scale(Compositor c, Visual v, int delay, int ms, (float At, float S)[] keys)
     {
         var a = c.CreateVector3KeyFrameAnimation();
         foreach (var (at, s) in keys) a.InsertKeyFrame(at, new Vector3(s, s, 1), Out(c));
         Run(v, "Scale", a, delay, ms);
     }
 
-    private static void Scale3(Compositor c, Visual v, int delay, int ms, (float At, Vector2 S)[] keys)
+    internal static void Scale3(Compositor c, Visual v, int delay, int ms, (float At, Vector2 S)[] keys)
     {
         var a = c.CreateVector3KeyFrameAnimation();
         foreach (var (at, s) in keys) a.InsertKeyFrame(at, new Vector3(s, 1), Out(c));
         Run(v, "Scale", a, delay, ms);
     }
 
-    private static void Fade(Compositor c, Visual v, int delay, int ms) => Opacity(c, v, delay, ms, new[] { (0f, 0f), (1f, 1f) });
+    internal static void Fade(Compositor c, Visual v, int delay, int ms) => Opacity(c, v, delay, ms, new[] { (0f, 0f), (1f, 1f) });
 
-    private static void Opacity(Compositor c, Visual v, int delay, int ms, (float At, float O)[] keys)
+    internal static void Opacity(Compositor c, Visual v, int delay, int ms, (float At, float O)[] keys)
     {
         if (keys.Length == 1) { v.Opacity = keys[0].O; return; }
         var a = c.CreateScalarKeyFrameAnimation();
@@ -420,7 +420,7 @@ internal static class Celebrations
         Run(v, "Opacity", a, delay, ms);
     }
 
-    private static void Slide(Compositor c, Visual v, int delay, int ms, Vector2 from, bool bounce = false)
+    internal static void Slide(Compositor c, Visual v, int delay, int ms, Vector2 from, bool bounce = false)
     {
         var a = c.CreateVector3KeyFrameAnimation();
         a.InsertKeyFrame(0f, v.Offset + new Vector3(from, 0));
@@ -436,7 +436,7 @@ internal static class Celebrations
     }
 
     /// <summary>A quick jitter around where the visual already is.</summary>
-    private static void Shake(Compositor c, Visual v, int delay, int ms, float amount)
+    internal static void Shake(Compositor c, Visual v, int delay, int ms, float amount)
     {
         var a = c.CreateVector3KeyFrameAnimation();
         var o = v.Offset;
@@ -447,7 +447,7 @@ internal static class Celebrations
     }
 
     /// <summary>Uncovers the visual from one side to the other (an inset clip running across it).</summary>
-    private static void Reveal(Compositor c, Visual v, int delay, int ms, float sizeDip, bool fromLeft)
+    internal static void Reveal(Compositor c, Visual v, int delay, int ms, float sizeDip, bool fromLeft)
     {
         var clip = c.CreateInsetClip();
         float w = v.Size.X;
@@ -462,14 +462,14 @@ internal static class Celebrations
         clip.StartAnimation(fromLeft ? "RightInset" : "LeftInset", a);
     }
 
-    private static void Rotate(Compositor c, Visual v, int delay, int ms, (float At, float Deg)[] keys)
+    internal static void Rotate(Compositor c, Visual v, int delay, int ms, (float At, float Deg)[] keys)
     {
         var a = c.CreateScalarKeyFrameAnimation();
         foreach (var (at, d) in keys) a.InsertKeyFrame(at, d);
         Run(v, "RotationAngleInDegrees", a, delay, ms);
     }
 
-    private static void Run(Visual v, string property, KeyFrameAnimation a, int delay, int ms)
+    internal static void Run(Visual v, string property, KeyFrameAnimation a, int delay, int ms)
     {
         a.Duration = TimeSpan.FromMilliseconds(ms);
         if (delay > 0)

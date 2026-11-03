@@ -32,6 +32,9 @@ internal sealed partial class GamesModule : Modulo
     private int _minutes;
     private Dictionary<int, int> _steam = new();
     private DateTime _steamRead;
+    // the Steam session going on now: hours at its start and the minutes counted since (see Playtime.WithLive)
+    private readonly Dictionary<int, (int Baseline, int Extra)> _live = new();
+    private int _running;
 
     /// <summary>Every game with hours: Steam's (read at most every 5 minutes) and the island's own clock.</summary>
     private List<GameHours> Hours()
@@ -43,7 +46,7 @@ internal sealed partial class GamesModule : Modulo
         }
         var known = new[] { "cs2", "bf6", "rl", "dota2", "deadlock", "tslgame", "r5apex", "rainbowsix", "marvelrivals-win64-shipping" }
             .Where(k => Playtime.SteamApp(k) != null).ToDictionary(k => Playtime.SteamApp(k)!.Value, k => k);
-        var list = _steam.Select(kv =>
+        var list = Playtime.WithLive(_steam, _live, _running).Select(kv =>
         {
             string key = known.TryGetValue(kv.Key, out var k) ? k : "steam:" + kv.Key;
             string name = SteamNames.Get(kv.Key) ?? (known.ContainsKey(kv.Key) ? Match.NameOf(key) : $"Steam {kv.Key}");
@@ -73,7 +76,8 @@ internal sealed partial class GamesModule : Modulo
             S.Ilha.Alertar(new Alerta
             {
                 Tipo = "conquista", Criar = p => Celebrations.Trophy(p, t), Segundos = 4f, Som = _cfg.Sons ? "conquista" : "",
-                Importante = true, Dono = _room,
+                // unlocked while playing: it shows over the game too, like the score (3.5.0, his request)
+                Importante = true, PermitidoNoCompetitivo = true, Dono = _room,
             });
     }
     private Alerta? _killAlert;
@@ -118,12 +122,20 @@ internal sealed partial class GamesModule : Modulo
             Icone = (dc, p, r) => TrophyRoom.Cup(dc, p.G.Fabrica, new System.Numerics.Vector2(r.X + r.Width / 2, r.Y + r.Height / 2 + 1), r.Width * 0.8f, Cor.Branco),
             Detalhe = () => _trophies.Unlocked.Count > 0 ? _trophies.Unlocked.Count.ToString() : null,
         });
-        // once a minute: the island's clock counts the games outside Steam; every 10 minutes (Steam writes its hours
-        // when a game closes) the trophies are checked
+        // once a minute: the island's clock counts the games outside Steam and the Steam game running now gets its
+        // minute on top of the saved hours, so an achievement unlocks while playing; with a game running the trophies
+        // are checked every minute, otherwise every 10 (Steam writes its hours when a game closes)
         _minute.Tick += (_, _) =>
         {
-            _clock.Tick();
-            if (++_minutes % 10 == 0) CheckTrophies(announce: true);
+            bool playing = _clock.Tick();
+            _running = Playtime.RunningSteamApp();
+            if (_running > 0)
+            {
+                if (_live.TryGetValue(_running, out var s)) _live[_running] = (s.Baseline, s.Extra + 1);
+                else _live[_running] = (_steam.TryGetValue(_running, out var saved) ? saved : 0, 1);
+                playing = true;
+            }
+            if (playing || ++_minutes % 10 == 0) CheckTrophies(announce: true);
         };
         _minute.Start();
         CheckTrophies(announce: true);

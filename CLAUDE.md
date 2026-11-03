@@ -460,6 +460,34 @@ and the points that matter are here.
 - **`--abrir <entry>`** (3.4.0): opens a menu entry's card 4.5 s after startup, without taking the focus, for photos
   (`--menu` does the same for the menu).
 
+## 3.5.0 (his requests on 03/11/2026)
+
+- **Live achievements:** Steam writes `Playtime` only when a game closes. Each minute `Playtime.RunningSteamApp()`
+  (HKCU\Software\Valve\Steam `RunningAppID`) gets a minute in `_live` (hours at the session start, minutes since);
+  `Playtime.WithLive` adds it on top until Steam writes a bigger number. With any game running (Steam or `OwnClock`)
+  the trophies are checked every minute, else every 10. The trophy alert has `PermitidoNoCompetitivo`.
+- **Charging card** (`Extras/Fones/ChargingCard.cs`): `ChargingCard.Started` (false to true, never the first reading)
+  per battery key: `g733`, the mouse key, and `<airpods>:estojo` for the AirPods case (buds in the case charge all
+  the time, so they do not count). Composition only, with the `Celebrations` helpers (now `internal`). Setting
+  `animacaoCarregar`. Photo hook: `ILHA_FOTO_CARREGAR=<device name>` shows the card 5 s after opening.
+- **AirPods photo on connect:** right after a Bluetooth connection the PnP nodes (`BTHENUM ..._VID&0001004C_PID&2027`)
+  are not there yet, and his AirPods are named "Fone", so the name gave no photo. `BluetoothMudou` now waits up to 3 s
+  for the VID/PID when the name finds no photo, and remembers it per address (`_vistos`).
+- **Sports icon:** `SportIcons.Draw` by `League.Sport` (the first part of the ESPN path) of the live game, else the next
+  one today; soccer ball when nothing is on. Tennis (`tennis/atp`, `tennis/wta`): one ESPN event is a whole tournament
+  with the matches inside `groupings`; `Espn.Matches` keeps the singles of the asked day (and any live one), score =
+  sets won, TBD skipped. The goal animation is for soccer only.
+- **Icons:** `MicTile` kept its cradle, stem and base; the head is a black mesh grille over a silver collar (he asked
+  for only the head to change). `GamesOverview.Icon` is a full controller. `IconPreview.Render(path, icons[])` draws
+  any list of menu icons to a PNG without a window (the sports test writes `%TEMP%\ilha-icones-esportes.png`).
+- **Crashes (open):** 02/11 21:38, 03/11 15:17 and 15:32, all on the .NET finalizer thread releasing a WinRT object
+  (`IObjectReference.Finalize`), once faulting inside `Windows.Media.MediaControl.dll`; the two with logs had dead media
+  sessions just before ("mídia: Timeline: Object reference not set"). Dumps land in `%LOCALAPPDATA%\CrashDumps`
+  (`dotnet-dump analyze`, `setthread` to the finalizer); the heap was too damaged to name the object. Done so far: a
+  session whose call fails is dropped and skipped for 2 minutes (`_quebradas`), and `RegisterApplicationRestart` brings
+  the island back after a crash or hang (Windows does it only after 60 s of running; the log says "a ilha fechou
+  sozinha e o Windows abriu de novo"). Next step to confirm the media module: a session with it turned off.
+
 ## Approving Claude Code permissions from the island
 
 - `ferramentas/hook_permissao.py` is the `PermissionRequest` hook, installed on 01/11/2026 in his
@@ -496,6 +524,13 @@ and the points that matter are here.
   SAC.
 - Icon: `ilha()` in `_organizacao\atalhos\desenhar_icones.py` (black pill with the timer ring and the visualizer bars
   on blue-violet), rendered by `gerar_icones.py ilha` into `icone\`.
+
+## No kernel, ever (his rule on 03/11/2026)
+
+Changing the kernel is strictly forbidden: no unsigned kernel driver, no Windows test mode, no driver signature
+bypass, nothing in ring 0, not even to test. That is why there is **no AirPods noise control (ANC)**: on Windows it
+only works through an unsigned kernel driver (MagicPods/MagicAAP style) plus test mode, which also breaks the
+anti-cheats of his competitive games. Do not build it and do not propose it again.
 
 ## Smart App Control (important)
 

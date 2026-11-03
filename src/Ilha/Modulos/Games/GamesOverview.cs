@@ -107,30 +107,50 @@ internal sealed class GamesOverview : Atividade
         return c;
     }
 
-    /// <summary>The menu icon: a game controller.</summary>
+    /// <summary>
+    /// The menu icon (3.5.0, his request for a better one): a light controller with grips, two sticks, the cross and four
+    /// colored buttons. <paramref name="color"/> is unused since then (kept for the callers).
+    /// </summary>
     public static void Icon(ID2D1DeviceContext dc, ID2D1Factory1 f, System.Drawing.RectangleF r, Color4 color)
     {
-        var c = new Vector2(r.X + r.Width / 2, r.Y + r.Height / 2);
+        var c = new Vector2(r.X + r.Width / 2, r.Y + r.Height / 2 - 0.6f * r.Width / 24f);
         float u = r.Width / 24f;
         using var g = f.CreatePathGeometry();
         using (var s = g.Open())
         {
-            s.BeginFigure(c + new Vector2(-6.5f, -5) * u, FigureBegin.Filled);
-            s.AddLine(c + new Vector2(6.5f, -5) * u);
-            s.AddBezier(new BezierSegment { Point1 = c + new Vector2(10.5f, -5) * u, Point2 = c + new Vector2(12, 4) * u, Point3 = c + new Vector2(10.5f, 6.5f) * u });
-            s.AddBezier(new BezierSegment { Point1 = c + new Vector2(9, 8.5f) * u, Point2 = c + new Vector2(6.5f, 7) * u, Point3 = c + new Vector2(4.5f, 3.5f) * u });
-            s.AddLine(c + new Vector2(-4.5f, 3.5f) * u);
-            s.AddBezier(new BezierSegment { Point1 = c + new Vector2(-6.5f, 7) * u, Point2 = c + new Vector2(-9, 8.5f) * u, Point3 = c + new Vector2(-10.5f, 6.5f) * u });
-            s.AddBezier(new BezierSegment { Point1 = c + new Vector2(-12, 4) * u, Point2 = c + new Vector2(-10.5f, -5) * u, Point3 = c + new Vector2(-6.5f, -5) * u });
+            s.BeginFigure(c + new Vector2(-6, -5.6f) * u, FigureBegin.Filled);
+            s.AddBezier(new BezierSegment { Point1 = c + new Vector2(-2, -6.4f) * u, Point2 = c + new Vector2(2, -6.4f) * u, Point3 = c + new Vector2(6, -5.6f) * u });
+            s.AddBezier(new BezierSegment { Point1 = c + new Vector2(10.6f, -5.4f) * u, Point2 = c + new Vector2(12.6f, 5) * u, Point3 = c + new Vector2(11.2f, 8.4f) * u });
+            s.AddBezier(new BezierSegment { Point1 = c + new Vector2(10, 10.6f) * u, Point2 = c + new Vector2(7, 9.6f) * u, Point3 = c + new Vector2(5.2f, 5.6f) * u });
+            s.AddLine(c + new Vector2(-5.2f, 5.6f) * u);
+            s.AddBezier(new BezierSegment { Point1 = c + new Vector2(-7, 9.6f) * u, Point2 = c + new Vector2(-10, 10.6f) * u, Point3 = c + new Vector2(-11.2f, 8.4f) * u });
+            s.AddBezier(new BezierSegment { Point1 = c + new Vector2(-12.6f, 5) * u, Point2 = c + new Vector2(-10.6f, -5.4f) * u, Point3 = c + new Vector2(-6, -5.6f) * u });
             s.EndFigure(FigureEnd.Closed);
             s.Close();
         }
-        using (var b = dc.CreateSolidColorBrush(color)) dc.FillGeometry(g, b);
-        var hole = new Color4(0.12f, 0.12f, 0.13f, 1);
-        // the cross on the left, two buttons on the right
-        Icone.Retangulo(dc, c.X - 7.5f * u, c.Y - 1.6f * u, 5 * u, 1.6f * u, 0.5f * u, hole);
-        Icone.Retangulo(dc, c.X - 5.8f * u, c.Y - 3.3f * u, 1.6f * u, 5 * u, 0.5f * u, hole);
-        Icone.Circulo(dc, c + new Vector2(4.5f, -1.2f) * u, 1.2f * u, hole);
-        Icone.Circulo(dc, c + new Vector2(7, 0.8f) * u, 1.2f * u, hole);
+        using (var stops = dc.CreateGradientStopCollection(new[]
+               {
+                   new GradientStop { Position = 0, Color = new Color4(0.98f, 0.98f, 0.99f, 1) },
+                   new GradientStop { Position = 1, Color = new Color4(0.74f, 0.74f, 0.78f, 1) },
+               }))
+        using (var body = dc.CreateLinearGradientBrush(new LinearGradientBrushProperties { StartPoint = c + new Vector2(0, -6) * u, EndPoint = c + new Vector2(0, 9) * u }, stops))
+            dc.FillGeometry(g, body);
+        var ink = new Color4(0.14f, 0.14f, 0.16f, 1);
+        // the sticks: the left one up, the right one down
+        foreach (var at in new[] { new Vector2(-6.2f, -1.4f), new Vector2(3.2f, 2.6f) })
+        {
+            Icone.Circulo(dc, c + at * u, 2.3f * u, ink);
+            Icone.Circulo(dc, c + at * u, 1.4f * u, new Color4(0.36f, 0.36f, 0.4f, 1));
+        }
+        // the cross, down on the left
+        var d = c + new Vector2(-3.2f, 2.6f) * u;
+        Icone.Retangulo(dc, d.X - 2.1f * u, d.Y - 0.7f * u, 4.2f * u, 1.4f * u, 0.4f * u, ink);
+        Icone.Retangulo(dc, d.X - 0.7f * u, d.Y - 2.1f * u, 1.4f * u, 4.2f * u, 0.4f * u, ink);
+        // four buttons in a diamond, up on the right
+        var b = c + new Vector2(6.2f, -1.4f) * u;
+        Icone.Circulo(dc, b + new Vector2(0, -1.75f) * u, 1f * u, new Color4(0.98f, 0.76f, 0.12f, 1));
+        Icone.Circulo(dc, b + new Vector2(1.75f, 0) * u, 1f * u, new Color4(0.9f, 0.2f, 0.22f, 1));
+        Icone.Circulo(dc, b + new Vector2(0, 1.75f) * u, 1f * u, new Color4(0.3f, 0.75f, 0.3f, 1));
+        Icone.Circulo(dc, b + new Vector2(-1.75f, 0) * u, 1f * u, new Color4(0.2f, 0.5f, 0.92f, 1));
     }
 }

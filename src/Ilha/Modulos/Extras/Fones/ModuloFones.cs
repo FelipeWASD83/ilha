@@ -78,12 +78,27 @@ internal sealed class ModuloFones : Modulo
         _ghubTimer.Tick += (_, _) => PollGHub();
         _alerts = new BatteryAlerts(BatteryAlerts.ParseLevels(_cfg.LimiaresBateria));
         _varredura = new VarreduraApple(BateriaAppleChegou);
-        _bt = new VigiaBluetooth(BluetoothMudou);
+        _bt = new VigiaBluetooth((a, c, i) => BluetoothMudou(a, c, i));
         _bt.Iniciar();
         if (_cfg.G733) IniciarG733();
         if (_cfg.Teclados) StartKeyboards();
         SystemEvents.PowerModeChanged += PowerChanged;
         ProgramGHub();
+        // for photos: ILHA_FOTO_CARREGAR=<device name> shows the charging card a few seconds after opening, with the
+        // photo picked by that name (like ILHA_FOTO_CONFIG; nothing reads or changes a real device)
+        if (Environment.GetEnvironmentVariable("ILHA_FOTO_CARREGAR") is { Length: > 0 } quem)
+        {
+            var demo = new System.Windows.Forms.Timer { Interval = 5000 };
+            demo.Tick += (_, _) =>
+            {
+                demo.Stop();
+                demo.Dispose();
+                var f = new Fone { Chave = "foto-carregar", Nome = quem, Tipo = TipoAparelho.Fone, G733 = quem == "G733" };
+                FeedCharging(f, f.Chave, null, false, null);
+                FeedCharging(f, f.Chave, 46, true, null);
+            };
+            demo.Start();
+        }
     }
 
     public override void ConfigMudou(JsonObject cfg)
@@ -126,10 +141,37 @@ internal sealed class ModuloFones : Modulo
 
     // ------------------------------------------------------------------ Bluetooth
 
-    private void BluetoothMudou(AparelhoBluetooth a, bool conectado, bool inicial)
+    // the maker and product seen for each Bluetooth address: right after connecting Windows has not made the device's PnP
+    // nodes yet, and a pair of AirPods named "Fone" then looked like any headset (icon instead of photo, 03/11/2026)
+    private readonly Dictionary<ulong, (ushort? Fabricante, ushort? Produto)> _vistos = new();
+
+    private void BluetoothMudou(AparelhoBluetooth a, bool conectado, bool inicial, bool esperou = false)
     {
         if (_parado) return;
-        Log.Escrever($"fones: {(conectado ? "conectou" : "desconectou")} {a.Tipo}{(inicial ? " (já estava)" : "")}");
+        if (conectado && a.Fabricante == null && a.Endereco != 0)
+        {
+            if (_vistos.TryGetValue(a.Endereco, out var visto)) a = a with { Fabricante = visto.Fabricante, Produto = visto.Produto };
+            else if (!esperou && !inicial && Fotos.Escolher(Fotos.NomeLimpo(a.Nome), Fotos.Arquivos(), _cfg.Fotos, _cfg.CorG733) == null)
+            {
+                // waits a few seconds for the PnP nodes, then goes on with or without them
+                var sem = a;
+                Task.Run(async () =>
+                {
+                    (ushort Fabricante, ushort Produto)? vp = null;
+                    for (int i = 0; i < 12 && vp == null; i++)
+                    {
+                        await Task.Delay(250).ConfigureAwait(false);
+                        vp = NosPnp.VidPidDoAparelho(sem.Endereco);
+                    }
+                    var com = vp is { } v ? sem with { Fabricante = v.Fabricante, Produto = v.Produto, Tipo = v.Fabricante == AnuncioApple.Fabricante ? TipoAparelho.Fone : sem.Tipo } : sem;
+                    S.NaInterface(() => BluetoothMudou(com, conectado, inicial, esperou: true));
+                });
+                return;
+            }
+        }
+        if (a.Fabricante != null && a.Endereco != 0) _vistos[a.Endereco] = (a.Fabricante, a.Produto);
+        Log.Escrever($"fones: {(conectado ? "conectou" : "desconectou")} {a.Tipo}{(inicial ? " (já estava)" : "")}" +
+            (conectado && a.Produto is ushort pr ? $" (produto 0x{pr:X4})" : ""));
         bool apple = ModelosApple.EhApple(a.Fabricante, a.Nome);
         if (!conectado)
         {
@@ -251,6 +293,8 @@ internal sealed class ModuloFones : Modulo
     /// </summary>
     private void FeedApple(Fone f, BateriaApple b)
     {
+        // the AirPods "start charging" when their case does (buds going into the case charge all the time)
+        FeedCharging(f, f.Chave + ":estojo", b.Estojo, b.CarregandoEstojo, Lang.T("Estojo", "Case"));
         var buds = new List<(string Side, int Pct)>();
         if (b.Esquerdo is int l && !b.CarregandoEsquerdo) buds.Add((Lang.T("esquerdo", "left"), l));
         if (b.Direito is int r && !b.CarregandoDireito) buds.Add((Lang.T("direito", "right"), r));
@@ -667,12 +711,45 @@ internal sealed class ModuloFones : Modulo
 
     private void FeedAlert(Fone f, string key, int percent, bool charging, bool coarse, string? part = null)
     {
+        FeedCharging(f, key, percent, charging, part);
         if (!_cfg.AlertasBateria) return;
         if (_alerts.Feed(key, percent, charging, coarse) is not int level) return;
         Log.Escrever($"fones: bateria de {f.Nome} em {percent}% (nível {level})");
         if (Ignorado(f.Nome)) return;
         ShowLowBattery(f, percent, level, part, coarse);
     }
+
+    // the last charging state of each battery: the card shows when it goes from not charging to charging, never on the
+    // first reading (opening the island with the headset on the cable is not news)
+    private readonly Dictionary<string, bool> _charging = new();
+
+    private void FeedCharging(Fone f, string key, int? percent, bool charging, string? part)
+    {
+        if (!ChargingCard.Started(_charging, key, charging) || !_cfg.AnimacaoCarregar || Ignorado(f.Nome)) return;
+        Log.Escrever($"fones: {f.Nome} começou a carregar ({(percent is int n ? n + "%" : "sem nível")})");
+        void Show() { if (!_parado) S.Ilha.Alertar(ChargingAlert(f, percent, part)); }
+        if (f.Retrato != null) { Show(); return; }
+        f.Foto ??= EscolherFoto(f);
+        if (f.Foto == null) { Show(); return; }
+        var (pw, ph) = CardPx(f);
+        string foto = f.Foto;
+        float escala = S.Palco.Escala;
+        Task.Run(() =>
+        {
+            var r = FotoComContorno(foto, pw, ph, escala);
+            S.NaInterface(() => { if (r != null) f.Retrato = r; Show(); });
+        });
+    }
+
+    private Alerta ChargingAlert(Fone f, int? percent, string? part) => new()
+    {
+        Tipo = "carregando",
+        Som = "conectou",
+        // he asked for it: like the low battery warning it goes through Do Not Disturb (always "alarms only" on his PC)
+        Importante = true,
+        Segundos = 3.2f,
+        Criar = p => ChargingCard.Create(p, CardBox(f), (dc, t) => DesenharImagem(p, dc, t, f), f.G733 ? "G733" : f.Nome, percent, part),
+    };
 
     /// <summary>The photo (if the device has none loaded yet) comes first, out of the interface thread.</summary>
     private void ShowLowBattery(Fone f, int percent, int level, string? part, bool coarse)
@@ -870,6 +947,9 @@ public sealed class ConfigFones
     [JsonPropertyName("g733")] public bool G733 { get; set; } = true;
     [Label("Intervalo da bateria do G733 (minutos)", "G733 battery interval (minutes)")]
     [JsonPropertyName("intervaloG733Minutos")] public int IntervaloG733Minutos { get; set; } = 5;
+    [Label("Animação ao começar a carregar", "Animation when charging starts")]
+    [Help("O G733, o mouse pelo G HUB e o estojo dos AirPods", "The G733, the mouse through G HUB and the AirPods case")]
+    [JsonPropertyName("animacaoCarregar")] public bool AnimacaoCarregar { get; set; } = true;
     [Label("Alertas de bateria baixa", "Low battery alerts")]
     [Help("Avisa quando a bateria cai por cada nível. Os AirPods informam de 10 em 10: lá vira 50, 20, 10 e abaixo de 10",
         "Warns when the battery falls past each level. AirPods report in steps of 10: there it becomes 50, 20, 10 and under 10")]

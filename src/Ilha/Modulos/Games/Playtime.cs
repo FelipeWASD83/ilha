@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Text.RegularExpressions;
 
 namespace Ilha.Games;
@@ -30,6 +31,41 @@ internal static class Playtime
                     r[app] = (r.TryGetValue(app, out var v) ? v : 0) + min;
             }
             catch (Exception e) { Log.Escrever("jogos: localconfig.vdf: " + e.Message); }
+        }
+        return r;
+    }
+
+    /// <summary>The Steam game running now (HKCU\Software\Valve\Steam RunningAppID), 0 when none.</summary>
+    public static int RunningSteamApp()
+    {
+        try
+        {
+            using var k = Microsoft.Win32.Registry.CurrentUser.OpenSubKey(@"Software\Valve\Steam");
+            return k?.GetValue("RunningAppID") is int id && id > 0 ? id : 0;
+        }
+        catch (Exception) { return 0; }
+    }
+
+    /// <summary>
+    /// Steam's hours plus the session going on now (3.5.0, for achievements unlocking while playing): Steam writes a
+    /// game's playtime only when it closes, so each running minute is added on top of the hours saved when the session
+    /// began, until Steam writes a bigger number of its own. <paramref name="live"/> is (hours at the start, minutes
+    /// counted since) per app and is kept up to date here.
+    /// </summary>
+    internal static Dictionary<int, int> WithLive(Dictionary<int, int> steam, Dictionary<int, (int Baseline, int Extra)> live, int running)
+    {
+        var r = new Dictionary<int, int>(steam);
+        foreach (var (app, (b, e)) in live.ToList())
+        {
+            int saved = steam.TryGetValue(app, out var s) ? s : 0;
+            if (saved > b)
+            {
+                // Steam wrote the session: its number counts from here
+                if (app == running) live[app] = (saved, 0); else live.Remove(app);
+                continue;
+            }
+            if (app != running && e == 0) { live.Remove(app); continue; }
+            r[app] = Math.Max(saved, b + e);
         }
         return r;
     }

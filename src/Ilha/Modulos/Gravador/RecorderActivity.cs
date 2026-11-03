@@ -689,19 +689,31 @@ internal static class Icons
     }
 
     /// <summary>
-    /// The menu's recorder: a studio microphone with a silver capsule, its grille lines and middle band, the cradle and a
-    /// stand with a base. While recording audio a red dot shows at its top right.
+    /// The menu's recorder: a studio microphone on its cradle and stand. Since 3.5.0 (his request) the head is a black
+    /// mesh grille on top of a short silver collar; the cradle, the stem and the base stayed as they were. While recording
+    /// audio a red dot shows at its top right.
     /// </summary>
     public static void MicTile(ID2D1DeviceContext dc, ID2D1Factory1 f, System.Drawing.RectangleF r, bool live)
     {
         float x = r.X, y = r.Y;
         var light = new Color4(0.95f, 0.95f, 0.97f, 1);
         var dark = new Color4(0.60f, 0.60f, 0.64f, 1);
+        // the head: a capsule whose top is the black grille and whose bottom is a silver collar
         using (var silver = Linear(dc, new Vector2(x + 8, y), new Vector2(x + 16, y), light, dark))
             Rounded(dc, x + 8, y + 1.2f, 8, 13.6f, 4, silver);
-        var grille = new Color4(0.25f, 0.25f, 0.28f, 0.75f);
-        foreach (float gy in new[] { 4.4f, 6.2f, 8.0f })
-            Icone.Linha(dc, new Vector2(x + 9.3f, y + gy), new Vector2(x + 14.7f, y + gy), 0.7f, grille, f);
+        using (var head = f.CreateRoundedRectangleGeometry(new RoundedRectangle(new Vortice.RawRectF(x + 8, y + 1.2f, x + 16, y + 14.8f), 4, 4)))
+        {
+            dc.PushLayer(new LayerParameters1 { ContentBounds = new Vortice.RawRectF(x + 8, y + 1.2f, x + 16, y + 10.4f), GeometricMask = head, Opacity = 1, MaskTransform = Matrix3x2.Identity }, null!);
+            Icone.Retangulo(dc, x + 8, y + 1.2f, 8, 9.2f, 0, new Color4(0.07f, 0.07f, 0.08f, 1));
+            var mesh = new Color4(0.38f, 0.38f, 0.42f, 0.7f);
+            for (float d = -12; d <= 12; d += 1.7f)
+            {
+                Icone.Linha(dc, new Vector2(x + 12 + d - 6, y), new Vector2(x + 12 + d + 6, y + 12), 0.4f, mesh, f);
+                Icone.Linha(dc, new Vector2(x + 12 + d + 6, y), new Vector2(x + 12 + d - 6, y + 12), 0.4f, mesh, f);
+            }
+            Icone.Retangulo(dc, x + 9, y + 2.2f, 2.2f, 6, 1.1f, new Color4(1, 1, 1, 0.1f));
+            dc.PopLayer();
+        }
         Icone.Retangulo(dc, x + 8, y + 9.6f, 8, 1.4f, 0, new Color4(0.38f, 0.38f, 0.42f, 1));
         var metal = new Color4(0.82f, 0.82f, 0.86f, 1);
         using (var g = f.CreatePathGeometry())
