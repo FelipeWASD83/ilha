@@ -1,5 +1,19 @@
 # Changelog
 
+## 4.0.1 (03/11/2026)
+
+**Fixed**
+- Steam downloads: a cancelled update no longer shows "Ready to play" (only a download that got every byte does), and
+  Workshop items no longer say they finished when they were only cancelled.
+- A download paused for more than 10 minutes leaves the pill (Steam can keep an update paused for days).
+- Weather: changing the city while a reading was on its way kept the old city until the island restarted.
+- The "Copied" notice no longer hides file names with dates (IMG_20261103_153012.jpg) as if they were keys.
+- Ping: with the internet gone at the start of a match, the mark says "no reply" instead of an old ping.
+- A click on a ball next to the menu closed the island instead of opening that activity: the new card is narrower
+  than the menu, so the cursor ended up outside it. That card now stays open until a click outside or Esc.
+- The Games card shows today's Rocket League names for matches saved before 4.0.0 ("3v3 ranqueado", an event shows
+  just "Rocket League"), and no longer shows "K / D –" when there are no kills and deaths to show.
+
 ## 4.0.0 (03/11/2026)
 
 **New**

@@ -23,7 +23,10 @@ internal sealed class WeatherModule : Modulo
     private WeatherActivity? _activity;
     private readonly System.Windows.Forms.Timer _tick = new() { Interval = 10 * 60_000 };
     private Place? _place;
-    private bool _stopped, _busy;
+    private bool _stopped, _busy, _again;
+    // each change of city starts a new generation: a reading that left before the change is thrown away when it arrives
+    // (4.0.1: it used to land after the change and keep the old city's position for good)
+    private int _generation;
     private readonly SkyWatch _watch = new();
 
     internal WeatherNow? Now { get; private set; }
@@ -71,7 +74,8 @@ internal sealed class WeatherModule : Modulo
             _place = null;
             Now = null;
             _watch.Reset();
-            Read();
+            _generation++;
+            if (_busy) _again = true; else Read();
         }
     }
 
@@ -98,6 +102,7 @@ internal sealed class WeatherModule : Modulo
             return;
         }
         _busy = true;
+        int gen = _generation;
         var place = _place;
         _ = Task.Run(async () =>
         {
@@ -119,6 +124,13 @@ internal sealed class WeatherModule : Modulo
             {
                 _busy = false;
                 if (_stopped) return;
+                if (gen != _generation || _again)
+                {
+                    // the city changed while this one was on its way: read again for the new one
+                    _again = false;
+                    Read();
+                    return;
+                }
                 if (place != null) _place = place;
                 if (now == null)
                 {

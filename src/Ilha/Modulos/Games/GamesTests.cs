@@ -146,6 +146,8 @@ internal sealed partial class GamesModule
         Ok("rl: nomes de playlist e arena", RocketLeagueState.PlaylistName(63) == Lang.T("Heatseeker ranqueado", "Ranked Heatseeker")
             && RocketLeagueState.PlaylistName(13) == Lang.T("3v3 ranqueado", "Ranked 3v3") && RocketLeagueState.PlaylistName(4) == Lang.T("4v4 casual", "Casual 4v4")
             && RocketLeagueState.PlaylistName(28) == Lang.T("Rixa ranqueada", "Ranked Rumble") && RocketLeagueState.PlaylistName(81) == ""
+            && GamesOverview.ModeName("rl", "Padrão ranqueado") == Lang.T("3v3 ranqueado", "Ranked 3v3") && GamesOverview.ModeName("rl", "Playlist 81") == ""
+            && GamesOverview.ModeName("cs2", "Padrão ranqueado") == "Padrão ranqueado" && GamesOverview.ModeName("rl", "Heatseeker ranqueado") == "Heatseeker ranqueado"
             && RocketLeagueState.ArenaName("cs_p") == "Champions Field" && RocketLeagueState.ArenaName("EuroStadium_Night_P") == "Mannfield");
     }
 

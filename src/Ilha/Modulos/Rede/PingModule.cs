@@ -152,6 +152,9 @@ internal sealed class PingModule : Modulo
             NetQuality.Evaluate(edge, good, 100, 2, true).Bad && !NetQuality.Evaluate(edge, good, 100, 2, false).Bad);
         var down = Enumerable.Repeat<int?>(20, 27).Concat(new int?[] { null, null, null }).ToList();
         Ok("ping: três sem resposta seguidas marcam na hora", NetQuality.Evaluate(down, good, 100, 2, false).Bad);
+        var earlyDown = new List<int?> { 20, 21, 19, null, null, null };
+        var e3 = NetQuality.Evaluate(earlyDown, good, 100, 2, false);
+        Ok("ping: internet caída no começo diz \"sem resposta\", não o ping velho", e3.Bad && e3.Ms == null && e3.Mark(2).Contains(Lang.T("sem resposta", "no reply")), e3.Mark(2));
         var badRouter = Enumerable.Repeat<int?>(60, 30).ToList();
         Ok("ping: roteador lento diz que é a rede local", NetQuality.Evaluate(slow, badRouter, 100, 2, false).LocalBad);
         Ok("ping: sem amostra, sem leitura", NetQuality.Evaluate(none, none, 100, 2, false) == NetReading.None);

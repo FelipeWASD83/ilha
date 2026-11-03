@@ -52,6 +52,12 @@ internal static class SteamLibrary
 
     public static bool IsInstalled(int flags) => (flags & Installed) != 0 && !IsDownloading(flags);
 
+    /// <summary>A download that really ended: installed, no update still required, and every byte there.</summary>
+    public static bool Finished(Manifest m) =>
+        IsInstalled(m.Flags) && (m.Flags & UpdateRequired) == 0 && (m.ToDownload == 0 || m.Downloaded >= m.ToDownload);
+
+    private const int UpdateRequired = 2;
+
     public static long FolderSize(string dir)
     {
         try

@@ -300,7 +300,8 @@ and the points that matter are here.
   the grid). The private unlock entry uses it with a dim lock. Not seen on screen on 02/11/2026 (it only shows locked).
 - **Shadows (1.8.0):** two layers (sigma 3, 0.46, 1.5 down; sigma 15, 0.44, 10 down), stronger at his request; `SOMBRA`
   (the room under the shape) went to 56.
-- **ALTURA_MAX (640 DIP)** bounds the shape visuals of the island: a card taller than it loses the bottom of its body.
+- **ALTURA_MAX** (640 DIP until 3.8.0, 880 since 3.9.0) bounds the shape visuals of the island: a card taller than it
+  loses the bottom of its body.
 - **Low battery alerts (1.1.0, `BatteryAlerts.cs`, `GHub.cs`, `ModuloFones.cs`):** a level (50, 25, 10, 5, 1 by
   default, `limiaresBateria` in the settings) fires when a reading goes from above it to at or below it, once per level
   and per discharge; a big drop fires only the lowest level crossed; the first reading of a battery fires only if it is
@@ -626,6 +627,22 @@ and the points that matter are here.
   repeats shows as "uma chave (escondida)". URLs, paths, sentences and plain words still show.
 - **Private:** the server entry is a corner icon next to the gear (`Corner`, `Ordem` 999); the public mode globe moved
   to 998, left of it.
+
+## 4.0.1 (review on 03/11/2026, while he was out)
+
+- **Column click:** opening an activity from a ball sets `_porAtalho = true` (held like the hotkey: closes on a click
+  outside or Esc). Held by hover, the narrower card left the cursor outside and the island closed 0.6 s after the
+  click; seen with a real synthetic click, then fixed and seen again. `VigiarCliqueFora` counts the column as inside.
+- **Steam downloads:** "Pronto para jogar" only when `SteamLibrary.Finished` (installed, no UpdateRequired bit, every
+  byte); no notice for Workshop folders (done and cancelled look the same); paused downloads leave the pill after 10
+  minutes. Photo hook `ILHA_FOTO_DOWNLOAD=1`.
+- **Weather:** a city change bumps `_generation`; a reading that left before it is dropped and read again.
+- **LooksSecret:** file names (an extension at the end) and runs of 6+ lowercase letters are not keys; random needs
+  upper, lower and 3+ digits.
+- **Ping:** three silent echoes in a row clear `Ms` (the mark says "sem resposta").
+- **Games card:** `GamesOverview.ModeName` reads Rocket League modes saved under the old names (and "Playlist N") through
+  today's; the history file is not rewritten. No "K / D –" placeholder.
+- **Server (private):** "fora do ar" needs two failed looks and 3 real minutes, with the real minutes in the text.
 
 ## Approving Claude Code permissions from the island
 

@@ -65,6 +65,25 @@ internal sealed class GamesOverview : Atividade
     /// One finished match: a card tinted green (win) or red (loss), the game's icon, the result and the mode, the score,
     /// kills and deaths, the MVP (a crown in Rocket League, the round MVP stars in CS2) and when.
     /// </summary>
+    /// <summary>
+    /// The mode as shown now: Rocket League matches saved before 4.0.0 keep the old names in the history (and "Playlist N"
+    /// for events), so they are read through today's names; an event shows no mode (4.0.1).
+    /// </summary>
+    internal static string ModeName(string game, string saved)
+    {
+        if (game != "rl") return saved;
+        if (System.Text.RegularExpressions.Regex.IsMatch(saved, @"^Playlist \d+$")) return "";
+        int? id = saved switch
+        {
+            "Duelo" or "Duel" => 1, "Duplas" or "Doubles" => 2, "Padrão" or "Standard" => 3, "Caos" or "Chaos" => 4,
+            "Duelo ranqueado" or "Ranked Duel" => 10, "Duplas ranqueado" or "Ranked Doubles" => 11, "Padrão ranqueado" or "Ranked Standard" => 13,
+            "Snow Day" => 15, "Hoops" => 17, "Rumble" => 18,
+            "Hoops ranqueado" or "Ranked Hoops" => 27, "Rumble ranqueado" or "Ranked Rumble" => 28, "Snow Day ranqueado" or "Ranked Snow Day" => 30,
+            _ => null,
+        };
+        return id is int i ? RocketLeagueState.PlaylistName(i) : saved;
+    }
+
     private static void MatchCard(ID2D1DeviceContext dc, Palco p, Record r, float y)
     {
         var o = r.Read ?? Outcome.Draw;
@@ -74,13 +93,14 @@ internal sealed class GamesOverview : Atividade
         Icone.Retangulo(dc, 0, y, 5, h, 2.5f, color);
         Marks.Game(dc, p.G.Fabrica, r.Game, new Vector2(26, y + h / 2), 26, Cor.Secundario);
         string result = o == Outcome.Win ? Lang.T("Vitória", "Win") : o == Outcome.Loss ? Lang.T("Derrota", "Loss") : Lang.T("Empate", "Draw");
-        string mode = r.Mode.Length > 0 ? r.Mode : Match.NameOf(r.Game);
+        string mode = ModeName(r.Game, r.Mode) is { Length: > 0 } m ? m : Match.NameOf(r.Game);
         p.Texto.Desenhar(dc, result, new Vector2(46, y + 6), 14, color, FontWeight.Bold);
         var rs = p.Texto.Medir(result, 14, FontWeight.Bold);
         p.Texto.Desenhar(dc, "· " + mode, new Vector2(46 + rs.X + 6, y + 8), 11.5f, Cor.Secundario, FontWeight.Normal, largura: L - 130 - rs.X);
         string score = r.Us is int a && r.Them is int b ? $"{a} : {b}" : "– : –";
-        string kd = r.Kills != null || r.Deaths != null ? $"{r.Kills?.ToString() ?? "–"} K / {r.Deaths?.ToString() ?? "–"} D" : "K / D –";
-        p.Texto.Desenhar(dc, score + "   " + kd, new Vector2(46, y + 26), 12, Cor.Branco, FontWeight.SemiBold, tabular: true, largura: L - 130);
+        // no kills and deaths known (Rocket League, matches before 3.8.0): only the score, not a "K / D –" placeholder
+        string kd = r.Kills != null || r.Deaths != null ? $"   {r.Kills?.ToString() ?? "–"} K / {r.Deaths?.ToString() ?? "–"} D" : "";
+        p.Texto.Desenhar(dc, score + kd, new Vector2(46, y + 26), 12, Cor.Branco, FontWeight.SemiBold, tabular: true, largura: L - 130);
         // the right side: MVP and when
         string when = r.End.Date == DateTime.Today ? r.End.ToString("HH:mm") : r.End.ToString("dd/MM");
         var wsz = p.Texto.Medir(when, 11, FontWeight.Normal);

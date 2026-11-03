@@ -233,12 +233,13 @@ internal sealed class ReactionsModule : Modulo
         if (System.Text.RegularExpressions.Regex.IsMatch(s, "^[0-9A-Fa-f]{24,}$")) return true;
         string[] prefixes = { "sk-", "sk_", "pk_", "rk_", "ghp_", "gho_", "ghs_", "github_pat_", "xox", "AKIA", "ASIA", "eyJ", "AIza", "glpat-", "npm_", "hf_" };
         if (prefixes.Any(p => s.StartsWith(p, StringComparison.Ordinal))) return true;
-        bool letters = s.Any(char.IsLetter), digits = s.Any(char.IsDigit);
-        if (!letters || !digits) return false;
-        // random-looking: most characters different and both cases or symbols mixed in
-        double distinct = s.Distinct().Count() / (double)s.Length;
-        bool mixed = s.Any(char.IsUpper) && s.Any(char.IsLower) || s.Any(c => c is '_' or '-' or '+' or '/' or '=');
-        return mixed && distinct > 0.45 && s.Count(char.IsDigit) >= 3;
+        // a file name (IMG_20261103_153012.jpg, relatorio-v2.pdf) is not a key (4.0.1: dated names were hidden)
+        if (System.Text.RegularExpressions.Regex.IsMatch(s, @"\.[A-Za-z][A-Za-z0-9]{1,4}$")) return false;
+        // random-looking: upper and lower case and digits mixed, most characters different, and no run of a plain
+        // lowercase word (relatorio-final-v2-2026 is words and a date, not a token)
+        if (!s.Any(char.IsUpper) || !s.Any(char.IsLower) || s.Count(char.IsDigit) < 3) return false;
+        if (System.Text.RegularExpressions.Regex.IsMatch(s, "[a-z]{6,}")) return false;
+        return s.Distinct().Count() / (double)s.Length > 0.45;
     }
 
     private float Escala() => S.Palco.Escala;
@@ -381,7 +382,9 @@ internal sealed class ReactionsModule : Modulo
               && LooksSecret("eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxMjMifQ.abc123") && LooksSecret("Xk9_mQ2-vT7pLw4zR8nB3cY6"),
             "cópia: chave, token e senha aleatória ficam escondidos");
         Check(!LooksSecret("https://steamcommunity.com/dev/apikey") && !LooksSecret("C:\\Users\\alguem\\arquivo.txt") && !LooksSecret("olá, tudo bem com você?")
-              && !LooksSecret("paralelepipedoparalelepipedo") && !LooksSecret("2026-11-03") && !LooksSecret("alguem.exemplo@gmail.com"),
+              && !LooksSecret("paralelepipedoparalelepipedo") && !LooksSecret("2026-11-03") && !LooksSecret("alguem.exemplo@gmail.com")
+              && !LooksSecret("IMG_20261103_153012345.jpg") && !LooksSecret("relatorio-final-v2-2026.pdf") && !LooksSecret("relatorio-final-v2-2026")
+              && !LooksSecret("Screenshot_20261103-153012"),
             "cópia: link, caminho, frase e palavra comum aparecem");
         Check(Private(new[] { "Text", "CanIncludeInClipboardHistory" }, _ => new MemoryStream(BitConverter.GetBytes(0))), "cópia: fora do histórico (DWORD 0) não aparece");
         Check(!Private(new[] { "Text", "CanIncludeInClipboardHistory" }, _ => new MemoryStream(BitConverter.GetBytes(1))) && !Private(new[] { "Text", "Bitmap" }, _ => null),

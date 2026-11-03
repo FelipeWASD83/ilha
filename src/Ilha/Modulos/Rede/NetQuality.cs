@@ -57,6 +57,8 @@ internal static class NetQuality
         bool lossBad = loss * 100 >= lossPct;
         // the last three with no reply at all: down, whatever the window says
         bool silent = host.Count >= 3 && host.Skip(host.Count - 3).All(x => x == null);
+        // and then no ping to show: the old replies would say "ping 20" with the internet gone (4.0.1)
+        if (silent) ms = null;
         bool msBad = ms is int m && (wasBad ? m >= limitMs * 0.8 : m > limitMs);
         bool bad = msBad || lossBad || silent;
         bool localBad = false;

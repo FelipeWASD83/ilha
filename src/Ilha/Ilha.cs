@@ -19,7 +19,7 @@ internal sealed class Ilha : IDisposable
     // medidas em DIP (multiplicadas pela escala do monitor e pelo "tamanho" da config)
     // ALTURA_MAX bounds the shape visuals: a card taller than it lost the bottom of its black body (the chat card at 380
     // DIP did, on 01/11/2026); the window itself still follows the content. 880 since 3.9.0: the menu got a sixth row
-    // (friends, weather, server) and its last row lost the black body at 640
+    // (weather and the private server, back then) and its last row lost the black body at 640
     private const float LARGURA_JANELA = 760, ALTURA_MAX = 880;
     private const float OCIOSA_L = 128, OCIOSA_A = 32;
     private const float COMPACTA_A = 36, COMPACTA_FOLGA = 12, COMPACTA_MIN = 168;
@@ -49,7 +49,7 @@ internal sealed class Ilha : IDisposable
     private readonly List<Superficie> _fixas = new();
     private Vaga _vagaCorpo = null!, _vagaBolha = null!, _vagaBolhaE = null!;
 
-    // the column of balls at the right of the open menu (3.9.1, his request): every activity running, one ball each,
+    // the column of balls at the right of the open menu (4.0.0, his request): every activity running, one ball each,
     // each with its own shape, shadow, border, clip and click, like the bubble next to the pill
     private const int COLUNA_MAX = 6;
     private const float COLUNA_VAO = 10;
@@ -1218,7 +1218,10 @@ internal sealed class Ilha : IDisposable
         {
             _clicada = true;
             _foco = daColuna;
-            _porAtalho = false;
+            // held like a card opened by the hotkey (closes on a click outside or Esc): the new card is usually narrower
+            // than the menu and the cursor, still where the ball was, ends up outside it; held by hover, the island
+            // closed 0.6 s after the click (4.0.1, seen with a real click)
+            _porAtalho = true;
             Aplicar();
             FocarTeclado();
             return;
@@ -1421,7 +1424,9 @@ internal sealed class Ilha : IDisposable
         if (!apertou) return;
         Nativo.GetCursorPos(out var c);
         float x = c.X - _janX, y = c.Y - _janY;
-        if (!_rCorpo.Contains(x, y)) { _recolheuPorCliqueFora = Environment.TickCount64; Recolher(); }
+        // the balls of the menu's column are the island too (4.0.1: a click on one, with the menu opened by the hotkey,
+        // closed everything instead of opening that activity)
+        if (!_rCorpo.Contains(x, y) && !_rColuna.Any(r => r.Contains(x, y))) { _recolheuPorCliqueFora = Environment.TickCount64; Recolher(); }
     }
 
     // ------------------------------------------------------------------ estado e layout

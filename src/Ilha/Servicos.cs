@@ -285,7 +285,6 @@ internal sealed class Indicadores
     // Only drawn on the score pill: everywhere else the recording activities show themselves.
     private readonly Dictionary<string, string> _gravando = new();
     public bool Gravando => _gravando.Count > 0;
-    public string GravandoApps => string.Join(", ", _gravando.Values.Where(v => v.Length > 0).Distinct());
 
     public void Gravacao(string dono, bool ligado, string apps)
     {

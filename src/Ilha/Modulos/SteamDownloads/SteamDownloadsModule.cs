@@ -27,6 +27,8 @@ internal sealed class SteamDownloadsModule : Modulo
     private Dictionary<string, Download> _last = new();
     private readonly Dictionary<string, (long Bytes, DateTime At, double? Speed)> _rate = new();
     private bool _stopped, _scanning, _first = true;
+    private readonly Dictionary<string, DateTime> _pausedSince = new();
+    private static readonly TimeSpan PausedOnPill = TimeSpan.FromMinutes(10);
 
     public override Type? TipoConfig => typeof(ConfigDownloads);
 
@@ -38,6 +40,18 @@ internal sealed class SteamDownloadsModule : Modulo
         _soon.Tick += (_, _) => { _soon.Stop(); Look(); };
         _tick.Tick += (_, _) => Look();
         _tick.Start();
+        // a photo of the pill (development): ILHA_FOTO_DOWNLOAD=1 shows a made-up download 5 s after opening
+        if (Environment.GetEnvironmentVariable("ILHA_FOTO_DOWNLOAD") == "1")
+        {
+            var t = new System.Windows.Forms.Timer { Interval = 5000 };
+            t.Tick += (_, _) =>
+            {
+                t.Stop();
+                t.Dispose();
+                _activity?.Show(new() { (new Download("app:730", 730, "Counter-Strike 2", 1_240_000_000, 4_500_000_000, false, false), 32e6) });
+            };
+            t.Start();
+        }
         _ = Task.Run(() =>
         {
             var libs = GameSetup.SteamLibraries();
@@ -126,12 +140,14 @@ internal sealed class SteamDownloadsModule : Modulo
         }
         foreach (var k in _rate.Keys.Where(k => now.All(d => d.Key != k)).ToList()) _rate.Remove(k);
 
-        // what left the list: a game whose manifest says installed finished; Workshop items count when the folder went away
+        // what left the list: only a game whose manifest says installed, with no update still required and every byte
+        // downloaded, finished (4.0.1: a cancelled update stays "installed" with "update required" and was announced as
+        // ready). Workshop folders vanish the same way whether done or cancelled: no notice for them.
         if (!_first)
             foreach (var (key, d) in _last)
             {
                 if (now.Any(x => x.Key == key)) continue;
-                bool done = d.Workshop || manifests.TryGetValue(d.App, out var m) && SteamLibrary.IsInstalled(m.Flags);
+                bool done = !d.Workshop && manifests.TryGetValue(d.App, out var m) && SteamLibrary.Finished(m);
                 if (done && !d.Paused && _cfg.AvisarAoTerminar)
                 {
                     Log.Escrever($"downloads da steam: {d.Name} terminou");
@@ -145,7 +161,12 @@ internal sealed class SteamDownloadsModule : Modulo
         foreach (var d in now.Where(d => !_last.ContainsKey(d.Key))) Log.Escrever($"downloads da steam: baixando {d.Name}{(d.Workshop ? " (oficina)" : "")}");
         _first = false;
         _last = now.ToDictionary(d => d.Key);
-        _activity?.Show(_cfg.MostrarNaPilula ? items : new());
+        // a paused download stays on the pill for 10 minutes, then leaves it (Steam can keep an update paused for days)
+        foreach (var d in now)
+            if (d.Paused) _pausedSince.TryAdd(d.Key, at); else _pausedSince.Remove(d.Key);
+        foreach (var k in _pausedSince.Keys.Where(k => now.All(d => d.Key != k)).ToList()) _pausedSince.Remove(k);
+        var onPill = items.Where(i => !i.Item1.Paused || at - _pausedSince[i.Item1.Key] < PausedOnPill).ToList();
+        _activity?.Show(_cfg.MostrarNaPilula ? onPill : new());
         // a look every 2 s while something downloads, back to one a minute after
         _tick.Interval = now.Any(d => !d.Paused) ? 2000 : 60_000;
     }
@@ -171,6 +192,9 @@ internal sealed class SteamDownloadsModule : Modulo
         Ok("downloads: lê o manifesto (o primeiro nome, não o de dentro)", m is { App: 730, Name: "Counter-Strike 2", Flags: 1026, ToDownload: 2000000000, Downloaded: 500000000 });
         Ok("downloads: estados", SteamLibrary.IsDownloading(1026) && !SteamLibrary.IsDownloading(4) && !SteamLibrary.IsDownloading(6)
             && SteamLibrary.IsInstalled(4) && SteamLibrary.IsPaused(1538) && !SteamLibrary.IsPaused(1026));
+        Ok("downloads: só conta como terminado o que baixou tudo (atualização cancelada não)",
+            SteamLibrary.Finished(new SteamLibrary.Manifest(730, "x", 4, 100, 100)) && !SteamLibrary.Finished(new SteamLibrary.Manifest(730, "x", 6, 100, 40))
+            && !SteamLibrary.Finished(new SteamLibrary.Manifest(730, "x", 4, 100, 40)) && !SteamLibrary.Finished(new SteamLibrary.Manifest(730, "x", 1026, 100, 40)));
         var d = new Download("app:730", 730, "Counter-Strike 2", 500_000_000, 2_000_000_000, false, false);
         Ok("downloads: detalhe com velocidade e tempo", DownloadsActivity.Detail(d, 25e6).Contains("/s") && DownloadsActivity.Detail(d, 25e6).Contains("min"),
             DownloadsActivity.Detail(d, 25e6));
