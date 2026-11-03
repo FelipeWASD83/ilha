@@ -1,5 +1,19 @@
 # Changelog
 
+## 3.2.0 (03/11/2026)
+
+**New**
+- "Games" in the menu: the match on now (a click opens its score), and each game with its icon, the hours played
+  (Steam's own count, read from its file on this PC) and the last five results.
+- Ace in Counter-Strike 2 (the whole enemy team in one round: five in competitive and Premier, two in Wingman): a
+  gold "ACE!" slams down, five skulls light up one after the other under it, each crossed out, and a shine runs over
+  the word, with its own fanfare.
+
+**Changed**
+- The menu has five columns instead of four, so it grows less downward. The bigger blocks (sound, brightness,
+  batteries) sit at the right and the balls fill around them, so entries that come and go (the lock hides two) no
+  longer move the blocks or open holes in the middle.
+
 ## 3.1.1 (03/11/2026)
 
 **Fixed**

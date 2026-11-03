@@ -25,6 +25,7 @@ internal sealed partial class GamesModule
         TestSetupAndHistory();
         TestCelebrationWords();
         TestArt();
+        TestPlaytimeAndAce();
         return _report.ToString().TrimEnd();
     }
 
@@ -250,6 +251,37 @@ internal sealed partial class GamesModule
                 && again.Last("rl").Count == 1, string.Join(",", last));
         }
         finally { try { File.Delete(file); } catch (Exception) { } }
+    }
+
+    private static void TestPlaytimeAndAce()
+    {
+        string vdf = "\"UserLocalConfigStore\"\n{\n \"Software\"\n {\n  \"Valve\"\n  {\n   \"Steam\"\n   {\n    \"apps\"\n    {\n" +
+                     "     \"730\"\n     {\n      \"LastPlayed\"\t\t\"1\"\n      \"Playtime\"\t\t\"15822\"\n     }\n" +
+                     "     \"440\"\n     {\n      \"Playtime\"\t\t\"0\"\n     }\n    }\n   }\n  }\n }\n \"other\"\n {\n  \"Playtime\" \"9\"\n }\n}\n";
+        var read = Playtime.Read(vdf);
+        Ok("horas: Playtime de cada app da Steam (minutos), só dentro de apps", read.Count == 1 && read[0] == (730, 15822), string.Join(",", read));
+        Ok("horas: formato", GamesOverview.Hours(15822) == (263.7).ToString("0", Lang.Culture) + " h" && GamesOverview.Hours(90) == 1.5.ToString("0.0", Lang.Culture) + " h" && GamesOverview.Hours(0) == "–",
+            GamesOverview.Hours(15822));
+        var real = Playtime.Steam();
+        Ok("horas: arquivo da Steam deste PC lido", GameSetup.SteamFolder() == null || real.Count > 0, $"{real.Count} jogos, CS2 {(real.TryGetValue(730, out var cs) ? GamesOverview.Hours(cs) : "–")}");
+
+        var s = new Cs2State();
+        var now = DateTime.Now;
+        string Payload(int roundKills, int round, string mode = "competitive") =>
+            "{\"provider\":{\"steamid\":\"1\"},\"map\":{\"mode\":\"" + mode + "\",\"name\":\"de_inferno\",\"phase\":\"live\",\"round\":" + round +
+            ",\"team_ct\":{\"score\":0},\"team_t\":{\"score\":0}},\"player\":{\"steamid\":\"1\",\"team\":\"CT\",\"state\":{\"round_kills\":" + roundKills +
+            "},\"match_stats\":{\"kills\":" + roundKills + ",\"deaths\":0}}}";
+        s.Apply(Json(Payload(0, 3)), now);
+        var four = s.Apply(Json(Payload(4, 3)), now);
+        var five = s.Apply(Json(Payload(5, 3)), now);
+        var again = s.Apply(Json(Payload(5, 3)), now);
+        Ok("ace: cinco na rodada no competitivo, uma vez só", four.All(m => m.Kind != MomentKind.Ace) && five.Count(m => m.Kind == MomentKind.Ace) == 1 && again.All(m => m.Kind != MomentKind.Ace));
+        var w = new Cs2State();
+        w.Apply(Json(Payload(0, 1, "scrimcomp2v2")), now);
+        Ok("ace: dois no Wingman; casual não tem", w.Apply(Json(Payload(2, 1, "scrimcomp2v2")), now).Any(m => m.Kind == MomentKind.Ace));
+        var cas = new Cs2State();
+        cas.Apply(Json(Payload(0, 1, "casual")), now);
+        Ok("ace: no casual cinco não é ace", cas.Apply(Json(Payload(5, 1, "casual")), now).All(m => m.Kind != MomentKind.Ace));
     }
 
     private static void TestArt()

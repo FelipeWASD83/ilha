@@ -109,7 +109,7 @@ internal sealed class Menu : Atividade
     public override string Tipo => "menu";
     public override string Nome => "Menu";
 
-    private const int COLUNAS = 4;
+    private const int COLUNAS = 5;
     private const float LADO = 80, ALTO = 80, VAO = 6, CABECALHO = 48, BOLA = 54, CANTO = 32, CANTO_ICONE = 24, CANTO_BAIXO = 14;
     /// <summary>The header's center line: the time's digits, the date, the dots and the corner icons sit on it.</summary>
     private const float LINHA = 18;
@@ -152,13 +152,17 @@ internal sealed class Menu : Atividade
         string.Join("|", itens.Select(i => $"{i.Id}:{i.Cols}x{i.Rows}:{(i.Corner ? 1 : 0)}{(i.CornerBottom ? 2 : 0)}"));
 
     /// <summary>
-    /// Packs the tiles into the 4-column grid: each goes to the first free spot (row by row) where it fits, in the menu's
-    /// order. Returns each tile's column and row, and the number of rows used.
+    /// Packs the tiles into the 5-column grid (3.2.0, his request: the menu was growing too far down). The bigger blocks
+    /// go first, each to the rightmost free spot from the top, in the menu's order; then the balls fill the rest row by
+    /// row from the left. So a ball that comes or goes (the lock hides two private ones) only shifts the balls after it
+    /// and never moves a block or opens a hole in the middle; before, every tile took the first free spot in order and
+    /// two balls fewer moved the blocks and left holes. Returns each tile's column and row (in the given order) and the
+    /// number of rows used.
     /// </summary>
     internal static (List<(int Col, int Row)> Spots, int Rows) Pack(IReadOnlyList<(int Cols, int Rows)> sizes)
     {
         var used = new List<bool[]>();
-        var spots = new List<(int, int)>();
+        var spots = new (int, int)[sizes.Count];
         int rows = 0;
         bool Free(int c, int r, int w, int h)
         {
@@ -167,22 +171,38 @@ internal sealed class Menu : Atividade
                     if (y < used.Count && used[y][x]) return false;
             return true;
         }
-        foreach (var (cols, height) in sizes)
+        void Take(int k, int c, int r, int w, int h)
         {
-            int w = Math.Clamp(cols, 1, COLUNAS), h = Math.Clamp(height, 1, 4);
+            while (used.Count < r + h) used.Add(new bool[COLUNAS]);
+            for (int y = r; y < r + h; y++)
+                for (int x = c; x < c + w; x++) used[y][x] = true;
+            spots[k] = (c, r);
+            rows = Math.Max(rows, r + h);
+        }
+        for (int k = 0; k < sizes.Count; k++)
+        {
+            int w = Math.Clamp(sizes[k].Cols, 1, COLUNAS), h = Math.Clamp(sizes[k].Rows, 1, 4);
+            if (w == 1 && h == 1) continue;
             for (int r = 0; ; r++)
             {
-                int c = Enumerable.Range(0, COLUNAS - w + 1).FirstOrDefault(c => Free(c, r, w, h), -1);
+                int c = Enumerable.Range(0, COLUNAS - w + 1).Reverse().FirstOrDefault(c => Free(c, r, w, h), -1);
                 if (c < 0) continue;
-                while (used.Count < r + h) used.Add(new bool[COLUNAS]);
-                for (int y = r; y < r + h; y++)
-                    for (int x = c; x < c + w; x++) used[y][x] = true;
-                spots.Add((c, r));
-                rows = Math.Max(rows, r + h);
+                Take(k, c, r, w, h);
                 break;
             }
         }
-        return (spots, rows);
+        for (int k = 0; k < sizes.Count; k++)
+        {
+            if (Math.Clamp(sizes[k].Cols, 1, COLUNAS) != 1 || Math.Clamp(sizes[k].Rows, 1, 4) != 1) continue;
+            for (int r = 0; ; r++)
+            {
+                int c = Enumerable.Range(0, COLUNAS).FirstOrDefault(c => Free(c, r, 1, 1), -1);
+                if (c < 0) continue;
+                Take(k, c, r, 1, 1);
+                break;
+            }
+        }
+        return (spots.ToList(), rows);
     }
 
     private static System.Drawing.RectangleF Area(int col, int row, ItemDoMenu i)

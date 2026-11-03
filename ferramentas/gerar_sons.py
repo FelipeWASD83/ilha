@@ -359,6 +359,28 @@ def derrota():
     return reverb(b, wet=0.2)
 
 
+def ace():
+    """An ace: five quick rising hits (one per kill) into a big brass chord with a bright shimmer on top."""
+    rng = np.random.default_rng(505)
+    b = np.zeros((int(3.0 * SR), 2))
+    for i, note in enumerate(("D4", "F#4", "A4", "D5", "F#5")):
+        n = int(0.16 * SR)
+        t = np.arange(n) / SR
+        hit = np.sin(2 * np.pi * np.cumsum(90 * np.exp(-t / 0.03) + 45) / SR) * np.exp(-t / 0.05)
+        place(b, np.stack([hit, hit], axis=1) * 0.45, i * 0.11)
+        place(b, brass(hz(note), 0.14, rng, attack=0.012, release=0.05, bright=1.3), i * 0.11, 0.55)
+    for note, g in (("D4", 0.7), ("A4", 0.6), ("D5", 0.6), ("F#5", 0.5)):
+        place(b, brass(hz(note), 1.6, rng, attack=0.04, release=0.45, bright=1.5, vibrato=0.006), 0.6, g)
+    m = int(1.6 * SR)
+    tm = np.arange(m) / SR
+    shimmer = np.zeros(m)
+    for ratio, amp in ((1.0, 1.0), (2.0, 0.5), (3.0, 0.25)):
+        shimmer += amp * np.sin(2 * np.pi * hz("D6") * ratio * tm) * (1 + 0.5 * np.sin(2 * np.pi * 9 * tm))
+    shimmer *= np.clip(tm / 0.05, 0, 1) * np.exp(-tm / 0.6)
+    place(b, np.stack([shimmer, shimmer * 0.9], axis=1) * 0.12, 0.62)
+    return reverb(lowpass_fast(b, 9000), wet=0.22)
+
+
 SOUNDS = {
     "chegada": chegada,
     "alerta": alerta,
@@ -372,6 +394,7 @@ SOUNDS = {
     "vitoria": vitoria,
     "abate": abate,
     "derrota": derrota,
+    "ace": ace,
 }
 
 

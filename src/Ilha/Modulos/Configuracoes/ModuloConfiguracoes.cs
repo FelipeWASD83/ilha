@@ -76,12 +76,15 @@ internal sealed class ModuloConfiguracoes : Modulo
         {
             // the main menu's grid
             var (spots, rows) = global::Ilha.Menu.Pack(new[] { (1, 1), (1, 1), (1, 1), (1, 1), (1, 1), (1, 2), (1, 1), (2, 1), (1, 1) });
-            Conferir("menu grid: first free spot in order, a tall tile spans two rows, a later small one fills the hole",
-                spots[4] == (0, 1) && spots[5] == (1, 1) && spots[6] == (2, 1) && spots[7] == (2, 2) && spots[8] == (3, 1) && rows == 3,
-                string.Join(" ", spots));
+            Conferir("menu grid (5 columns): blocks to the right first, balls fill around them from the left",
+                spots[5] == (4, 0) && spots[7] == (2, 0) && spots[0] == (0, 0) && spots[1] == (1, 0) && spots[2] == (0, 1) && spots[6] == (3, 1)
+                && spots[8] == (0, 2) && rows == 3, string.Join(" ", spots));
+            var (locked, _) = global::Ilha.Menu.Pack(new[] { (1, 1), (1, 1), (1, 1), (1, 2), (1, 1), (2, 1), (1, 1) });
+            Conferir("menu grid: two balls fewer (the lock) leave the blocks where they were",
+                locked[3] == spots[5] && locked[5] == spots[7], string.Join(" ", locked));
             var (wide, wideRows) = global::Ilha.Menu.Pack(new[] { (1, 1), (1, 1), (1, 1), (2, 1), (9, 9) });
-            Conferir("menu grid: a wide tile that doesn't fit the row's end goes to the next row; oversized is clamped to 4x4",
-                wide[3] == (0, 1) && wide[4] == (0, 2) && wideRows == 6, string.Join(" ", wide));
+            Conferir("menu grid: blocks in order at the rightmost spot; oversized is clamped to 5x4",
+                wide[3] == (3, 0) && wide[4] == (0, 1) && wide[0] == (0, 0) && wide[2] == (2, 0) && wideRows == 5, string.Join(" ", wide));
             Conferir("menu grid: empty", global::Ilha.Menu.Pack(Array.Empty<(int, int)>()).Rows == 0);
 
             // formulário por reflexão

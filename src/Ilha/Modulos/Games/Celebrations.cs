@@ -62,6 +62,55 @@ internal static class Celebrations
         return c;
     }
 
+    private static readonly Color4 Gold = new(1f, 0.8f, 0.22f, 1f);
+
+    /// <summary>
+    /// An ace (the whole enemy team in one round): "ACE!" in gold slams down, the five skulls light up one after the
+    /// other under it, each crossed out, then a shine runs over the word.
+    /// </summary>
+    public static Cena Ace(Palco p, int skulls = 5)
+    {
+        const string word = "ACE!";
+        const float size = 44, sk = 26, gap = 8;
+        var ws = p.Texto.Medir(word, size, FontWeight.Black);
+        float rowW = skulls * sk + (skulls - 1) * gap;
+        float w = MathF.Max(ws.X, rowW) + 40, h = ws.Y + sk + 22;
+        var c = p.NovaCena(new Vector2(w, h));
+        var f = p.G.Fabrica;
+        var cc = p.C;
+        var origin = new Vector2((w - ws.X) / 2, 4);
+        var glow = Layer(p, c, origin - new Vector2(14, 14), ws + new Vector2(28, 28), (dc, _) => Glow(dc, p, word, size, Gold, new Vector2(14, 14)));
+        Opacity(cc, glow, 0, 1, new[] { (0f, 0f) });
+        var big = Layer(p, c, origin, ws + new Vector2(2, 3), (dc, _) =>
+        {
+            p.Texto.Desenhar(dc, word, new Vector2(0, 2.5f), size, new Color4(0, 0, 0, 0.55f), FontWeight.Black);
+            p.Texto.Desenhar(dc, word, Vector2.Zero, size, Gold, FontWeight.Black);
+        });
+        Scale(cc, big, 0, 420, new[] { (0f, 2.6f), (0.6f, 0.92f), (0.8f, 1.05f), (1f, 1f) });
+        Rotate(cc, big, 0, 420, new[] { (0f, -10f), (0.6f, 2f), (1f, 0f) });
+        Fade(cc, big, 0, 140);
+        Opacity(cc, glow, 300, 1400, new[] { (0f, 0f), (0.2f, 0.9f), (0.5f, 0.45f), (0.75f, 0.9f), (1f, 0.6f) });
+
+        float x0 = (w - rowW) / 2, y0 = ws.Y + 12;
+        for (int i = 0; i < skulls; i++)
+        {
+            var at = new Vector2(x0 + i * (sk + gap), y0);
+            var s = Layer(p, c, at, new Vector2(sk, sk), (dc, t) => Skull(dc, f, t / 2, sk * 0.44f, Cor.Branco));
+            var x = Layer(p, c, at, new Vector2(sk, sk), (dc, t) =>
+            {
+                Icone.Linha(dc, new Vector2(3, 3), t - new Vector2(3, 3), 3.4f, Blood, f);
+                Icone.Linha(dc, new Vector2(t.X - 3, 3), new Vector2(3, t.Y - 3), 3.4f, Blood, f);
+            });
+            int d = 380 + i * 110;
+            Scale(cc, s, d, 260, new[] { (0f, 0f), (0.6f, 1.3f), (1f, 1f) });
+            Fade(cc, s, d, 80);
+            Scale(cc, x, d + 120, 160, new[] { (0f, 2f), (1f, 1f) });
+            Fade(cc, x, d + 120, 80);
+        }
+        Shine(p, c, word, size, origin, ws, 380 + skulls * 110 + 150, 2);
+        return c;
+    }
+
     /// <summary>A skull: domed cranium, cheekbones, deep eye sockets, the nose and a row of teeth.</summary>
     public static void Skull(ID2D1DeviceContext dc, ID2D1Factory1 f, Vector2 c, float r, Color4 bone)
     {

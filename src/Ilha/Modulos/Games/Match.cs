@@ -10,7 +10,7 @@ namespace Ilha.Games;
 
 internal enum Outcome { Win, Loss, Draw }
 
-internal enum MomentKind { Kill, Death, Goal, Round, End }
+internal enum MomentKind { Kill, Death, Goal, Round, End, Ace }
 
 /// <summary>Something that happened in the match: what the animations react to.</summary>
 internal sealed record Moment(MomentKind Kind, bool Ours = true, string? Who = null, Outcome? Outcome = null);
@@ -160,6 +160,9 @@ internal sealed class History
         }
         catch (Exception e) { Log.Escrever("jogos: não gravou o histórico: " + e.Message); }
     }
+
+    /// <summary>Every game with a finished match kept.</summary>
+    public IEnumerable<string> Games() => _list.Select(x => x.Game).Distinct().ToList();
 
     /// <summary>The newest `n` results of one game, oldest first.</summary>
     public List<Outcome> Last(string game, int n = 5) =>

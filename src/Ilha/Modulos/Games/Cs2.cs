@@ -20,7 +20,7 @@ internal sealed class Cs2State
     private Match? _match;
     private string _side = "";
     private int _kills = -1, _deaths = -1;
-    private int _lastRoundWon = -1;
+    private int _lastRoundWon = -1, _aceRound = -1;
     private bool _ended, _warmup;
 
     public Match? Current => _match;
@@ -73,7 +73,7 @@ internal sealed class Cs2State
         {
             _match = new Match { Game = "cs2", Start = now };
             _kills = _deaths = -1;
-            _lastRoundWon = -1;
+            _lastRoundWon = _aceRound = -1;
             _ended = false;
             _side = "";
         }
@@ -104,6 +104,14 @@ internal sealed class Cs2State
                 m.Extras.Clear();
                 if (Int(st, "mvps") is int mvps) m.Extras.Add(("MVPs", mvps.ToString()));
                 if (Int(st, "score") is int score) m.Extras.Add((Lang.T("Pontos", "Score"), score.ToString()));
+            }
+            // an ace: the whole enemy team in one round (5 in competitive and Premier, 2 in Wingman), once per round
+            int needed = Str(map, "mode") switch { "competitive" or "premier" => 5, "scrimcomp2v2" => 2, _ => 0 };
+            int roundNow = Int(map, "round") ?? 0;
+            if (needed > 0 && (Int(p, "player", "state", "round_kills") ?? 0) >= needed && roundNow != _aceRound && Str(map, "phase") != "warmup")
+            {
+                _aceRound = roundNow;
+                moments.Add(new Moment(MomentKind.Ace));
             }
         }
 

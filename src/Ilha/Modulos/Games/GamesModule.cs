@@ -41,6 +41,16 @@ internal sealed partial class GamesModule : Modulo
         _history = new History(Path.Combine(Config.Pasta, "partidas.json"));
         _activity = new ScoreActivity(S, g => _history.Last(g));
         S.Ilha.Adicionar(_activity);
+        var overview = new GamesOverview(S, () => _activity.Ativa ? _activity.Current : null,
+            () => { if (_activity.Ativa) S.Ilha.Expandir(_activity); }, g => _history.Last(g), () => _history.Games());
+        S.Ilha.Adicionar(overview);
+        S.Menu.Adicionar(new ItemDoMenu
+        {
+            Id = "jogos", Nome = Lang.T("Jogos", "Games"), Ordem = 58,
+            Abrir = overview.Open,
+            Icone = (dc, p, r) => GamesOverview.Icon(dc, p.G.Fabrica, r, Cor.Branco),
+            Detalhe = () => _activity.Ativa && _activity.Current is { Idle: false, HasScore: true } m ? $"{m.Us} : {m.Them}" : null,
+        });
         // a finished match stays on the pill a few seconds with its result, then the pill goes back to normal
         _linger.Tick += (_, _) => { _linger.Stop(); Refresh(); };
         _alive.Tick += (_, _) => CheckAlive();
@@ -230,6 +240,12 @@ internal sealed partial class GamesModule : Modulo
                 if (_killAlert != null) S.Ilha.FecharAlerta(_killAlert);
                 int streak = _streak;
                 _killAlert = Show("jogo-abate", p => Celebrations.Kill(p, streak), 1.6f, _cfg.Sons ? "abate" : "");
+                break;
+            case MomentKind.Ace when _cfg.Animacoes:
+                // the ace takes over the last kill's notice
+                if (_killAlert != null) S.Ilha.FecharAlerta(_killAlert);
+                _killAlert = null;
+                Show("jogo-ace", p => Celebrations.Ace(p), 3.4f, _cfg.Sons ? "ace" : "");
                 break;
             case MomentKind.Goal when _cfg.Animacoes:
                 var color = x.Ours ? m?.UsColor ?? TeamColors.Blue : m?.ThemColor ?? TeamColors.Orange;
