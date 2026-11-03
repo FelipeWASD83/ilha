@@ -672,8 +672,18 @@ internal sealed class Ilha : IDisposable
     /// Keeps the island out of every screen capture (WDA_EXCLUDEFROMCAPTURE) while the recorder records the screen, so
     /// the pill with the recording time never ends up in the video. False gives it back to captures and screenshots.
     /// </summary>
-    public void ForaDasCapturas(bool sim)
+    private readonly HashSet<string> _foraDasCapturas = new();
+
+    /// <summary>
+    /// Keeps the island out of screen captures while any owner asks for it (the recorder recording, the game score
+    /// reading a game's HUD that the island sits on).
+    /// </summary>
+    public void ForaDasCapturas(bool sim, string quem = "gravador")
     {
+        bool antes = _foraDasCapturas.Count > 0;
+        if (sim) _foraDasCapturas.Add(quem); else _foraDasCapturas.Remove(quem);
+        sim = _foraDasCapturas.Count > 0;
+        if (sim == antes) return;
         foreach (var h in new[] { _vis.Handle, _toque.Handle })
             if (!Nativo.SetWindowDisplayAffinity(h, sim ? Nativo.WDA_EXCLUDEFROMCAPTURE : Nativo.WDA_NONE))
                 Log.Escrever($"fora das capturas ({sim}): erro {System.Runtime.InteropServices.Marshal.GetLastWin32Error()}");

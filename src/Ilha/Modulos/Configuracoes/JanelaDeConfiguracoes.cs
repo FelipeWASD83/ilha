@@ -103,7 +103,9 @@ internal sealed class JanelaDeConfiguracoes : Form
 
     // Geral
     private CheckBox _colada = null!, _sombra = null!, _borda = null!, _dividir = null!, _relogio = null!, _ociosa = null!, _naoPerturbe = null!, _iniciar = null!;
-    private ComboBox _idioma = null!;
+    private ComboBox _idioma = null!, _modoJogo = null!;
+    // the order of the "In game" box
+    private static readonly string[] ModosDeJogo = { ModosCompetitivos.Placar, ModosCompetitivos.Esconder, ModosCompetitivos.Nada };
     private int _idiomaInicial;
     private NumericUpDown _distancia = null!, _tamanho = null!, _deslX = null!, _deslY = null!, _alerta = null!, _atrasoRecolher = null!;
     // Sons
@@ -472,8 +474,22 @@ internal sealed class JanelaDeConfiguracoes : Form
 
     private Panel MontarJogos()
     {
-        var (s, col) = NovaSecao(Lang.T("Jogos competitivos", "Competitive games"), Lang.T("Com um destes na frente, a ilha só mostra o timer: nada de alerta, som nem animação por cima do jogo.",
-            "With one of these in front, the island only shows the timer: no alerts, sounds or animations over the game."));
+        var (s, col) = NovaSecao(Lang.T("Jogos competitivos", "Competitive games"), Lang.T("O que a ilha faz com um destes jogos na frente.",
+            "What the island does with one of these games in front."));
+        _modoJogo = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList, Width = 260 };
+        _modoJogo.Items.AddRange(new object[]
+        {
+            Lang.T("Placar ao vivo", "Live score"),
+            Lang.T("Esconder a ilha", "Hide the island"),
+            Lang.T("Nada (como qualquer janela)", "Nothing (like any window)"),
+        });
+        _modoJogo.SelectedIndex = Array.IndexOf(ModosDeJogo, ModosCompetitivos.Normalizar(_inicio.ModoCompetitivo));
+        _modoJogo.SelectedIndexChanged += (_, _) => Sujou();
+        Linha2(col, Lang.T("No jogo", "In game"), _modoJogo,
+            Lang.T("Placar ao vivo: a pílula vira o placar da partida (CS2, Rocket League e BF6), com animação de abate, gol e fim de jogo; o resto fica quieto. " +
+                "Esconder: a ilha só mostra o timer, sem alerta, som nem animação. Nada: o jogo é tratado como qualquer janela.",
+                "Live score: the pill becomes the match score (CS2, Rocket League and BF6), with kill, goal and match end animations; everything else stays quiet. " +
+                "Hide: the island only shows the timer, no alerts, sounds or animations. Nothing: the game is treated like any window."));
         foreach (var j in _inicio.JogosCompetitivos) _jogos.Items.Add(j);
         var novo = new TextBox { Width = 260, PlaceholderText = Lang.T("nome do .exe, como cs2.exe", ".exe name, like cs2.exe") };
         void Adicionar()
@@ -683,6 +699,7 @@ internal sealed class JanelaDeConfiguracoes : Form
             .Concat(_menu.Where(m => !m.Mostrar.Checked).Select(m => m.Id)).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
 
         c.JogosCompetitivos = _jogos.Items.Cast<string>().ToList();
+        c.ModoCompetitivo = ModosDeJogo[Math.Clamp(_modoJogo.SelectedIndex, 0, ModosDeJogo.Length - 1)];
         c.Prioridades = new List<string>(_listaPrioridades);
 
         foreach (var m in _modulos)

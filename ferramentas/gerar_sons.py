@@ -255,6 +255,25 @@ def timer_loop():
     return reverb(fold(b, n), wet=0.2, circular=True)
 
 
+def gol():
+    """Our goal in a game: a quick bright fanfare climbing F, A, C, F with a held top chord."""
+    b = np.zeros((int(1.6 * SR), 2))
+    for note, at, g in (("F5", 0.0, 0.55), ("A5", 0.07, 0.55), ("C6", 0.14, 0.6), ("F6", 0.21, 0.5)):
+        place(b, soft_tone(hz(note), 0.9, attack=0.02, decay=0.22, bright=1.2), at, g)
+    for note in ("F5", "A5", "C6"):
+        place(b, soft_tone(hz(note), 1.2, attack=0.05, decay=0.45, bright=0.9), 0.3, 0.38)
+    return reverb(lowpass_fast(b, 6500), wet=0.2)
+
+
+def vitoria():
+    """A match won: a warm major chord that blooms under a small mallet run up the octave."""
+    b = np.zeros((int(2.2 * SR), 2))
+    for note, at in (("C5", 0.0), ("E5", 0.08), ("G5", 0.16), ("C6", 0.24), ("E6", 0.32)):
+        place(b, mallet(hz(note), 1.4, decay=0.5, hardness=0.6), at, 0.55)
+    place(b, pad([hz("C4"), hz("G4"), hz("E5")], 1.9, attack=0.25, level=0.35), 0.1)
+    return reverb(b, wet=0.22)
+
+
 SOUNDS = {
     "chegada": chegada,
     "alerta": alerta,
@@ -263,6 +282,9 @@ SOUNDS = {
     "erro": erro,
     "timer": timer,
     "timer-loop": timer_loop,
+    # new sounds go last: they share the seeded generator, and the ones above must stay the same files
+    "gol": gol,
+    "vitoria": vitoria,
 }
 
 

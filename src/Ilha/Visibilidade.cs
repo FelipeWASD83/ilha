@@ -13,6 +13,8 @@ internal sealed record Contexto
     public string Processo { get; init; } = "";
     public bool Desktop { get; init; }
     public bool Competitivo { get; init; }
+    /// <summary>The .exe of a competitive game in front, in any `modoCompetitivo` ("" when none).</summary>
+    public string Jogo { get; init; } = "";
     public bool TelaCheia { get; init; }
     // o jogo pediu tela cheia exclusiva (pode ser exclusiva de verdade ou convertida pelo Windows)
     public bool D3DExclusivo { get; init; }
@@ -23,7 +25,7 @@ internal sealed record Contexto
     public bool Foco { get; init; }
 
     public override string ToString() =>
-        $"frente={Processo} desktop={Desktop} competitivo={Competitivo} telaCheia={TelaCheia} conteudo={ConteudoEmTelaCheia} d3dExclusivo={D3DExclusivo} " +
+        $"frente={Processo} desktop={Desktop} competitivo={Competitivo}{(Jogo.Length > 0 && !Competitivo ? " jogo" : "")} telaCheia={TelaCheia} conteudo={ConteudoEmTelaCheia} d3dExclusivo={D3DExclusivo} " +
         $"naoPerturbe={(NaoPerturbeLido == null ? "?" : NaoPerturbeLido.ToString())} foco={Foco}";
 }
 
@@ -130,12 +132,15 @@ internal sealed class Visibilidade : IDisposable
         // quns 2 (QUNS_BUSY) stays on long after the full screen app is gone and turned the island off on the desktop and
         // over regular windows: only the window rectangle, exclusive Direct3D (3) and presentation mode (4) count.
         bool telaCheia = quns is 3 or 4 || (!desktop && !Nativo.IsZoomed(janela) && CobreOMonitor(janela));
+        bool jogo = !desktop && _competitivos.Contains(proc);
         var novo = new Contexto
         {
             Janela = janela,
             Processo = proc,
             Desktop = desktop,
-            Competitivo = !desktop && _competitivos.Contains(proc),
+            // "nada": the game is like any other window
+            Competitivo = jogo && _cfg.ModoCompetitivo != ModosCompetitivos.Nada,
+            Jogo = jogo ? proc : "",
             // janela maximizada passa uns pixels da borda do monitor: não é tela cheia
             TelaCheia = telaCheia,
             D3DExclusivo = quns == 3,

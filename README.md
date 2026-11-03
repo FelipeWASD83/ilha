@@ -78,6 +78,7 @@ Each one is turned on and off in the settings window (or in `config.json` → `m
 | Fundo Vivo | "Wallpaper" in the menu: a picker like choosing a wallpaper on the iPhone or a face on the Apple Watch, with only the wallpapers you chose from [Fundo Vivo](https://github.com/FelipeWASD83/fundo-vivo)'s library in a row (the middle one big, the neighbours smaller at the sides). The wheel, the arrows or a click on a neighbour slides it; a click on the middle one, or Enter, puts it on the selected monitor. "Choose" lists the whole library to pick from. Needs Fundo Vivo | |
 | Headphones | photo and battery of the headphones when they connect (and the card of the Logitech G213 and Razer Huntsman V3 HE TKL wired keyboards when they are plugged in), and a warning when the battery falls to 50%, 25%, 10%, 5% and 1% (AirPods: 50%, 20%, 10% and under 10%); the Logitech G502 X Plus mouse too, read from G HUB | G HUB running for the mouse |
 | Caps Lock | a short notice when Caps Lock turns on or off (for keyboards without the light) | |
+| Game score | with a competitive game in front, the pill is the live score: game, score in the team colors and clock; the card has the mode, map, your numbers and the last five results. A skull with a red X on a kill, "GOOOOOOOOOL!" on a goal, "EZ" or "GG" at the end. Counter-Strike 2 (Game State Integration) and Rocket League (Stats API), both official and switched on by the island, and Battlefield 6 read off the screen (Conquest). "In game" in the settings: live score, hide or nothing | |
 | PC reactions | short notices when something happens on the PC: something copied (a preview; password managers' private copies stay hidden), a download finished (click to show it, drag it out), a drive plugged in or out, the internet dropping or coming back, the microphone muted or unmuted, Do Not Disturb on or off. Each one can be turned off | |
 | Screenshot | thumbnail of the screenshot, draggable into another program | |
 | Render | notice when After Effects or Media Encoder finishes | |
@@ -130,6 +131,7 @@ If there is a typo, the island tells you and keeps the previous settings.
 | `sombra` | turns the shadow on or off |
 | `atalho` | `mods` (1 Alt, 2 Ctrl, 4 Shift, 8 Win, added up) and `tecla` (key code; 32 = space) |
 | `jogosCompetitivos` | list of `.exe` files for competitive mode |
+| `modoCompetitivo` | what a competitive game in front does: `"placar"` (live score, default), `"esconder"` (only the timer stays) or `"nada"` (like any window) |
 | `prioridades` | order between activities (an alert always goes on top) |
 | `dividir` | show the second activity in the bubble |
 | `pilulaVazia` | the empty pill when there is nothing to show, over any window (formerly `ociosaNaAreaDeTrabalho`) |

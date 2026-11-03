@@ -26,6 +26,19 @@ public sealed class Mola
     [JsonPropertyName("periodoMs")] public float PeriodoMs { get; set; } = 55f;
 }
 
+/// <summary>The values of `modoCompetitivo`.</summary>
+public static class ModosCompetitivos
+{
+    public const string Placar = "placar", Esconder = "esconder", Nada = "nada";
+
+    public static string Normalizar(string? v) => v?.Trim().ToLowerInvariant() switch
+    {
+        Esconder => Esconder,
+        Nada => Nada,
+        _ => Placar,
+    };
+}
+
 public sealed class Config
 {
     [JsonPropertyName("pausada")] public bool Pausada { get; set; }
@@ -73,8 +86,11 @@ public sealed class Config
     {
         "cs2.exe", "RocketLeague.exe", "VALORANT-Win64-Shipping.exe", "r5apex.exe", "r5apex_dx12.exe",
         "FortniteClient-Win64-Shipping.exe", "Overwatch.exe", "League of Legends.exe", "RainbowSix.exe",
-        "TslGame.exe", "cod.exe", "Deadlock.exe", "dota2.exe", "MarvelRivals-Win64-Shipping.exe",
+        "TslGame.exe", "cod.exe", "Deadlock.exe", "dota2.exe", "MarvelRivals-Win64-Shipping.exe", "bf6.exe",
     };
+    // what a competitive game in front does: "placar" (the pill becomes the live score, the default), "esconder" (the
+    // island hides, only the timer stays) or "nada" (the game is treated like any other window)
+    [JsonPropertyName("modoCompetitivo")] public string ModoCompetitivo { get; set; } = ModosCompetitivos.Placar;
     // desenhar texto e ícone pela placa de vídeo em vez do processador (gasta ~110 MB a mais de RAM)
     [JsonPropertyName("desenharNaGpu")] public bool DesenharNaGpu { get; set; }
     [JsonPropertyName("mola")] public Mola Mola { get; set; } = new();
@@ -105,6 +121,7 @@ public sealed class Config
             c.Mola ??= new();
             c.Prioridades ??= new();
             c.JogosCompetitivos ??= new();
+            c.ModoCompetitivo = ModosCompetitivos.Normalizar(c.ModoCompetitivo);
             c.AppsDeConteudo ??= new();
             if (c.OciosaAntiga is bool antiga) { c.PilulaVazia = antiga; c.OciosaAntiga = null; }
             c.Sons ??= new();

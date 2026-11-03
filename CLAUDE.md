@@ -358,6 +358,52 @@ and the points that matter are here.
   Every notice is `Importante` for that same reason. `GetClipboardSequenceNumber` returns 0 inside the Claude app's
   shell (03/11/2026, PowerShell too), so the IA module's clipboard probe fails there; it is the shell, not the code.
 
+## Live game score (3.0.0, `Modulos/Games/`, his request on 03/11/2026)
+
+- **Three competitive modes** (`modoCompetitivo`): `placar` (default), `esconder` (the old behavior: only the timer)
+  and `nada` (`Contexto.Competitivo` stays false; `Contexto.Jogo` still names the game in front). In `placar` the
+  context is still competitive (no other alert, sound or tool), and `ScoreActivity` is the one activity allowed over
+  the game (`PermitidaNoCompetitivo`, `NaFrente` while a match is on); its alerts are `PermitidoNoCompetitivo` and
+  `Importante` (Do Not Disturb reads on all the time on his PC). The score also shows with the game in the background.
+- **CS2**: Game State Integration. `GameSetup.InstallCs2` writes `gamestate_integration_ilha.cfg` (token `ilha`, port
+  `portaCs2` 47681, with `phase_countdowns` for the clock) into the CS2 cfg folder found through Steam's
+  libraryfolders and appmanifest 730; the game reads it only when it opens. `Cs2Source` is a plain `TcpListener` on
+  127.0.0.1 with a minimal HTTP reader (HttpListener would need a URL reservation). Our side comes from payloads where
+  `player.steamid == provider.steamid` (dead, the game sends whoever is spectated); scores follow the team across the
+  half. More than 3 kills at once is a catch-up, not animated. Deathmatch, arms race and training end with no result.
+- **Rocket League**: Stats API. `PacketSendRate` ships at 0; `GameSetup.EnableRocketLeague` sets 10 in
+  `TAStatsAPI.ini` or `DefaultStatsAPI.ini` (found through the Epic manifests or Steam appmanifest 252950), only when
+  it is 0. `RocketLeagueSource` connects to 127.0.0.1:49123 every 5 s while it is not connected. **`Data` arrives as a
+  JSON string inside the envelope** (seen on 03/11/2026). We are the camera's `Target` when the match starts. A goal is
+  a team score going up in UpdateState: `GoalScored` repeats with an empty scorer and speed 0 in Heatseeker. Playlist
+  63 = ranked Heatseeker (he played it on 03/11/2026); the other ids are from community lists. Free play (9) and one
+  player are not matches.
+- **Battlefield 6**: no integration and no match log (only settings and an http cache), and Steam's public rich
+  presence showed nothing while he played. `Bf6Source` reads the screen only while `bf6.exe` is in front, every 0.7 s:
+  one GDI copy of the top band (both ticket boxes and the kill feed) plus, every third look with no HUD, the loading
+  screen's mode and map and an end screen ("VITÓRIA"/"DERROTA", **never seen**: the layout is a guess). OCR is
+  `Windows.Media.Ocr` (pt-BR here). Regions calibrated at 3440x1440 in Conquest on Lago Groom, anchored left, center
+  or right and scaled by the height. A ticket number counts after two looks in a row agree. Kills: a feed line whose
+  first word is his name (`nomeNoBf6`, else the Steam persona from loginusers.vdf); deaths: his name after the first
+  word; each once within 12 s, compared fuzzily (OCR reads names a little differently every time). The island leaves
+  screen captures while reading (`ForaDasCapturas(true, "jogos")`, now counted by owner) because its alerts cover the
+  top of the HUD. With no end screen, the HUD gone for 25 s after a match over 60 s with a side at 40 tickets or less
+  gives the result by the tickets. Measured on 03/11/2026: 6 of 6 checked photos read right, 26 ms per look in the
+  worst case. **Only Conquest is calibrated**: other modes show the mode, kills and the time, and need photos of a
+  match to calibrate (the self test reads `ILHA_TESTE_BF6`: point it at `fotos-teste-bf6/`, 23 photos of that match,
+  ignored by git because they show other players' names).
+- **History**: `~/.ilha/partidas.json` (newest 300) for the card's last five. The module keeps it in memory: deleting
+  the file with the island open does not clear it (a test left fake results until the island restarted).
+- **Animations** (`Celebrations`): alerts drawn once and animated only in the compositor: kill (skull, then a red X
+  slamming down; a new kill within 5 s replaces the alert with "x2"), goal ("GOOOOOOOOOL!" stretching out, team color
+  O's; theirs a quiet "Gol do adversário"), end ("EZ" when the margin is at least max(3, half our score), else "GG").
+  Sounds `gol.wav` and `vitoria.wav` (new sounds go last in `gerar_sons.py`: the seeded generator is shared, and
+  adding them first changed every old file). On the pill only the score layer swaps when it turns.
+- **Tested on 03/11/2026**: self tests with recorded and synthetic payloads; on screen with a fake CS2 match posted to
+  the installed island and a fake Stats API server (photos of the pill, card, kill, round, goals and end). **Not
+  tested**: a real match after these changes (the real CS2, Rocket League and BF6 matches of that day were before the
+  module existed), the game's fps with the BF6 reader on, other BF6 modes, the end screen of BF6, Premier's mode name.
+
 ## Approving Claude Code permissions from the island
 
 - `ferramentas/hook_permissao.py` is the `PermissionRequest` hook, installed on 01/11/2026 in his

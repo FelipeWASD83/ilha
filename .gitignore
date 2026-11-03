@@ -16,3 +16,5 @@ src/Ilha/imagens/logos/
 /.claude/
 # private modules compiled only on the author's PC
 src/Ilha/local.props
+# fotos de uma partida real de BF6 para o autoteste do placar (ILHA_TESTE_BF6): mostram nomes de outros jogadores
+/fotos-teste-bf6/

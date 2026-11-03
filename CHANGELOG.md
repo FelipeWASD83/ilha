@@ -1,5 +1,26 @@
 # Changelog
 
+## 3.0.0 (03/11/2026)
+
+**New**
+- Live game score: with a competitive game in front, the pill becomes the match score. It shows the game, our score
+  and theirs in the team colors and the game clock; the card adds the mode and map, the round or stage, your numbers
+  (K/D/A, MVPs and score in CS2; goals, assists, saves, demos and score in Rocket League; kills and deaths in
+  Battlefield 6) and the last five results of that game.
+  - Counter-Strike 2 through the game's official Game State Integration, Rocket League through its official Stats API
+    (the island switches both on; they take effect the next time the game opens) and Battlefield 6 by reading the
+    score off the screen (it has no integration; only Conquest is calibrated, other modes show the mode and the time).
+  - Animations: a skull crossed out by a red X on a kill ("x2", "x3" for a quick streak), "GOOOOOOOOOL!" with the O's
+    in your team color on a goal (a quieter "Their goal" on theirs), and a big "EZ" for a stomp or "GG" for a close
+    win or a loss at the end, with the final score.
+  - Sounds for your goal and for a win.
+  - Finished matches are kept only on this PC, in `.ilha/partidas.json`.
+- Settings: "In game" under Competitive games picks what a competitive game does: live score (the default), hide the
+  island, or nothing.
+
+**Changed**
+- Battlefield 6 joined the default list of competitive games.
+
 ## 2.1.0 (03/11/2026)
 
 **New**
