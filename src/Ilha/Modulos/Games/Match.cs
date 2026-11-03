@@ -24,6 +24,12 @@ internal sealed class Match
     public int? Us, Them;
     public string UsLabel = "", ThemLabel = "";
     public Color4 UsColor = TeamColors.Blue, ThemColor = TeamColors.Red;
+    /// <summary>Which team mark to draw ("cs2:ct", "cs2:t", "bf6:nato", "bf6:pax", "rl:blue", "rl:orange"; "" = a dot).</summary>
+    public string UsArt = "", ThemArt = "";
+    /// <summary>A mode badge drawn next to the mode ("premier"), "" for none.</summary>
+    public string Badge = "";
+    /// <summary>The mode exactly as the game sent it (logged once per match: Premier's value is not known yet).</summary>
+    public string RawMode = "";
     public int? Kills, Deaths, Assists;
     /// <summary>Other numbers worth a line on the card ("Goals", "2").</summary>
     public List<(string Name, string Value)> Extras = new();

@@ -24,6 +24,7 @@ internal sealed partial class GamesModule
         TestBf6Photos();
         TestSetupAndHistory();
         TestCelebrationWords();
+        TestArt();
         return _report.ToString().TrimEnd();
     }
 
@@ -169,7 +170,8 @@ internal sealed partial class GamesModule
             ["bf6-125758"] = (828, 250), ["bf6-125810"] = (820, 248),
         };
         int right = 0, wrong = 0, read = 0;
-        string? mode = null, map = null;
+        string? mode = null, map = null, faction = null;
+        (byte[] Px, int W, int H)? emblem = null;
         var sw = System.Diagnostics.Stopwatch.StartNew();
         int frames = 0;
         var feedKills = new List<string>();
@@ -181,6 +183,8 @@ internal sealed partial class GamesModule
             frames++;
             mode ??= fr.Mode;
             map ??= fr.Map;
+            faction ??= fr.Faction;
+            emblem ??= fr.Emblem;
             foreach (var l in fr.Feed) if (l.Words.Count > 1 && Bf6Reader.SameName(l.Words[0].Text.Trim('>', '▶'), name)) feedKills.Add(l.Text);
             string stem = Path.GetFileNameWithoutExtension(f);
             if (fr.Us != null) read++;
@@ -201,6 +205,22 @@ internal sealed partial class GamesModule
         }
         Ok($"bf6: uma olhada na tela leva {look.ElapsedMilliseconds / 10} ms (sem placar na tela, o pior caso; uma a cada 700 ms)", true);
         Ok("bf6: modo e mapa lidos nas fotos", mode == "Conquista" && map == "Lago Groom", $"{mode}, {map}");
+        // the emblem: a light symbol on a dark square, so the middle is brighter than the corners
+        bool emblemOk = false;
+        if (emblem is { } em)
+        {
+            float Lum(int x, int y) { int i = (y * em.W + x) * 4; return (em.Px[i] + em.Px[i + 1] + em.Px[i + 2]) / 3f; }
+            float mid = 0, corner = 0;
+            for (int d = -3; d <= 3; d++) { mid += Lum(em.W / 2 + d, em.H / 2 - 12); corner += Lum(5 + d + 3, 5); }
+            emblemOk = mid > corner + 60;
+        }
+        Ok("bf6: facção e emblema da tela de carregamento", faction == "nato" && emblemOk, $"{faction}, emblema {(emblem == null ? "nenhum" : $"{emblem.Value.W}x{emblem.Value.H}")}");
+        if (emblem is { } keep && Environment.GetEnvironmentVariable("ILHA_TESTE_EMBLEMA") is { } outFile)
+        {
+            using var bmp = new Bitmap(keep.W, keep.H, System.Drawing.Imaging.PixelFormat.Format32bppArgb);
+            for (int y = 0; y < keep.H; y++) for (int x = 0; x < keep.W; x++) { int i = (y * keep.W + x) * 4; bmp.SetPixel(x, y, Color.FromArgb(255, keep.Px[i + 2], keep.Px[i + 1], keep.Px[i])); }
+            bmp.Save(outFile);
+        }
         Ok("bf6: placar certo nas fotos conferidas", right >= 4 && wrong == 0, $"{right} de {expected.Count} certas, {wrong} erradas");
         Ok("bf6: abate dele lido no feed", feedKills.Count > 0, string.Join(" | ", feedKills));
         Ok($"bf6: {frames} fotos em {ms} ms ({(frames > 0 ? ms / frames : 0)} ms cada, com a leitura lenta)", true);
@@ -230,6 +250,36 @@ internal sealed partial class GamesModule
                 && again.Last("rl").Count == 1, string.Join(",", last));
         }
         finally { try { File.Delete(file); } catch (Exception) { } }
+    }
+
+    private static void TestArt()
+    {
+        string fitted = GameArt.Fit("<svg width=\"256px\" height=\"256px\" viewBox=\"0 0 256 256\"><g width=\"3\"/></svg>");
+        Ok("logos: o SVG perde o tamanho fixo só na raiz", fitted.StartsWith("<svg width=\"100%\" height=\"100%\"") && fitted.Contains("<g width=\"3\"/>"));
+        Ok("logos: proporção pelo viewBox", Math.Abs(GameArt.Aspect("<svg viewBox=\"0 0 386 65\">") - 386f / 65) < 0.01 && GameArt.Aspect("<svg>") == 1);
+        if (GameSetup.SteamAppFolder(730) == null) Ok("logos: CS2 não instalado, pulado", true);
+        else
+        {
+            var svgs = new[] { GameArt.CtLogo, GameArt.TLogo, GameArt.Premier }.Select(GameArt.Cs2Svg).ToList();
+            Ok("logos: escudos do CT e do TR e o selo do Premier lidos dos arquivos do CS2", svgs.All(s => s != null && s.StartsWith("<svg") && s.EndsWith("</svg>")),
+                string.Join(", ", svgs.Select(s => s?.Length.ToString() ?? "nada")));
+        }
+        foreach (var g in new[] { "cs2", "rl", "bf6" })
+        {
+            string? exe = GameArt.ExeOf(g);
+            if (exe == null || !File.Exists(exe)) { Ok($"logos: ícone de {g} pulado (jogo não instalado)", true); continue; }
+            var icon = GameArt.GameIcon(g);
+            int visible = 0;
+            if (icon is { } i) for (int k = 3; k < i.Px.Length; k += 4) if (i.Px[k] > 0) visible++;
+            Ok($"logos: ícone de {g} tirado do .exe", icon?.Side == 128 && visible > 128 * 128 / 4, $"{visible} pixels visíveis");
+        }
+        Ok("bf6: facção pelo nome", Bf6Reader.FactionFrom(new[] { L("OTAN") }) == "nato" && Bf6Reader.FactionFrom(new[] { L("PAX", "ARMATA") }) == "pax"
+            && Bf6Reader.FactionFrom(new[] { L("NATO") }) == "nato" && Bf6Reader.FactionFrom(new[] { L("CONQUISTA") }) == null);
+        var s = new Bf6State();
+        var t0 = DateTime.Now;
+        s.Apply(new Bf6Frame(null, null, "Conquista", "Lago Groom", new List<Line>(), null) { Faction = "pax" }, t0, "x");
+        s.Apply(new Bf6Frame(500, 400, null, null, new List<Line>(), null), t0.AddSeconds(1), "x");
+        Ok("bf6: a facção vira os times da partida", s.Current?.UsLabel == "PAX" && s.Current.ThemLabel == Lang.T("OTAN", "NATO") && s.Current.UsArt == "bf6:pax" && s.Current.ThemArt == "bf6:nato");
     }
 
     private static void TestCelebrationWords()

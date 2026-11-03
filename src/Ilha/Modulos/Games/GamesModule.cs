@@ -134,7 +134,9 @@ internal sealed partial class GamesModule : Modulo
         if (shown != _shown)
         {
             _shown = shown;
-            Log.Escrever(pick == null ? "jogos: sem partida na pílula" : $"jogos: partida de {pick.Game} na pílula ({pick.Mode}, {pick.Map})");
+            // the raw mode too: what Premier sends was not seen yet
+            Log.Escrever(pick == null ? "jogos: sem partida na pílula"
+                : $"jogos: partida de {pick.Game} na pílula ({pick.Mode}, {pick.Map}{(pick.RawMode.Length > 0 ? ", modo bruto " + pick.RawMode : "")})");
         }
     }
 
@@ -151,12 +153,12 @@ internal sealed partial class GamesModule : Modulo
                 // a new kill replaces the one on screen (a fast double kill becomes "x2", not a queue)
                 if (_killAlert != null) S.Ilha.FecharAlerta(_killAlert);
                 int streak = _streak;
-                _killAlert = Show("jogo-abate", p => Celebrations.Kill(p, streak), 1.4f, "");
+                _killAlert = Show("jogo-abate", p => Celebrations.Kill(p, streak), 1.6f, _cfg.Sons ? "abate" : "");
                 break;
             case MomentKind.Goal when _cfg.Animacoes:
                 var color = x.Ours ? m?.UsColor ?? TeamColors.Blue : m?.ThemColor ?? TeamColors.Orange;
                 bool ours = x.Ours;
-                Show("jogo-gol", p => Celebrations.Goal(p, ours, color), ours ? 2.4f : 1.6f, ours && _cfg.Sons ? "gol" : "");
+                Show("jogo-gol", p => Celebrations.Goal(p, ours, color), ours ? 3.2f : 1.6f, ours && _cfg.Sons ? "gol" : "");
                 break;
             case MomentKind.End:
                 if (m != null && x.Outcome is Outcome o)
@@ -173,7 +175,8 @@ internal sealed partial class GamesModule : Modulo
                     if (_cfg.Animacoes)
                     {
                         int? us = m.Us, them = m.Them;
-                        Show("jogo-fim", p => Celebrations.End(p, o, us, them), 4f, o == Outcome.Win && _cfg.Sons ? "vitoria" : "");
+                        string sound = !_cfg.Sons ? "" : o == Outcome.Win ? "vitoria" : o == Outcome.Loss ? "derrota" : "";
+                        Show("jogo-fim", p => Celebrations.End(p, o, us, them), 4f, sound);
                     }
                 }
                 break;
@@ -234,7 +237,7 @@ public sealed class ConfigJogos
     [Help("Caveira no abate, GOOOOL no gol, GG ou EZ no fim.", "Skull on a kill, GOOOOL on a goal, GG or EZ at the end.")]
     [JsonPropertyName("animacoes")] public bool Animacoes { get; set; } = true;
 
-    [Label("Som no gol e na vitória", "Sound on goals and wins")]
+    [Label("Sons de abate, gol e fim de partida", "Sounds for kills, goals and the match end")]
     [JsonPropertyName("sons")] public bool Sons { get; set; } = true;
 
     [Label("Porta do CS2", "CS2 port")]

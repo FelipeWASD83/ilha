@@ -399,6 +399,24 @@ and the points that matter are here.
   O's; theirs a quiet "Gol do adversário"), end ("EZ" when the margin is at least max(3, half our score), else "GG").
   Sounds `gol.wav` and `vitoria.wav` (new sounds go last in `gerar_sons.py`: the seeded generator is shared, and
   adding them first changed every old file). On the pill only the score layer swaps when it turns.
+- **Game art (3.1.0, `GameArt.cs`)**: brands, so nothing ships or goes to git; everything is read from the games on
+  his PC and falls back to drawn marks. Game icons: `PrivateExtractIconsW` at 128 px from `cs2.exe`
+  (`game\bin\win64`), `bf6.exe` and `RocketLeague.exe` (`Binaries\Win64`). CS2's `ct_logo`, `t_logo` and
+  `ui/premier` are `.vsvg_c` entries in `game\csgo\pak01_dir.vpk` (`Vpk.Read`, version 2 directory); the resource
+  keeps the SVG text as it is, drawn by Direct2D's SVG (`ID2D1DeviceContext5`, `ComStreamProxy`). **Direct2D sizes an
+  SVG by the root's width and height, not the viewport**: `GameArt.Fit` turns them into 100%. BF6: the loading
+  screen's faction name (top right, OCR: OTAN/NATO, PAX) and the emblem in its square box are read with the mode;
+  the first time a faction shows up its emblem is saved as `~/.ilha/jogos/bf6-<nato|pax>.png` (NATO was seeded from
+  the 03/11 photos; PAX appears after he plays one match on that side). Premier's badge shows when the raw mode
+  contains "premier"; **the value Premier sends was never seen**, and the log line "partida de cs2 na pílula (...,
+  modo bruto X)" records it.
+- **Animations, 3.1.0**: two animations of the same property on one visual replace each other (the second one cut the
+  first: the letters showed up all at once at 1.7x and the skull never dropped). A second motion goes on a container
+  (`Celebrations.Group`): the goal's blink is on the letters' group, the kill's shake on the skull's group. The goal's
+  shine is a `CompositionMaskBrush` (gradient band masked by the word, the band's Offset animated) and its glow a
+  Direct2D gaussian blur of the word. Game sounds (`abate`, `gol`, `vitoria`, `derrota`) are louder synthesized
+  sounds (horn, crowd, brass, timpani) with their own seeded generators in `gerar_sons.py`; checked by numbers only
+  (length, loudness, spectrum), he judges by ear.
 - **Tested on 03/11/2026**: self tests with recorded and synthetic payloads; on screen with a fake CS2 match posted to
   the installed island and a fake Stats API server (photos of the pill, card, kill, round, goals and end). **Not
   tested**: a real match after these changes (the real CS2, Rocket League and BF6 matches of that day were before the

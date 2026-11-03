@@ -10,7 +10,12 @@ using System.Threading;
 namespace Ilha.Games;
 
 /// <summary>What one look at the BF6 screen found (null = not on screen or not read).</summary>
-internal sealed record Bf6Frame(int? Us, int? Them, string? Mode, string? Map, List<Line> Feed, Outcome? EndScreen);
+internal sealed record Bf6Frame(int? Us, int? Them, string? Mode, string? Map, List<Line> Feed, Outcome? EndScreen)
+{
+    /// <summary>Our faction on the loading screen ("nato" or "pax") and its emblem cut from there (BGRA).</summary>
+    public string? Faction { get; init; }
+    public (byte[] Px, int W, int H)? Emblem { get; init; }
+}
 
 /// <summary>
 /// Reads Battlefield 6's HUD off the screen (it has no game state feed and no match log). Calibrated on 03/11/2026 at
@@ -28,6 +33,9 @@ internal static class Bf6Reader
     private static readonly (Rectangle R, Anchor A) MapBox = (new(85, 280, 675, 120), Anchor.Left);
     private static readonly (Rectangle R, Anchor A) FeedBox = (new(2880, 55, 540, 205), Anchor.Right);
     private static readonly (Rectangle R, Anchor A) EndBox = (new(720, 160, 2000, 760), Anchor.Center);
+    // loading screen, top right: our faction's name and its emblem in a square box (inside the box's border)
+    private static readonly (Rectangle R, Anchor A) FactionBox = (new(3140, 60, 125, 52), Anchor.Right);
+    private static readonly (Rectangle R, Anchor A) EmblemBox = (new(3273, 47, 78, 78), Anchor.Right);
 
     // Portuguese and English names, as the game writes them
     public static readonly string[] Modes =
@@ -68,7 +76,8 @@ internal static class Bf6Reader
         var feed = new List<Line>();
         var fr = Place(FeedBox, screen);
         if (grab(fr) is { } f) feed = ocr.Read(ScreenText.Scale(f, fr.Width, fr.Height, 2), fr.Width * 2, fr.Height * 2);
-        string? mode = null, map = null;
+        string? mode = null, map = null, faction = null;
+        (byte[], int, int)? emblem = null;
         Outcome? end = null;
         if (slow && us == null && them == null)
         {
@@ -78,11 +87,15 @@ internal static class Bf6Reader
             {
                 var pr = Place(MapBox, screen);
                 if (grab(pr) is { } p) map = MapFrom(ocr.Read(p, pr.Width, pr.Height));
+                var fr2 = Place(FactionBox, screen);
+                if (grab(fr2) is { } fa) faction = FactionFrom(ocr.Read(ScreenText.Scale(fa, fr2.Width, fr2.Height, 2), fr2.Width * 2, fr2.Height * 2));
+                var eb = Place(EmblemBox, screen);
+                if (faction != null && grab(eb) is { } em) emblem = (em, eb.Width, eb.Height);
             }
             var er = Place(EndBox, screen);
             if (grab(er) is { } e) end = EndFrom(ocr.Read(e, er.Width, er.Height));
         }
-        return new Bf6Frame(us, them, mode, map, feed, end);
+        return new Bf6Frame(us, them, mode, map, feed, end) { Faction = faction, Emblem = emblem };
     }
 
     /// <summary>
@@ -125,6 +138,20 @@ internal static class Bf6Reader
             .OrderByDescending(l => l.Words.Max(w => w.H)).FirstOrDefault();
         return best == null ? null : Title(best.Text);
     }
+
+    /// <summary>"nato" for OTAN/NATO, "pax" for PAX (Armata), null for anything else.</summary>
+    public static string? FactionFrom(IEnumerable<Line> lines)
+    {
+        foreach (var l in lines)
+        {
+            string t = Normalize(l.Text);
+            if (t.Contains("OTAN") || t.Contains("NATO")) return "nato";
+            if (t.Contains("PAX")) return "pax";
+        }
+        return null;
+    }
+
+    public static string FactionLabel(string faction) => faction == "nato" ? Lang.T("OTAN", "NATO") : "PAX";
 
     public static Outcome? EndFrom(IEnumerable<Line> lines)
     {
@@ -193,7 +220,7 @@ internal sealed class Bf6State
     private Match? _match;
     private int? _usSeen, _themSeen;
     private DateTime _hudSeen, _hudFirst;
-    private string? _mode, _map;
+    private string? _mode, _map, _faction;
     private readonly List<(string Key, DateTime At)> _feed = new();
     private bool _ended;
 
@@ -202,15 +229,26 @@ internal sealed class Bf6State
     public List<Moment> Apply(Bf6Frame f, DateTime now, string myName)
     {
         var moments = new List<Moment>();
-        if (f.Mode != null) { _mode = f.Mode; _map = f.Map ?? _map; }
+        if (f.Mode != null) { _mode = f.Mode; _map = f.Map ?? _map; _faction = f.Faction ?? _faction; }
         bool hud = f.Us != null || f.Them != null;
         if (hud)
         {
             if (_match == null || _ended)
             {
                 _match = new Match { Game = "bf6", Start = now, Mode = _mode ?? "", Map = _map ?? "", Kills = 0, Deaths = 0 };
-                _match.UsLabel = Lang.T("Nós", "Us");
-                _match.ThemLabel = Lang.T("Eles", "Them");
+                if (_faction is { } us)
+                {
+                    string them = us == "nato" ? "pax" : "nato";
+                    _match.UsLabel = Bf6Reader.FactionLabel(us);
+                    _match.ThemLabel = Bf6Reader.FactionLabel(them);
+                    _match.UsArt = "bf6:" + us;
+                    _match.ThemArt = "bf6:" + them;
+                }
+                else
+                {
+                    _match.UsLabel = Lang.T("Nós", "Us");
+                    _match.ThemLabel = Lang.T("Eles", "Them");
+                }
                 _match.UsColor = TeamColors.Blue;
                 _match.ThemColor = TeamColors.Red;
                 _usSeen = _themSeen = null;
@@ -264,7 +302,7 @@ internal sealed class Bf6State
             }
             _match = null;
             _ended = false;
-            _mode = _map = null;
+            _mode = _map = _faction = null;
         }
         return moments;
     }
@@ -363,6 +401,8 @@ internal sealed class Bf6Source : GameSource
                 ? copy == null ? null : ScreenText.Crop(copy, band.Width, new Rectangle(r.X - band.X, r.Y - band.Y, r.Width, r.Height))
                 : ScreenText.Grab(r);
             var frame = Bf6Reader.Read(Grab, screen, _ocr, slow: _count++ % 3 == 0);
+            // the first time a faction shows up, its emblem is kept for the score's team marks
+            if (frame is { Faction: { } fac, Emblem: { } em } && !GameArt.HasEmblem(fac)) GameArt.SaveEmblem(fac, em.Px, em.W, em.H);
             List<Moment> moments;
             Match? m;
             lock (_state)

@@ -144,6 +144,8 @@ internal sealed class RocketLeagueState
         m.ThemLabel = us == 0 ? orangeName : blueName;
         m.UsColor = us == 0 ? TeamColors.Blue : TeamColors.Orange;
         m.ThemColor = us == 0 ? TeamColors.Orange : TeamColors.Blue;
+        m.UsArt = us == 0 ? "rl:blue" : "rl:orange";
+        m.ThemArt = us == 0 ? "rl:orange" : "rl:blue";
 
         if (ps.ValueKind == JsonValueKind.Array)
             foreach (var p in ps.EnumerateArray())

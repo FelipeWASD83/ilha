@@ -78,7 +78,10 @@ internal sealed class Cs2State
             _side = "";
         }
         var m = _match;
-        m.Mode = ModeName(Str(map, "mode"));
+        m.RawMode = Str(map, "mode");
+        m.Mode = ModeName(m.RawMode);
+        // Premier's value in the integration was not seen yet: anything that names it gets the badge
+        m.Badge = m.RawMode.Contains("premier", StringComparison.OrdinalIgnoreCase) ? "premier" : "";
         m.Map = MapName(Str(map, "name"));
 
         bool local = me.Length > 0 && Str(p, "player", "steamid") == me;
@@ -113,6 +116,8 @@ internal sealed class Cs2State
         m.ThemLabel = Label(other);
         m.UsColor = side == "CT" ? TeamColors.Ct : TeamColors.T;
         m.ThemColor = side == "CT" ? TeamColors.T : TeamColors.Ct;
+        m.UsArt = side == "CT" ? "cs2:ct" : "cs2:t";
+        m.ThemArt = side == "CT" ? "cs2:t" : "cs2:ct";
 
         string phase = Str(map, "phase");
         int round = Int(map, "round") ?? 0;

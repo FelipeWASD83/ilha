@@ -1,5 +1,21 @@
 # Changelog
 
+## 3.1.0 (03/11/2026)
+
+**New**
+- The game score shows the games' own art, read from the games installed on this PC (nothing is downloaded or
+  shipped): each game's icon from its .exe; in Counter-Strike 2 the CT and T shields and the Premier badge from the
+  game's files; in Battlefield 6 the NATO and PAX names and emblems, cut from the loading screen the first time each
+  side shows up. Rocket League keeps blue and orange badges.
+- New sounds for the score, made to sit over a game: a punchy hit with a metallic ping on a kill, a stadium horn over
+  a cheering crowd on a goal, a brass fanfare with timpani and cymbal on a win, and two low notes on a loss.
+
+**Changed**
+- The kill animation: a more detailed skull drops in, squashes and wobbles, flashes red, and two red cuts slash it one
+  after the other with a red ring bursting out; the count pops in after.
+- The goal animation: "GOOOOOOOOOL!" lights up letter by letter from left to right, each letter flashing white
+  before taking the team color, then the word blinks and a shine runs over it from left to right, with a glow behind.
+
 ## 3.0.0 (03/11/2026)
 
 **New**

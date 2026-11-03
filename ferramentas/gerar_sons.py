@@ -255,23 +255,108 @@ def timer_loop():
     return reverb(fold(b, n), wet=0.2, circular=True)
 
 
+# ------------------------------------------------------------------ game sounds
+# Louder and punchier than the UI family above, made to sit over a game. Each one has its own seeded generator, so
+# they never shift the UI sounds (which share RNG) and stay the same files on every run.
+
+def highpass(x: np.ndarray, cutoff: float) -> np.ndarray:
+    return x - lowpass_fast(x, cutoff)
+
+
+def band_noise(rng, n: int, lo: float, hi: float) -> np.ndarray:
+    """Stereo noise between `lo` and `hi` Hz (a soft band, two independent sides)."""
+    x = rng.normal(0, 1, (n, 2))
+    return lowpass_fast(highpass(x, lo), hi)
+
+
+def brass(freq: float, dur: float, rng, attack=0.05, release=0.18, bright=1.0, vibrato=0.0):
+    """A brass-like note: a stack of harmonics whose top opens up with the attack (the 'blat'), slight detune L/R."""
+    n = int(dur * SR)
+    t = np.arange(n) / SR
+    env = np.clip(t / attack, 0, 1) ** 0.6 * np.clip((dur - t) / release, 0, 1)
+    opening = 1 - np.exp(-t / (attack * 1.6))  # brightness rises after the attack
+    vib = 1 + vibrato * np.sin(2 * np.pi * 5.2 * t) * np.clip((t - 0.25) / 0.3, 0, 1)
+    out = np.zeros((n, 2))
+    for side, cents in ((0, -6), (1, 6)):
+        f0 = freq * 2 ** (cents / 1200)
+        phase = 2 * np.pi * np.cumsum(f0 * vib) / SR + rng.uniform(0, 2 * np.pi)
+        layer = np.zeros(n)
+        for k in range(1, 13):
+            amp = (1 / k ** 1.1) * (opening ** (0.4 * k * bright) if k > 1 else 1)
+            layer += amp * np.sin(k * phase)
+        out[:, side] = layer * env
+    return out * 0.32
+
+
+def abate():
+    """A kill: a short punch (a low thump that drops in pitch, a crack on top) and a bright metallic ping."""
+    rng = np.random.default_rng(101)
+    b = np.zeros((int(0.75 * SR), 2))
+    n = int(0.22 * SR)
+    t = np.arange(n) / SR
+    f = 120 * np.exp(-t / 0.045) + 48
+    thump = np.sin(2 * np.pi * np.cumsum(f) / SR) * np.exp(-t / 0.07)
+    place(b, np.stack([thump, thump], axis=1) * 0.9, 0.0)
+    crack = highpass(rng.normal(0, 1, (int(0.03 * SR), 2)), 2500) * np.exp(-np.arange(int(0.03 * SR)) / SR / 0.006)[:, None]
+    place(b, crack * 0.45, 0.0)
+    m = int(0.6 * SR)
+    tm = np.arange(m) / SR
+    ping = np.zeros(m)
+    for ratio, amp, dec in ((1.0, 1.0, 0.22), (2.76, 0.45, 0.12), (5.4, 0.22, 0.06), (8.9, 0.1, 0.03)):
+        ping += amp * np.sin(2 * np.pi * 1568 * ratio * tm) * np.exp(-tm / dec)
+    ping *= np.clip(tm / 0.002, 0, 1)
+    place(b, np.stack([ping * 0.85, ping], axis=1) * 0.28, 0.035)
+    return reverb(b, wet=0.1)
+
+
 def gol():
-    """Our goal in a game: a quick bright fanfare climbing F, A, C, F with a held top chord."""
-    b = np.zeros((int(1.6 * SR), 2))
-    for note, at, g in (("F5", 0.0, 0.55), ("A5", 0.07, 0.55), ("C6", 0.14, 0.6), ("F6", 0.21, 0.5)):
-        place(b, soft_tone(hz(note), 0.9, attack=0.02, decay=0.22, bright=1.2), at, g)
-    for note in ("F5", "A5", "C6"):
-        place(b, soft_tone(hz(note), 1.2, attack=0.05, decay=0.45, bright=0.9), 0.3, 0.38)
-    return reverb(lowpass_fast(b, 6500), wet=0.2)
+    """A goal: a stadium horn (two blasts, a fifth apart in its harmonics) over a crowd that roars up and fades."""
+    rng = np.random.default_rng(202)
+    dur = 3.4
+    n = int(dur * SR)
+    b = np.zeros((n, 2))
+    t = np.arange(n) / SR
+    crowd = band_noise(rng, n, 350, 2800)
+    # many voices: slow random swells on top of the roar
+    swell = lowpass_fast(rng.normal(0, 1, (n, 2)), 3) * 6 + 1
+    env = np.clip(t / 0.35, 0, 1) ** 1.5 * np.exp(-np.maximum(t - 1.3, 0) / 0.9)
+    b += crowd * np.clip(swell, 0.3, 2.2) * env[:, None] * 0.55
+    for at, d in ((0.0, 0.42), (0.5, 1.1)):
+        horn = brass(hz("A#3"), d, rng, attack=0.04, release=0.12, bright=0.7)
+        horn += brass(hz("F4"), d, rng, attack=0.05, release=0.12, bright=0.6) * 0.6
+        place(b, lowpass_fast(horn, 2600), at, 0.95)
+    return reverb(b, wet=0.22)
 
 
 def vitoria():
-    """A match won: a warm major chord that blooms under a small mallet run up the octave."""
-    b = np.zeros((int(2.2 * SR), 2))
-    for note, at in (("C5", 0.0), ("E5", 0.08), ("G5", 0.16), ("C6", 0.24), ("E6", 0.32)):
-        place(b, mallet(hz(note), 1.4, decay=0.5, hardness=0.6), at, 0.55)
-    place(b, pad([hz("C4"), hz("G4"), hz("E5")], 1.9, attack=0.25, level=0.35), 0.1)
-    return reverb(b, wet=0.22)
+    """A match won: a brass fanfare (a quick pickup into a held major chord), a timpani hit and a cymbal swell."""
+    rng = np.random.default_rng(303)
+    b = np.zeros((int(3.0 * SR), 2))
+    for note, at, d in (("C4", 0.0, 0.14), ("C4", 0.13, 0.14), ("C4", 0.26, 0.14), ("G4", 0.4, 0.5)):
+        place(b, brass(hz(note), d + 0.05, rng, attack=0.025, release=0.06, bright=1.1), at, 0.8)
+    for note, g in (("C4", 0.7), ("E4", 0.6), ("G4", 0.6), ("C5", 0.55)):
+        place(b, brass(hz(note), 1.8, rng, attack=0.06, release=0.5, bright=1.5, vibrato=0.006), 0.95, g)
+    # timpani: a low pitched thump with skin noise
+    n = int(1.2 * SR)
+    t = np.arange(n) / SR
+    timp = np.sin(2 * np.pi * np.cumsum(hz("C2") * (1 + 0.08 * np.exp(-t / 0.05))) / SR) * np.exp(-t / 0.45)
+    timp += lowpass_fast(rng.normal(0, 1, n)[:, None], 400)[:, 0] * np.exp(-t / 0.05) * 0.4
+    place(b, np.stack([timp, timp], axis=1) * 0.7, 0.95)
+    # cymbal: bright noise swelling into the chord, then ringing out
+    m = int(2.0 * SR)
+    tm = np.arange(m) / SR
+    cym = highpass(rng.normal(0, 1, (m, 2)), 5000) * (np.clip(tm / 0.12, 0, 1) * np.exp(-tm / 0.7))[:, None]
+    place(b, cym * 0.7, 0.95)
+    return reverb(lowpass_fast(b, 9000), wet=0.24)
+
+
+def derrota():
+    """A match lost: two low muted brass notes going down, no drama."""
+    rng = np.random.default_rng(404)
+    b = np.zeros((int(1.8 * SR), 2))
+    place(b, lowpass_fast(brass(hz("G3"), 0.42, rng, attack=0.05, release=0.15, bright=0.4), 1400), 0.0, 0.8)
+    place(b, lowpass_fast(brass(hz("D3"), 0.95, rng, attack=0.06, release=0.4, bright=0.35, vibrato=0.004), 1200), 0.38, 0.85)
+    return reverb(b, wet=0.2)
 
 
 SOUNDS = {
@@ -285,6 +370,8 @@ SOUNDS = {
     # new sounds go last: they share the seeded generator, and the ones above must stay the same files
     "gol": gol,
     "vitoria": vitoria,
+    "abate": abate,
+    "derrota": derrota,
 }
 
 

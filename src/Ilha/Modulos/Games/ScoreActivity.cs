@@ -108,7 +108,7 @@ internal sealed class ScoreActivity : Atividade
     private void DrawFrame(ID2D1DeviceContext dc, Match m, Vector2 t)
     {
         var p = S.Palco;
-        Glyphs.Draw(dc, p.G.Fabrica, m.Game, new Vector2(10, t.Y / 2), 8.5f, Cor.Branco);
+        Marks.Game(dc, p.G.Fabrica, m.Game, new Vector2(10, t.Y / 2), 20, Cor.Branco);
         if (m.ClockAt(DateTime.Now) is double clock)
         {
             _drawnSecond = (long)clock;
@@ -131,8 +131,8 @@ internal sealed class ScoreActivity : Atividade
         var sc = p.Texto.Medir(":", 15, FontWeight.Bold);
         p.Texto.Desenhar(dc, ":", new Vector2(mid - sc.X / 2, y - 1), 15, Cor.Secundario, FontWeight.Bold);
         var st = p.Texto.Medir(them, 16, FontWeight.Bold, tabular: true);
-        Icone.Circulo(dc, new Vector2(mid - 7 - su.X - 8, t.Y / 2), 3.2f, m.UsColor);
-        Icone.Circulo(dc, new Vector2(mid + 7 + st.X + 8, t.Y / 2), 3.2f, m.ThemColor);
+        Marks.Team(dc, p.G.Fabrica, m.UsArt, m.UsColor, new Vector2(mid - 7 - su.X - 13, t.Y / 2), 17);
+        Marks.Team(dc, p.G.Fabrica, m.ThemArt, m.ThemColor, new Vector2(mid + 7 + st.X + 13, t.Y / 2), 17);
     }
 
     private Cena Card(Palco p)
@@ -146,7 +146,7 @@ internal sealed class ScoreActivity : Atividade
             var x = _m;
             if (x == null) return;
             var now = DateTime.Now;
-            Glyphs.Draw(dc, p.G.Fabrica, x.Game, new Vector2(9, 10), 7.5f, Cor.Secundario);
+            Marks.Game(dc, p.G.Fabrica, x.Game, new Vector2(9, 10), 18, Cor.Secundario);
             p.Texto.Desenhar(dc, x.GameName, new Vector2(24, 1), 13, Cor.Secundario, largura: 200);
             if (x.ClockAt(now) is double clock)
             {
@@ -155,8 +155,11 @@ internal sealed class ScoreActivity : Atividade
                 var sz = p.Texto.Medir(tx, 13, FontWeight.SemiBold, tabular: true);
                 p.Texto.Desenhar(dc, tx, new Vector2(L - sz.X, 1), 13, Cor.Branco, FontWeight.SemiBold, tabular: true);
             }
-            string mode = string.Join(" · ", new[] { x.Mode, x.Map }.Where(s => s.Length > 0));
-            p.Texto.Desenhar(dc, mode.Length > 0 ? mode : Lang.T("Partida", "Match"), new Vector2(0, 24), 16, Cor.Branco, largura: L - 90);
+            string mode = string.Join(" · ", new[] { x.Badge.Length > 0 ? "" : x.Mode, x.Map }.Where(s => s.Length > 0));
+            float mx = 0;
+            // Premier shows its own badge in place of the mode's name
+            if (x.Badge == "premier") mx = Marks.Badge(dc, x.Badge, 0, 27, 17) + 8;
+            p.Texto.Desenhar(dc, mode.Length > 0 ? mode : Lang.T("Partida", "Match"), new Vector2(mx, 24), 16, Cor.Branco, largura: L - 90 - mx);
             if (x.Stage.Length > 0)
             {
                 var ss = p.Texto.Medir(x.Stage, 12, FontWeight.Normal);
@@ -171,8 +174,8 @@ internal sealed class ScoreActivity : Atividade
             p.Texto.Desenhar(dc, them, new Vector2(mid + 16, top), 40, Cor.Branco, FontWeight.Bold, tabular: true);
             var colon = p.Texto.Medir(":", 34, FontWeight.Bold);
             p.Texto.Desenhar(dc, ":", new Vector2(mid - colon.X / 2, top + 1), 34, Cor.Secundario, FontWeight.Bold);
-            Team(dc, p, x.UsLabel, x.UsColor, new Vector2(0, top + 14), left: true);
-            Team(dc, p, x.ThemLabel, x.ThemColor, new Vector2(L, top + 14), left: false);
+            Team(dc, p, x.UsLabel, x.UsArt, x.UsColor, new Vector2(0, top + 4), left: true);
+            Team(dc, p, x.ThemLabel, x.ThemArt, x.ThemColor, new Vector2(L, top + 4), left: false);
 
             float y = top + 66;
             if (stats)
@@ -219,18 +222,106 @@ internal sealed class ScoreActivity : Atividade
         return c;
     }
 
-    private static void Team(ID2D1DeviceContext dc, Palco p, string label, Color4 color, Vector2 at, bool left)
+    /// <summary>A team on the card: its mark big at the outer edge, the name under it in the team color.</summary>
+    private static void Team(ID2D1DeviceContext dc, Palco p, string label, string art, Color4 color, Vector2 at, bool left)
     {
+        const float side = 34;
+        float cx = left ? at.X + side / 2 : at.X - side / 2;
+        Marks.Team(dc, p.G.Fabrica, art, color, new Vector2(cx, at.Y + side / 2), side);
         if (label.Length == 0) return;
-        var s = p.Texto.Medir(label, 13, FontWeight.SemiBold);
+        var s = p.Texto.Medir(label, 12, FontWeight.SemiBold);
         float w = MathF.Min(s.X, 90);
-        float x = left ? at.X + 12 : at.X - w;
-        Icone.Circulo(dc, new Vector2(left ? at.X + 4 : at.X - w - 8, at.Y + s.Y / 2), 3.5f, color);
-        p.Texto.Desenhar(dc, label, new Vector2(x, at.Y), 13, color, FontWeight.SemiBold, largura: 90);
+        p.Texto.Desenhar(dc, label, new Vector2(left ? MathF.Max(0, cx - w / 2) : MathF.Min(at.X - w, cx - w / 2), at.Y + side + 3), 12, color, FontWeight.SemiBold, largura: 90);
     }
 }
 
-/// <summary>Each game's little mark, drawn from shapes (no logos: those are the games' brands).</summary>
+/// <summary>
+/// The marks on the score: the game's own icon and team art when the game is installed (<see cref="GameArt"/>), the
+/// drawn shapes otherwise.
+/// </summary>
+internal static class Marks
+{
+    public static void Game(ID2D1DeviceContext dc, ID2D1Factory1 f, string game, Vector2 c, float side, Color4 fallback)
+    {
+        if (GameArt.GameIcon(game) is { } icon) GameArt.Draw(dc, icon, c.X - side / 2, c.Y - side / 2, side);
+        else Glyphs.Draw(dc, f, game, c, side * 0.42f, fallback);
+    }
+
+    public static void Team(ID2D1DeviceContext dc, ID2D1Factory1 f, string art, Color4 color, Vector2 c, float side)
+    {
+        float x = c.X - side / 2, y = c.Y - side / 2;
+        switch (art)
+        {
+            case "cs2:ct" or "cs2:t":
+                if (GameArt.Cs2Svg(art == "cs2:ct" ? GameArt.CtLogo : GameArt.TLogo) is { } svg && GameArt.DrawSvg(dc, svg, x, y, side, side)) return;
+                break;
+            case "bf6:nato" or "bf6:pax":
+                string faction = art[4..];
+                if (GameArt.Emblem(faction) is { } em)
+                {
+                    // the emblem as the loading screen shows it, in a rounded tile
+                    var rr = new RoundedRectangle(new System.Drawing.RectangleF(x, y, side, side), side * 0.18f, side * 0.18f);
+                    using var geo = f.CreateRoundedRectangleGeometry(rr);
+                    dc.PushLayer(new LayerParameters1 { ContentBounds = new Vortice.RawRectF(x, y, x + side, y + side), GeometricMask = geo, Opacity = 1, MaskTransform = System.Numerics.Matrix3x2.Identity }, null!);
+                    GameArt.Draw(dc, em, x, y, side);
+                    dc.PopLayer();
+                    return;
+                }
+                Faction(dc, f, faction, c, side, color);
+                return;
+            case "rl:blue" or "rl:orange":
+                Icone.Circulo(dc, c, side * 0.42f, new Color4(color.R, color.G, color.B, 0.28f));
+                Icone.Circulo(dc, c, side * 0.27f, color);
+                return;
+        }
+        Icone.Circulo(dc, c, side * 0.2f, color);
+    }
+
+    /// <summary>A faction mark until its emblem was seen: a compass star for NATO, a shield for PAX.</summary>
+    private static void Faction(ID2D1DeviceContext dc, ID2D1Factory1 f, string faction, Vector2 c, float side, Color4 color)
+    {
+        float r = side / 2;
+        Icone.Retangulo(dc, c.X - r, c.Y - r, side, side, side * 0.18f, new Color4(0.24f, 0.26f, 0.28f, 1));
+        using var g = f.CreatePathGeometry();
+        using (var s = g.Open())
+        {
+            if (faction == "nato")
+            {
+                for (int i = 0; i < 8; i++)
+                {
+                    float a = -MathF.PI / 2 + i * MathF.PI / 4, rr = i % 2 == 0 ? r * 0.72f : r * 0.16f;
+                    var pt = c + new Vector2(MathF.Cos(a), MathF.Sin(a)) * rr;
+                    if (i == 0) s.BeginFigure(pt, FigureBegin.Filled); else s.AddLine(pt);
+                }
+            }
+            else
+            {
+                s.BeginFigure(c + new Vector2(-r * 0.55f, -r * 0.6f), FigureBegin.Filled);
+                s.AddLine(c + new Vector2(r * 0.55f, -r * 0.6f));
+                s.AddLine(c + new Vector2(r * 0.55f, r * 0.05f));
+                s.AddLine(c + new Vector2(0, r * 0.68f));
+                s.AddLine(c + new Vector2(-r * 0.55f, r * 0.05f));
+            }
+            s.EndFigure(FigureEnd.Closed);
+            s.Close();
+        }
+        using var b = dc.CreateSolidColorBrush(Cor.Branco);
+        dc.FillGeometry(g, b);
+    }
+
+    /// <summary>A mode badge at (x, y), `h` DIP tall; returns its width.</summary>
+    public static float Badge(ID2D1DeviceContext dc, string badge, float x, float y, float h)
+    {
+        if (badge == "premier" && GameArt.Cs2Svg(GameArt.Premier) is { } svg)
+        {
+            float w = h * GameArt.Aspect(svg);
+            if (GameArt.DrawSvg(dc, svg, x, y, w, h)) return w;
+        }
+        return 0;
+    }
+}
+
+/// <summary>Each game's little mark, drawn from shapes: the fallback when the game's own icon is not found.</summary>
 internal static class Glyphs
 {
     public static void Draw(ID2D1DeviceContext dc, ID2D1Factory1 f, string game, Vector2 c, float r, Color4 color)
