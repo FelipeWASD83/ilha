@@ -1,5 +1,10 @@
 # Changelog
 
+## 4.0.4 (04/11/2026)
+
+**Changed**
+- New icon, from the Desktop Glow family: the black pill with an activity ball beside it.
+
 ## 4.0.3 (03/11/2026)
 
 **Fixed**
