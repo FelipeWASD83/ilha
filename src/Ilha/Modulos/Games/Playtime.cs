@@ -107,6 +107,7 @@ internal static class Playtime
         "r5apex" or "r5apex_dx12" => 1172470,
         "rainbowsix" => 359550,
         "marvelrivals-win64-shipping" => 2767030,
+        "bodycam-win64-shipping" => 2406770,
         _ => null,
     };
 }

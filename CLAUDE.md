@@ -792,4 +792,22 @@ hook with Claude Code calling it, hover and click with the real mouse.
   Claude and GPT logos and animations (`imagens\`, `videos\`, `src\Ilha\imagens\logos\`). They are on his PC and in the
   SSD backup; `.gitignore` holds them back. A new brand image goes in the same way. Without them the island opens
   normally (the spot stays empty).
+- **Images for the public build (4.1.0, his request on 04/11/2026):** they also live in the **private** repository
+  `FelipeWASD83/ilha-imagens` (`fones/`, `logos/`) and in its fixed release `imagens` as `imagens.zip` (fones/ and
+  logos/ at the root). `ferramentas\publicar-imagens.ps1` mirrors `src\Ilha\imagens\{fones,logos}` into a temporary
+  clone, commits, pushes and re-uploads the zip (`-Simular` only shows; a push after the first one is his decision).
+  **Changed or added a brand image: run it.** In the public build (`compilar.ps1 -Publico` defines `PUBLIC_BUILD`,
+  `ImageDownload.PublicBuild`), Settings > General has "Download images": `gh release download imagens --repo ...
+  --pattern imagens.zip` with the PC's own gh login (no token in the island: a private repository only works for an
+  account with access; a token in a public app would leak), `ImageDownload.Unpack` writes only `fones/*.png`,
+  `fones/FONTES.md` and `logos/*.png`, never outside `imagens\`, through `.parcial` names. The zipball of the repository
+  came at ~200 KB/s (107 s for 21 MB); the release file took 4 s. Then "Restart the island" (`Programa.Reiniciar`:
+  starts `Ilha.exe --depois-de <pid>`, which waits up to 20 s for the old one to exit before the single instance check,
+  and closes this one). The updater already protects `imagens\logos` and `imagens\fones`. Self test with
+  `ILHA_TESTE_IMAGENS=1` on a copy of the public build does the real download (04/11/2026: 83 files, 4 s, identical
+  hashes). **Not seen live:** the restart button (CS2 was open; the island could not be closed).
+- **Bodycam (4.1.0):** `Bodycam-Win64-Shipping.exe` (Steam 2406770, Unreal) is in the default competitive list. A saved
+  config has its own list, so `Config.JogosNovos` is added once by `AcrescentarJogosNovos` on load and remembered in
+  `jogosOferecidos` (one he removes stays removed). No data feed: idle pill, clips, quiet alerts. Icon from
+  `Bodycam.exe` at the game's root.
 - The HyperX photo has a white background: cut it out in phase 6 before using it. The Razer one is only 500 px.

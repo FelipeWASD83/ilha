@@ -18,7 +18,7 @@
     <RootNamespace>Ilha</RootNamespace>
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <NoWarn>$(NoWarn);WFO0003;CA1416</NoWarn>
-    <Version>4.0.4</Version>
+    <Version>4.1.0</Version>
     <ApplicationIcon>..\..\icone\icone.ico</ApplicationIcon>
     <Product>Ilha</Product>
     <SatelliteResourceLanguages>pt-BR</SatelliteResourceLanguages>
@@ -36,6 +36,11 @@
     <PackageReference Include="Vortice.Direct2D1" Version="3.8.3" />
     <PackageReference Include="Vortice.Direct3D11" Version="3.8.3" />
   </ItemGroup>
+
+  <!-- the public release build: the code knows it (the "Download images" button in Settings) -->
+  <PropertyGroup Condition="'$(PublicBuild)' == 'true'">
+    <DefineConstants>$(DefineConstants);PUBLIC_BUILD</DefineConstants>
+  </PropertyGroup>
 
   <!-- optional private modules (local.props is not in git); the public release build skips it -->
   <Import Project="local.props" Condition="Exists('local.props') And '$(PublicBuild)' != 'true'" />

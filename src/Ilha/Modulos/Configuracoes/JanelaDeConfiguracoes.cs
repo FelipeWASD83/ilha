@@ -386,7 +386,47 @@ internal sealed partial class JanelaDeConfiguracoes : Form
                 "After the mouse leaves the open card. If the mouse comes back first, it stays open. Default 600."));
         _iniciar = Marcar(col, Lang.T("Iniciar com o Windows", "Start with Windows"), c.IniciarComWindows,
             Lang.T("Só vale na ilha instalada (Menu Iniciar), não na cópia de desenvolvimento.", "Only for the installed island (Start menu), not the development copy."));
+        if (ImageDownload.PublicBuild) MontarImagens(col);
         return s;
+    }
+
+    /// <summary>
+    /// The public release only (4.1.0): downloads the headphone photos and the Claude/GPT logos it leaves out, from a
+    /// private repository, through this PC's GitHub CLI. Then a button restarts the island so they show.
+    /// </summary>
+    private void MontarImagens(FlowLayoutPanel col)
+    {
+        bool tem = ImageDownload.Present();
+        var estado = new Label { AutoSize = true, ForeColor = Secundario, UseMnemonic = false, MaximumSize = new Size(560, 0), Margin = new Padding(0, 0, 0, 6) };
+        Button? reiniciar = null;
+        Button baixar = null!;
+        baixar = BotaoSimples(tem ? Lang.T("Baixar de novo", "Download again") : Lang.T("Baixar imagens", "Download images"), async (_, _) =>
+        {
+            baixar.Enabled = false;
+            estado.Text = Lang.T("Baixando...", "Downloading...");
+            var r = await ImageDownload.Download();
+            if (IsDisposed) return;
+            baixar.Enabled = true;
+            estado.Text = r.Ok ? r.Message + " " + Lang.T("Reinicie a ilha para elas aparecerem.", "Restart the island so they show.") : r.Message;
+            estado.ForeColor = r.Ok ? Secundario : Color.FromArgb(185, 28, 28);
+            if (r.Ok && reiniciar != null) reiniciar.Visible = true;
+        });
+        reiniciar = BotaoSimples(Lang.T("Reiniciar a ilha", "Restart the island"), (_, _) =>
+        {
+            if (!Programa.Reiniciar()) estado.Text = Lang.T("Não deu para reiniciar. Feche e abra a ilha pelo Menu Iniciar.", "Could not restart. Close the island and open it from the Start menu.");
+        });
+        reiniciar.Visible = false;
+        col.Controls.Add(new Label { Text = Lang.T("Imagens", "Images"), AutoSize = true, Margin = new Padding(0, 14, 0, 2), UseMnemonic = false });
+        col.Controls.Add(Descricao(Lang.T(
+            "As fotos dos fones e as logos do Claude e do ChatGPT não vêm nesta versão (são marcas de outras empresas). Elas ficam num repositório " +
+            "privado do GitHub e são baixadas pelo GitHub CLI (gh) deste PC, então só funciona numa conta com acesso a ele. Mudanças não salvas " +
+            "nesta janela se perdem ao reiniciar.",
+            "The headphone photos and the Claude and ChatGPT logos do not come in this version (they are other companies' brands). They live in a " +
+            "private GitHub repository and come down through this PC's GitHub CLI (gh), so it only works for an account with access to it. Unsaved " +
+            "changes in this window are lost on restart."), 2));
+        col.Controls.Add(Fileira(baixar, reiniciar));
+        estado.Text = tem ? Lang.T("Já estão aqui.", "Already here.") : Lang.T("Ainda não baixadas.", "Not downloaded yet.");
+        col.Controls.Add(estado);
     }
 
     private Panel MontarSons()

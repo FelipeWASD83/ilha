@@ -66,6 +66,8 @@ internal static class GameArt
         "bf6" => GameSetup.SteamAppFolder(2807960) is { } d ? Path.Combine(d, "bf6.exe") : null,
         "rl" => (GameSetup.EpicAppFolder("Rocket League") ?? GameSetup.SteamAppFolder(252950)) is { } d
             ? Path.Combine(d, "Binaries", "Win64", "RocketLeague.exe") : null,
+        // the launcher at the root has the game's icon; the Shipping one under Binaries may carry Unreal's
+        "bodycam-win64-shipping" => GameSetup.SteamAppFolder(2406770) is { } d ? Path.Combine(d, "Bodycam.exe") : null,
         _ => _seenExes.TryGetValue(game, out var seen) ? seen : null,
     };
 

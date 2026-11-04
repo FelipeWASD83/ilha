@@ -1,5 +1,16 @@
 # Changelog
 
+## 4.1.0 (04/11/2026)
+
+**New**
+- Bodycam is a competitive game: with it in front the island does what it does for the others (the pill with the game
+  and the time, no other alerts, clips), with its name and its Steam hours. It is added once to the list you already
+  have; if you take it out, it stays out.
+- Public version: Settings > General has **Download images**, which brings the headphone photos and the Claude and
+  ChatGPT logos this version leaves out (they are other companies' brands). They come from a private GitHub repository
+  through the GitHub CLI (gh) of the PC, so only an account with access to it gets them. Then **Restart the island**
+  makes them show. Updates keep them.
+
 ## 4.0.4 (04/11/2026)
 
 **Changed**

@@ -87,7 +87,27 @@ public sealed class Config
         "cs2.exe", "RocketLeague.exe", "VALORANT-Win64-Shipping.exe", "r5apex.exe", "r5apex_dx12.exe",
         "FortniteClient-Win64-Shipping.exe", "Overwatch.exe", "League of Legends.exe", "RainbowSix.exe",
         "TslGame.exe", "cod.exe", "Deadlock.exe", "dota2.exe", "MarvelRivals-Win64-Shipping.exe", "bf6.exe",
+        "Bodycam-Win64-Shipping.exe",
     };
+    // games added to the default list after the first versions (4.1.0: Bodycam). A saved config has its own list, so
+    // each one is added to it once; jogosOferecidos remembers that, and one he removes stays removed.
+    internal static readonly string[] JogosNovos = { "Bodycam-Win64-Shipping.exe" };
+    [JsonPropertyName("jogosOferecidos")] public List<string> JogosOferecidos { get; set; } = new();
+
+    /// <summary>Adds the newer default games once. True when the list changed (the caller saves).</summary>
+    internal bool AcrescentarJogosNovos()
+    {
+        bool mudou = false;
+        foreach (var j in JogosNovos)
+        {
+            if (JogosOferecidos.Exists(o => string.Equals(o, j, StringComparison.OrdinalIgnoreCase))) continue;
+            JogosOferecidos.Add(j);
+            mudou = true;
+            if (!JogosCompetitivos.Exists(o => string.Equals(Path.GetFileNameWithoutExtension(o), Path.GetFileNameWithoutExtension(j), StringComparison.OrdinalIgnoreCase)))
+                JogosCompetitivos.Add(j);
+        }
+        return mudou;
+    }
     // what a competitive game in front does: "placar" (the pill becomes the live score, the default), "esconder" (the
     // island hides, only the timer stays) or "nada" (the game is treated like any other window)
     [JsonPropertyName("modoCompetitivo")] public string ModoCompetitivo { get; set; } = ModosCompetitivos.Placar;
@@ -121,6 +141,7 @@ public sealed class Config
             c.Mola ??= new();
             c.Prioridades ??= new();
             c.JogosCompetitivos ??= new();
+            c.JogosOferecidos ??= new();
             c.ModoCompetitivo = ModosCompetitivos.Normalizar(c.ModoCompetitivo);
             c.AppsDeConteudo ??= new();
             if (c.OciosaAntiga is bool antiga) { c.PilulaVazia = antiga; c.OciosaAntiga = null; }
@@ -145,11 +166,16 @@ public sealed class Config
         if (!File.Exists(Arquivo))
         {
             var nova = new Config();
+            nova.AcrescentarJogosNovos();
             nova.Salvar();
             return nova;
         }
         var c = TentarLer(out var erro);
-        if (c != null) return c;
+        if (c != null)
+        {
+            if (c.AcrescentarJogosNovos()) { Log.Escrever("config: jogos competitivos novos acrescentados à lista"); c.Salvar(); }
+            return c;
+        }
         try { File.Copy(Arquivo, Arquivo + ".estragada", true); } catch { }
         Log.Escrever("config ilegível, usando o padrão: " + erro);
         return new Config();

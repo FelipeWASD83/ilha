@@ -13,6 +13,26 @@ public static class Programa
     [DllImport("kernel32.dll", CharSet = CharSet.Unicode)] private static extern int RegisterApplicationRestart(string? args, int flags);
     private const int RESTART_NO_PATCH = 4, RESTART_NO_REBOOT = 8;
 
+    private static Nucleo? _nucleo;
+
+    /// <summary>
+    /// Opens a new island that waits for this one to close (`--depois-de`), then closes this one. False when the new
+    /// process could not start (nothing closes then).
+    /// </summary>
+    public static bool Reiniciar()
+    {
+        if (_nucleo == null || Environment.ProcessPath is not { } exe) return false;
+        try
+        {
+            System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(exe) { UseShellExecute = false, ArgumentList = { "--depois-de", Environment.ProcessId.ToString() } });
+        }
+        catch (Exception e) { Log.Escrever("reiniciar: a ilha nova não abriu: " + e.Message); return false; }
+        Log.Escrever("reiniciando a ilha");
+        var n = _nucleo;
+        NaInterface(n.Sair);
+        return true;
+    }
+
     /// <summary>Roda na thread da interface (callbacks do sistema chegam em outras threads).</summary>
     public static void NaInterface(Action a)
     {
@@ -65,6 +85,16 @@ public static class Programa
             return;
         }
 
+        // a restart (4.1.0, after downloading the images): the new island waits for the old one to close before taking
+        // its place, else the single instance check would send it away
+        int iDepois = Array.IndexOf(args, "--depois-de");
+        if (iDepois >= 0 && iDepois + 1 < args.Length && int.TryParse(args[iDepois + 1], out int pidVelha))
+        {
+            try { using var velha = System.Diagnostics.Process.GetProcessById(pidVelha); velha.WaitForExit(20_000); }
+            catch (ArgumentException) { }
+            catch (InvalidOperationException) { }
+        }
+
         // --sair, and --quit as the same word the other apps of the setup use (Fundo Vivo, Relógio Mond)
         bool sair = Array.IndexOf(args, "--sair") >= 0 || Array.IndexOf(args, "--quit") >= 0;
         using var instancia = new Mutex(true, @"Local\Ilha.Instancia", out bool primeira);
@@ -88,6 +118,7 @@ public static class Programa
 
         using var pedidoDeSair = new EventWaitHandle(false, EventResetMode.AutoReset, @"Local\Ilha.Sair");
         var nucleo = new Nucleo();
+        _nucleo = nucleo;
         // a versão nova abriu bem: o atualizador não precisa voltar para a anterior
         NaInterface(Atualizador.AbriuBem);
         ThreadPool.RegisterWaitForSingleObject(pedidoDeSair, (_, _) => NaInterface(nucleo.Sair), null, -1, true);

@@ -3,6 +3,7 @@ using System.Collections;
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.ComponentModel.DataAnnotations;
+using System.IO;
 using System.Linq;
 using System.Reflection;
 using System.Text;
@@ -63,6 +64,82 @@ internal sealed class ModuloConfiguracoes : Modulo
         [JsonPropertyName("bilingual")] public bool Bilingual { get; set; }
     }
 
+    /// <summary>4.1.0: Bodycam added once to a saved list, and the images zip unpacked only where it may.</summary>
+    private static void TestNewGamesAndImages(Action<string, bool, string> ok)
+    {
+        // a config of 4.0.x: its own list without Bodycam, no jogosOferecidos
+        var old = System.Text.Json.JsonSerializer.Deserialize<Config>("""{"jogosCompetitivos":["cs2.exe","bf6.exe"]}""", Config.Json)!;
+        bool changed = old.AcrescentarJogosNovos();
+        ok("jogos: config antiga ganha o Bodycam uma vez", changed && old.JogosCompetitivos.Contains("Bodycam-Win64-Shipping.exe")
+            && old.JogosOferecidos.Contains("Bodycam-Win64-Shipping.exe") && !old.AcrescentarJogosNovos(), string.Join(",", old.JogosCompetitivos));
+        old.JogosCompetitivos.Remove("Bodycam-Win64-Shipping.exe");
+        ok("jogos: tirado por ele, o Bodycam não volta", !old.AcrescentarJogosNovos() && !old.JogosCompetitivos.Contains("Bodycam-Win64-Shipping.exe"), "");
+        var fresh = new Config();
+        fresh.AcrescentarJogosNovos();
+        ok("jogos: config nova tem o Bodycam uma vez só", fresh.JogosCompetitivos.Count(j => j.StartsWith("Bodycam", StringComparison.OrdinalIgnoreCase)) == 1, "");
+        var typed = System.Text.Json.JsonSerializer.Deserialize<Config>("""{"jogosCompetitivos":["bodycam-win64-shipping"]}""", Config.Json)!;
+        typed.AcrescentarJogosNovos();
+        ok("jogos: escrito sem .exe não duplica", typed.JogosCompetitivos.Count == 1, string.Join(",", typed.JogosCompetitivos));
+        ok("jogos: nome e horas do Bodycam", Games.Match.NameOf("bodycam-win64-shipping") == "Bodycam" && Games.Playtime.SteamApp("bodycam-win64-shipping") == 2406770, "");
+
+        string dir = Path.Combine(Path.GetTempPath(), "ilha-imagens-teste-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(dir);
+        try
+        {
+            string zip = Path.Combine(dir, "pacote.zip"), dest = Path.Combine(dir, "imagens");
+            using (var z = System.IO.Compression.ZipFile.Open(zip, System.IO.Compression.ZipArchiveMode.Create))
+            {
+                void Put(string name, string text)
+                {
+                    using var w = new StreamWriter(z.CreateEntry(name).Open());
+                    w.Write(text);
+                }
+                Put("FelipeWASD83-ilha-imagens-abc123/fones/airpods.png", "foto");
+                Put("FelipeWASD83-ilha-imagens-abc123/fones/FONTES.md", "fontes");
+                Put("FelipeWASD83-ilha-imagens-abc123/logos/claude-loop.png", "faixa");
+                Put("FelipeWASD83-ilha-imagens-abc123/README.md", "leia");
+                Put("FelipeWASD83-ilha-imagens-abc123/logos/../../fora.png", "mal");
+                Put("FelipeWASD83-ilha-imagens-abc123/logos/sub/fundo.png", "sub");
+                Put("FelipeWASD83-ilha-imagens-abc123/fones/virus.exe", "exe");
+                Put("FelipeWASD83-ilha-imagens-abc123/outra/x.png", "x");
+            }
+            int n = ImageDownload.Unpack(zip, dest);
+            ok("imagens: só as PNG de fones e logos e o FONTES.md, sem sair da pasta",
+                n == 3 && File.ReadAllText(Path.Combine(dest, "fones", "airpods.png")) == "foto" && File.Exists(Path.Combine(dest, "fones", "FONTES.md"))
+                && File.Exists(Path.Combine(dest, "logos", "claude-loop.png")) && !File.Exists(Path.Combine(dir, "fora.png")) && !File.Exists(Path.Combine(dest, "README.md"))
+                && !Directory.Exists(Path.Combine(dest, "logos", "sub")) && !File.Exists(Path.Combine(dest, "fones", "virus.exe")) && !Directory.Exists(Path.Combine(dest, "outra"))
+                && !Directory.EnumerateFiles(dest, "*.parcial", SearchOption.AllDirectories).Any(), n.ToString());
+            ok("imagens: presentes depois de baixar", ImageDownload.Present(dest) && !ImageDownload.Present(Path.Combine(dir, "nada")), "");
+
+            // imagens.zip of the release: fones/ and logos/ at the root
+            string zip2 = Path.Combine(dir, "imagens.zip"), dest2 = Path.Combine(dir, "imagens2");
+            using (var z = System.IO.Compression.ZipFile.Open(zip2, System.IO.Compression.ZipArchiveMode.Create))
+            {
+                foreach (var name in new[] { "fones/g733.png", "logos/chatgpt.png", "logos/../fora.png", "README.md" })
+                {
+                    using var w = new StreamWriter(z.CreateEntry(name).Open());
+                    w.Write("x");
+                }
+            }
+            int n2 = ImageDownload.Unpack(zip2, dest2);
+            ok("imagens: zip da release, com fones e logos na raiz", n2 == 2 && File.Exists(Path.Combine(dest2, "fones", "g733.png"))
+                && File.Exists(Path.Combine(dest2, "logos", "chatgpt.png")) && !File.Exists(Path.Combine(dest2, "fora.png")), n2.ToString());
+        }
+        finally { try { Directory.Delete(dir, true); } catch (Exception) { } }
+
+        // the real download (ILHA_TESTE_IMAGENS=1, run on a copy of the public build: it writes into its imagens folder)
+        if (Environment.GetEnvironmentVariable("ILHA_TESTE_IMAGENS") == "1")
+        {
+            var sw = System.Diagnostics.Stopwatch.StartNew();
+            var r = System.Threading.Tasks.Task.Run(() => ImageDownload.Download()).Result;
+            int fones = Directory.Exists(Path.Combine(ImageDownload.Folder, "fones")) ? Directory.GetFiles(Path.Combine(ImageDownload.Folder, "fones")).Length : 0;
+            int logos = Directory.Exists(Path.Combine(ImageDownload.Folder, "logos")) ? Directory.GetFiles(Path.Combine(ImageDownload.Folder, "logos")).Length : 0;
+            ok("imagens: download de verdade pelo gh", r.Ok && ImageDownload.Present(),
+                $"{r.Message} fones {fones}, logos {logos}, {sw.Elapsed.TotalSeconds:0.0} s, build público {ImageDownload.PublicBuild}");
+        }
+        else ok("imagens: download de verdade pulado (ILHA_TESTE_IMAGENS)", true, "");
+    }
+
     public override string Autoteste()
     {
         var r = new StringBuilder();
@@ -74,6 +151,8 @@ internal sealed class ModuloConfiguracoes : Modulo
         Lang.Set("pt");
         try
         {
+            TestNewGamesAndImages(Conferir);
+
             // the main menu's grid
             var (spots, rows) = global::Ilha.Menu.Pack(new[] { (1, 1), (1, 1), (1, 1), (1, 1), (1, 1), (1, 2), (1, 1), (2, 1), (1, 1) });
             Conferir("menu grid (5 columns): blocks to the right first, balls fill around them from the left",

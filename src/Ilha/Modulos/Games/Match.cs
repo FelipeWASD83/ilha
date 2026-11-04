@@ -67,6 +67,7 @@ internal sealed class Match
         "deadlock" => "Deadlock",
         "dota2" => "Dota 2",
         "marvelrivals-win64-shipping" => "Marvel Rivals",
+        "bodycam-win64-shipping" => "Bodycam",
         _ => game,
     };
 
