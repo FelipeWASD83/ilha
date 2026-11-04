@@ -105,7 +105,10 @@ internal sealed class GamesOverview : Atividade
         string when = r.End.Date == DateTime.Today ? r.End.ToString("HH:mm") : r.End.ToString("dd/MM");
         var wsz = p.Texto.Medir(when, 11, FontWeight.Normal);
         p.Texto.Desenhar(dc, when, new Vector2(L - 10 - wsz.X, y + 28), 11, Cor.Fraco, FontWeight.Normal);
-        if (r.Mvp == true) Celebrations.Crown(dc, p.G.Fabrica, new System.Drawing.RectangleF(L - 40, y + 4, 28, 22));
+        // 4.0.3: the crown's right edge on the time's (it stood 2 px in and hung below the result line), and its middle on
+        // the result's letters, like the CS2 stars beside it (1 px in: the jewel on the tip sticks out of the box)
+        const float CW = 24, CH = 18;
+        if (r.Mvp == true) Celebrations.Crown(dc, p.G.Fabrica, new System.Drawing.RectangleF(L - 11 - CW, y + 7, CW, CH));
         else if (r.Stars is int st && st > 0)
         {
             string s = $"MVP ★{st}";

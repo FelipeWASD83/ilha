@@ -10,15 +10,22 @@ namespace Ilha.Games;
 
 /// <summary>
 /// Reads Rocket League's Stats API messages into a match. Pure logic: the self test feeds it recorded messages.
-/// "Data" comes as a JSON string inside the envelope (seen on 03/11/2026). We are the player the camera follows
-/// (Target) when the match starts; a goal is a team score going up in UpdateState (the GoalScored event repeats with an
-/// empty scorer in some modes, the score does not).
+/// "Data" comes as a JSON string inside the envelope (seen on 03/11/2026). We are the player whose PrimaryId is this
+/// PC's Steam account ("Steam|&lt;id64&gt;|0"); without it, the first player the camera follows (Target). Our team is read
+/// from our Players entry on every update (4.0.3: it was taken once from Target, whose TeamNum is 0 = blue while the
+/// match loads, so he was always blue). A goal is a team score going up in UpdateState (the GoalScored event repeats
+/// with an empty scorer in some modes, the score does not).
 /// </summary>
 internal sealed class RocketLeagueState
 {
     private Match? _match;
     private string _me = "";
     private int _myTeam = -1;
+    private string _guid = "";
+    private string? _myId;
+
+    /// <summary>This PC's Steam id (64-bit), asked once per match; null = find us by the camera's target.</summary>
+    public Func<string?>? LocalSteamId;
     private int _blue = -1, _orange = -1, _demos = -1;
     private bool _ended;
 
@@ -135,21 +142,33 @@ internal sealed class RocketLeagueState
         int players = d.TryGetProperty("Players", out var ps) && ps.ValueKind == JsonValueKind.Array ? ps.GetArrayLength() : 0;
         if (Practice(playlist, players)) { _match = null; return; }
 
+        // a new MatchGuid is a new match even if MatchDestroyed never came (online and LAN matches only have one)
+        string guid = Str(d, "MatchGuid");
+        if (_match != null && guid.Length > 0 && _guid.Length > 0 && guid != _guid) _match = null;
+        if (guid.Length > 0) _guid = guid;
+
         if (_match == null)
         {
             _match = new Match { Game = "rl", Start = now };
             _blue = _orange = _demos = -1;
             _epicSaves = 0;
             _scores = new();
+            _me = "";
             _myTeam = -1;
+            _myId = LocalSteamId?.Invoke();
             _ended = false;
         }
         var m = _match;
-        // the camera's target is us while playing; kept once known (spectating a teammate after a demo changes it)
-        if (_myTeam < 0 && Bool(g, "bHasTarget") && Str(g, "Target", "Name") is { Length: > 0 } target)
+        if (ps.ValueKind == JsonValueKind.Array)
         {
-            _me = target;
-            _myTeam = Int(g, "Target", "TeamNum") ?? -1;
+            // us by the Steam account; else the camera's target, kept once known (it follows a teammate after a demo)
+            if (_myId != null && ps.EnumerateArray().FirstOrDefault(p => Str(p, "PrimaryId").StartsWith($"Steam|{_myId}|", StringComparison.Ordinal)) is { ValueKind: JsonValueKind.Object } mine
+                && Str(mine, "Name") is { Length: > 0 } myName)
+                _me = myName;
+            else if (_me.Length == 0 && Bool(g, "bHasTarget") && Str(g, "Target", "Name") is { Length: > 0 } target)
+                _me = target;
+            foreach (var p in ps.EnumerateArray())
+                if (_me.Length > 0 && Str(p, "Name") == _me && Int(p, "TeamNum") is 0 or 1) { _myTeam = Int(p, "TeamNum")!.Value; break; }
         }
         int us = _myTeam == 1 ? 1 : 0;
         m.Mode = PlaylistName(playlist);
@@ -270,7 +289,7 @@ internal sealed class RocketLeagueState
 /// <summary>Connects to the Stats API socket (127.0.0.1:49123) while the game runs; tries again every few seconds.</summary>
 internal sealed class RocketLeagueSource : GameSource
 {
-    private readonly RocketLeagueState _state = new();
+    private readonly RocketLeagueState _state = new() { LocalSteamId = GameSetup.SteamId64 };
     private readonly Thread _thread;
     private volatile bool _stop;
     private TcpClient? _client;

@@ -125,6 +125,35 @@ internal static class GameSetup
         catch (Exception) { return null; }
     }
 
+    /// <summary>
+    /// The 64-bit id of the Steam account on this PC: the one signed in now (HKCU ActiveProcess\ActiveUser, an account
+    /// number), else the one signed in last (loginusers.vdf, MostRecent). Local only; no web call.
+    /// </summary>
+    public static string? SteamId64()
+    {
+        try
+        {
+            using var k = Microsoft.Win32.Registry.CurrentUser.OpenSubKey(@"Software\Valve\Steam\ActiveProcess");
+            if (k?.GetValue("ActiveUser") is int account && account != 0)
+                return (76561197960265728UL + (uint)account).ToString(CultureInfo.InvariantCulture);
+        }
+        catch (Exception) { }
+        if (SteamFolder() is not { } steam) return null;
+        try
+        {
+            string vdf = Path.Combine(steam, "config", "loginusers.vdf");
+            if (!File.Exists(vdf)) return null;
+            string? recent = null, first = null;
+            foreach (System.Text.RegularExpressions.Match m in Regex.Matches(File.ReadAllText(vdf), "\"(7656\\d{13})\"\\s*\\{([^}]*)\\}"))
+            {
+                first ??= m.Groups[1].Value;
+                if (Pairs(m.Groups[2].Value).Any(p => p.Key == "MostRecent" && p.Value == "1")) recent = m.Groups[1].Value;
+            }
+            return recent ?? first;
+        }
+        catch (Exception) { return null; }
+    }
+
     public static string Cs2Cfg(int port) =>
         "\"Ilha\"\n{\n" +
         $" \"uri\"       \"http://127.0.0.1:{port}\"\n" +

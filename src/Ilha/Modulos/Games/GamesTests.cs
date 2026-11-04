@@ -149,6 +149,40 @@ internal sealed partial class GamesModule
             && GamesOverview.ModeName("rl", "Padrão ranqueado") == Lang.T("3v3 ranqueado", "Ranked 3v3") && GamesOverview.ModeName("rl", "Playlist 81") == ""
             && GamesOverview.ModeName("cs2", "Padrão ranqueado") == "Padrão ranqueado" && GamesOverview.ModeName("rl", "Heatseeker ranqueado") == "Heatseeker ranqueado"
             && RocketLeagueState.ArenaName("cs_p") == "Champions Field" && RocketLeagueState.ArenaName("EuroStadium_Night_P") == "Mannfield");
+        TestRocketLeagueTeam(now);
+    }
+
+    // 4.0.3: he was always blue. Target's TeamNum is 0 while the match loads; our Players entry says the real team.
+    private static string RlOrange(string guid, int targetTeam, string targetName = "Eu", int blue = 0, int orange = 0) =>
+        JsonSerializer.Serialize(new { Event = "UpdateState", Data = $$$"""
+            {"MatchGuid":"{{{guid}}}","Players":[
+              {"Name":"Azul1","PrimaryId":"Epic|9|0","TeamNum":0,"Score":100},
+              {"Name":"Eu","PrimaryId":"Steam|76561198000000001|0","TeamNum":1,"Score":300}],
+             "Game":{"Teams":[{"Name":"Azul","TeamNum":0,"Score":{{{blue}}}},{"Name":"Laranja","TeamNum":1,"Score":{{{orange}}}}],
+              "PlaylistId":10,"TimeSeconds":300,"bOvertime":false,"bReplay":false,"Arena":"Stadium_P",
+              "bHasTarget":true,"Target":{"Name":"{{{targetName}}}","Shortcut":2,"TeamNum":{{{targetTeam}}}} } }
+            """ });
+
+    private static void TestRocketLeagueTeam(DateTime now)
+    {
+        var s = new RocketLeagueState();
+        s.ApplyMessage(RlOrange("G1", targetTeam: 0), now);
+        Ok("rl: time vem da nossa linha em Players, não do TeamNum do alvo (que vem 0 no começo)",
+            s.Current?.UsLabel == "Laranja" && s.Current.UsArt == "rl:orange", s.Current?.UsLabel ?? "");
+        var x = s.ApplyMessage(RlOrange("G1", targetTeam: 1, orange: 1), now);
+        Ok("rl: gol do laranja é nosso", x.Any(k => k.Kind == MomentKind.Goal && k.Ours));
+        x = s.ApplyMessage("""{"Event":"MatchEnded","Data":"{\"MatchGuid\":\"G1\",\"WinnerTeamNum\":1}"}""", now);
+        Ok("rl: laranja ganhou = vitória nossa, com MVP", x.Any(k => k.Kind == MomentKind.End && k.Outcome == Outcome.Win) && s.Current?.Mvp == true);
+
+        // the camera starts on someone else (a blue player); the Steam account still finds us
+        var t = new RocketLeagueState { LocalSteamId = () => "76561198000000001" };
+        t.ApplyMessage(RlOrange("G2", targetTeam: 0, targetName: "Azul1"), now);
+        Ok("rl: pela conta da Steam acha a gente mesmo com a câmera em outro", t.Current?.UsLabel == "Laranja", t.Current?.UsLabel ?? "");
+
+        // a new MatchGuid without MatchDestroyed starts a new match
+        var before = t.Current;
+        t.ApplyMessage(RlOrange("G3", targetTeam: 1), now);
+        Ok("rl: MatchGuid novo é partida nova", t.Current != null && !ReferenceEquals(before, t.Current));
     }
 
     // ------------------------------------------------------------------ BF6

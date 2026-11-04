@@ -375,7 +375,12 @@ and the points that matter are here.
 - **Rocket League**: Stats API. `PacketSendRate` ships at 0; `GameSetup.EnableRocketLeague` sets 10 in
   `TAStatsAPI.ini` or `DefaultStatsAPI.ini` (found through the Epic manifests or Steam appmanifest 252950), only when
   it is 0. `RocketLeagueSource` connects to 127.0.0.1:49123 every 5 s while it is not connected. **`Data` arrives as a
-  JSON string inside the envelope** (seen on 03/11/2026). We are the camera's `Target` when the match starts. A goal is
+  JSON string inside the envelope** (seen on 03/11/2026). **Who we are (4.0.3):** the `Players` entry whose
+  `PrimaryId` starts with `Steam|<GameSetup.SteamId64()>|` (HKCU `ActiveProcess\ActiveUser` + 76561197960265728, else
+  `loginusers.vdf` MostRecent; local files, never the Steam Web API); without it (Epic), the first `Target` name. Our
+  team is that entry's `TeamNum`, reread on every update: the official doc says `Target` members are "" or 0 without a
+  spectator target, and taking `Target.TeamNum` once at the start made him always blue. A new `MatchGuid` resets the
+  match even without `MatchDestroyed`. A goal is
   a team score going up in UpdateState: `GoalScored` repeats with an empty scorer and speed 0 in Heatseeker. Playlist
   63 = ranked Heatseeker (he played it on 03/11/2026); the other ids are from community lists. Free play (9) and one
   player are not matches.

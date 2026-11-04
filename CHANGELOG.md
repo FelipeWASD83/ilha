@@ -1,5 +1,14 @@
 # Changelog
 
+## 4.0.3 (03/11/2026)
+
+**Fixed**
+- Rocket League always put you on the blue team: the team was read once, at the start of the match, when the game
+  still says blue for everyone. Now the island finds you by this PC's Steam account (read from Steam's local files) and
+  reads your team on every update, so orange shows as orange, and goals, wins and the MVP follow it.
+- A new Rocket League match that starts without the game saying the old one ended is now a new match.
+- The MVP crown in the last matches is lined up with the time on the right and with the result on its line.
+
 ## 4.0.2 (03/11/2026)
 
 **Fixed**
