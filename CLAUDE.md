@@ -703,6 +703,44 @@ and the points that matter are here.
   and the last 20 at the end in `~/.ilha/jogos/cs2-amostras.jsonl` (200 KB cap; his Steam id and name are in it, it
   stays on the PC), and the log says `jogos: cs2 lado X`. Read them after his next match.
 
+## 4.3.0: Peripherals / Gear Hub (his request on 06/11/2026)
+
+- **`Modulos/Peripherals/`** (id `perifericos`, namespace `Ilha.Peripherals`): a client of Gear Hub's local channel,
+  `\\.\pipe\GearHub.Events`. **The contract is `gear-hub/docs/canal-local.md`** (Gear Hub 1.1.0+): UTF-8, one JSON
+  object per line both ways, unknown fields ignored. From Gear Hub: `hello` on every connection (version, profile,
+  profileDisplay, profiles with `saved`, devices with `kind`/`status`/`battery`, snapTap), then the events `profile`
+  (`reason` app/manual/tray/hotkey/ilha, `app`), `profiles`, `devices`, `device` (`connected`), `battery` (crossing
+  20/10/5 going down), `snaptap`, `dpi`, `effect`. From the island: `{"cmd":"profile","name"}`, `{"cmd":"show"}`
+  (`snaptap` and `state` exist; `snaptap` is only sent when the keyboard module's card is not there). If Gear Hub
+  changes the format, this breaks: read that file first. Nothing of Gear Hub is linked or edited from here.
+- **`GearHubLink`**: one background thread. `WaitNamedPipeW(name, 1)` answers at once when the pipe does not exist,
+  so with Gear Hub closed it is one call every 5 s, no connection attempt, no exception, no log. The handle is
+  **overlapped** (`PipeOptions.Asynchronous`): on a synchronous handle a write waits behind the pending read. The
+  server must be `GearHub.exe` (`GetNamedPipeServerProcessId`); another program serving that name is refused (logged
+  once per pid). A drop reconnects after 1 s, then at the 5 s pace. `Dispose` cancels the pending read (`CancelIoEx`).
+- **`GearHubState`** (pure, fed lines by the self test) turns messages into `GearNotice`; the module turns those into
+  alerts. **The profile is the main notice** (he wants it when a game comes to the front): 2 s, no sound,
+  `PermitidoNoCompetitivo` and `Importante`. A profile chosen on the island's card (`reason: ilha`) gives no notice.
+  `NoticeBatch` (300 ms) joins a `profile` and a `snaptap` that arrive together into one notice. A newer notice of the
+  same kind closes the one on screen (cycling profiles by hotkey).
+- **Do Not Disturb**: Snap Tap, DPI, devices and effects are not `PermitidoNoCompetitivo`, and they are `Importante`
+  only while `passarNaoPerturbe` is on (default): Do Not Disturb reads on all the time on his PC, so without it they
+  would never show. Low battery is always `Importante` (7 s at 10% or less, sound `alerta`), like the headphones' ones.
+- **No double notices** (`CoveredByHeadphones`, reading the `fones` section of the config): the headphones module
+  already shows the connected card for the Razer keyboard (`teclados`), the DualSense (`controles`) and the G733
+  (`g733`), and warns of the G733 battery (HID++, always) and of the Logitech mouse battery (only through G HUB, so only
+  while `lghub_agent` runs). Those are left to it; disconnects, memory, webcam, lights, controller battery and the mouse
+  with G HUB closed are told here. The keyboard module (`teclado`) skips its own Snap Tap change notice when Gear Hub
+  reported the same state in the last minute (`PeripheralsModule.SnapTapJustReported`): Gear Hub tells it at once, the
+  keyboard module only on its 30 s read.
+- **Card**: menu entry `perifericos` (order 68, three sliders drawn as shapes) only while connected (after the
+  `hello`); the saved profiles as buttons (3 per row, up to 12), the devices (up to 6) with `BatteryPill`, the Snap Tap
+  chip (opens the keyboard card, which owns the switch) and "Abrir o Gear Hub".
+- **Tested on 06/11/2026**: `--testar perifericos` with a fake Gear Hub on a pipe of its own (hello, every event, a
+  broken line, a request coming back, a drop and the reconnection, closing while connected, a pipe served by another
+  process). **Not tested**: against the real Gear Hub (its side of the pipe was being written the same day) and on
+  screen (the notices, the card, the profile over a real competitive game).
+
 ## Updater
 
 - `Modulos/Atualizador`: looks at the releases of `FelipeWASD83/ilha` (6 h cache), downloads, checks the SHA-256,

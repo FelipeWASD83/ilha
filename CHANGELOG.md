@@ -1,5 +1,23 @@
 # Changelog
 
+## 4.3.0 (06/11/2026)
+
+**New**
+- **Peripherals (Gear Hub)**: with Gear Hub open, the island follows it. When Gear Hub applies a profile (a game came to
+  the front, the hotkey, the tray), the pill shows "Profile cs2" for 2 seconds with the reason under it, with no sound
+  and also over a competitive game. When the profile also changes Snap Tap, it is one notice ("cs2 in front · Snap Tap
+  off").
+- Notices for Snap Tap turning on or off, the DPI changing ("DPI 1600"), a device connecting or disconnecting (memory,
+  webcam, lights and the others, with their own drawn icon), low battery at 20, 10 and 5% and a lighting effect
+  starting. Each one has a switch in the settings. What the Headphones module already tells (the Razer keyboard and
+  the DualSense connecting, the G733 battery, the mouse battery while G HUB is open) does not show twice.
+- "Peripherals" in the menu while Gear Hub is connected: the active profile, the saved profiles as buttons (a click
+  applies it), the devices with their status and battery, the Snap Tap state (a click opens the keyboard card) and
+  "Open Gear Hub".
+
+**Changed**
+- The Razer keyboard module no longer repeats a Snap Tap notice that Gear Hub has just given.
+
 ## 4.2.0 (06/11/2026)
 
 **New**

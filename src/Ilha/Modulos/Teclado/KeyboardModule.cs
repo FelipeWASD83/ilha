@@ -122,7 +122,9 @@ internal sealed class KeyboardModule : Modulo
                 var before = Snap;
                 if (s == null) Problem = Lang.T("O teclado não respondeu.", "The keyboard did not answer.");
                 else { Problem = null; Snap = s; }
-                bool changed = s != null && before != null && before.Enabled != s.Enabled;
+                // a change Gear Hub reported in the last minute was already told by the peripherals module
+                bool changed = s != null && before != null && before.Enabled != s.Enabled
+                    && !global::Ilha.Peripherals.PeripheralsModule.SnapTapJustReported(s.Enabled);
                 if (notify && s != null && (profileChanged ? _cfg.AvisarPerfil : changed && _cfg.AvisarSnapTap))
                     Notice(profileChanged);
                 _activity?.Changed();
