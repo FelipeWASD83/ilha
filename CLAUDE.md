@@ -679,8 +679,10 @@ and the points that matter are here.
   to Synapse (its app linking or the keyboard shortcut): Synapse keeps keymaps and OBM slots of its own. CS2 guard:
   `GamesModule.MatchChanged` (new static event) with `RawMode` competitive/premier/scrimcomp2v2 and Snap Tap on = a
   notice (`PermitidoNoCompetitivo`), or `desligarSnapTapNoCs2` turns it off and back on at the end. He tested casual with
-  Snap Tap and was not kicked; he uses a profile without it ("SnapTapLess") for CS2 and Rocket League. **Not tested
-  with him yet:** the write (toggle) and the guard in a real competitive match.
+  Snap Tap and was not kicked; he uses a profile without it ("SnapTapLess") for CS2 and Rocket League. **The toggle
+  was tested with him on 06/11/2026**: on and off from the card, both accepted, the A/D pair kept (read back over HID),
+  and he felt it in use. A read can find the keyboard busy (Synapse talking): `Command` asks again up to 3 times.
+  **Not tested yet:** the guard in a real competitive match.
 - **DSX** (`Modulos/Dsx/`, id `dsx`): DSX 3.1.7 (Steam 1812620, `Main_v3_Beta`) has a mod server: JSON over UDP to
   127.0.0.1:6969 (`app_settings.json`: `use_incoming_udp`, `incoming_udp_port`). Read with REA and dnfile from
   `DSX.dll`'s metadata (no code run): `{"instructions":[{"type":N,"parameters":[...]}]}`; InstructionType GetDSXStatus 0,
