@@ -61,6 +61,26 @@ internal static class TestesFones
             Keyboards.Match(0x1532, 0x0123, "Razer Huntsman V3 HE Magnetic Tenkeyless 8KHz") is { Name: "Huntsman V3 HE TKL", Photo: "razer-huntsman-v3-he-tkl.png" }
             && Keyboards.Match(0x1532, 0x0456, "Razer Huntsman V3 HE TKL") is { Photo: "razer-huntsman-v3-he-tkl.png" });
         r.Conferir("teclado: outro Huntsman fica sem a foto do HE TKL", Keyboards.Match(0x1532, 0x02A6, "Razer Huntsman V3 Pro") is { Name: "Huntsman V3 Pro", Photo: null });
+
+        // 4.2.0: controllers, by USB ids and Bluetooth names, with their photo (the Xbox one by color)
+        var pads = new[] { "xbox-wireless-controller-preto.png", "xbox-wireless-controller-branco.png", "dualsense-wireless-controller.png", "dualsense-edge-wireless-controller.png" };
+        var all = Arquivos.Concat(pads).ToList();
+        string? PadPhoto(string device, string cor)
+        {
+            var k = Controllers.ByName(device);
+            return Fotos.Escolher(k?.PhotoName ?? device, all, null, k?.Xbox == true ? Controllers.XboxColor(device, cor) : null);
+        }
+        r.Conferir("controle: pelos ids do USB (Xbox Series, DualSense, Edge) e nada para outro aparelho",
+            Controllers.ByIds(0x045E, 0x0B12)?.Xbox == true && Controllers.ByIds(0x054C, 0x0CE6)?.Name == "DualSense"
+            && Controllers.ByIds(0x054C, 0x0DF2)?.Name == "DualSense Edge" && Controllers.ByIds(0x046D, 0xC336) == null);
+        r.Conferir("controle: foto do DualSense e do Edge pelo nome do Bluetooth",
+            PadPhoto("DualSense Wireless Controller", "preto") == "dualsense-wireless-controller.png"
+            && PadPhoto("DualSense Edge Wireless Controller", "preto") == "dualsense-edge-wireless-controller.png", PadPhoto("DualSense Wireless Controller", "") ?? "nada");
+        r.Conferir("controle: Xbox pela cor das configurações, e a cor no nome vale mais",
+            PadPhoto("Xbox Wireless Controller", "branco") == "xbox-wireless-controller-branco.png"
+            && PadPhoto("Xbox Wireless Controller", "preto") == "xbox-wireless-controller-preto.png"
+            && PadPhoto("Xbox Wireless Controller White", "preto") == "xbox-wireless-controller-branco.png",
+            PadPhoto("Xbox Wireless Controller", "branco") ?? "nada");
         r.Conferir("teclado: mouse, receptor e outra marca não contam",
             Keyboards.Match(0x046D, 0xC547, "G502 X PLUS") == null && Keyboards.Match(0x1532, 0x00B7, "Razer Viper V3 Pro") == null
             && Keyboards.Match(0x0951, 0xC336, "G213") == null);

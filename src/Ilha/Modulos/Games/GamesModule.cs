@@ -253,8 +253,13 @@ internal sealed partial class GamesModule : Modulo
         };
     }
 
+    /// <summary>A game's match started, changed or ended (null), on the interface thread: the keyboard's Snap Tap guard listens.</summary>
+    internal static event Action<string, Match?>? MatchChanged;
+
     private void OnChanged(string game, Match? m)
     {
+        try { MatchChanged?.Invoke(game, m); }
+        catch (Exception e) { Log.Escrever("jogos: quem ouve as partidas: " + e.Message); }
         if (m == null)
         {
             // gone: an ended match lingers with its result (see End), an abandoned one leaves now

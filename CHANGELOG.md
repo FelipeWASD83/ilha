@@ -1,5 +1,24 @@
 # Changelog
 
+## 4.2.0 (06/11/2026)
+
+**New**
+- **Razer keyboard** (Huntsman V3 HE TKL): "Keyboard" in the menu while it is plugged in. It shows the Synapse profile in
+  use and the live Snap Tap with its key pair, read straight from the keyboard, and a button to turn Snap Tap on or off
+  (it lasts until the next profile change). A notice when the profile changes (the keyboard shortcut too) and when Snap
+  Tap turns on or off.
+- Snap Tap guard for CS2: in Competitive, Premier or Wingman with Snap Tap on, the island warns you (Valve kicks it on
+  official servers). Optionally it turns Snap Tap off for the match and back on at the end.
+- **Controller (DSX)**: with DSX open and a DualSense connected, "Controller" in the menu with the battery. Its card
+  changes the light bar color, the mic LED, adaptive trigger presets (normal, resistance, gun, vibration, rigid) and goes
+  back to the DSX profile.
+- Controllers connecting: Xbox Series (white or black) and DualSense (white and Edge) get the connected card with their
+  own photo, over Bluetooth or cable. The Xbox color comes from the settings, or from a color word in its name.
+
+**Changed**
+- CS2: the island now keeps samples of what the game sends in a match (on this PC only) and logs the side it reads, to
+  find out why it sometimes shows the wrong side.
+
 ## 4.1.0 (04/11/2026)
 
 **New**

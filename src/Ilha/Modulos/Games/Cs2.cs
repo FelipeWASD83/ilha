@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
+using System.Linq;
 using System.Net;
 using System.Net.Sockets;
 using System.Text;
@@ -89,6 +90,8 @@ internal sealed class Cs2State
         if (local)
         {
             string team = Str(p, "player", "team");
+            // 4.2.0: he still saw the wrong side on 04/11/2026; the log says what was read, the samples keep the payloads
+            if (team is "CT" or "T" && team != _side) Log.Escrever($"jogos: cs2 lado {team} (do jogador local, antes {(_side.Length > 0 ? _side : "nenhum")})");
             if (team is "CT" or "T") _side = team;
             if (p.TryGetProperty("player", out var pl) && pl.TryGetProperty("match_stats", out var st))
             {
@@ -193,6 +196,64 @@ internal sealed class Cs2State
 }
 
 /// <summary>
+/// Samples of what CS2 really sends (4.2.0): he saw the wrong side and the code reads right on recorded payloads, so the
+/// next matches leave evidence in ~/.ilha/jogos/cs2-amostras.jsonl: the first payload of each match, every payload where
+/// the player block changes who or which team it is (local or spectated, CT or T), and the last 20 when the match goes.
+/// One JSON per line ({"quando", "tipo", "payload"}); over 200 KB the older half goes. It stays on this PC (it has his
+/// Steam id and name).
+/// </summary>
+internal sealed class Cs2Samples
+{
+    private const long Max = 200_000;
+    private readonly string _file;
+    private readonly Queue<string> _recent = new();
+    private string _lastKey = "";
+    private bool _inMatch;
+
+    public Cs2Samples(string file) => _file = file;
+
+    public void Feed(JsonElement root, byte[] body)
+    {
+        string json = Encoding.UTF8.GetString(body);
+        bool hasMap = root.TryGetProperty("map", out var map) && map.ValueKind == JsonValueKind.Object;
+        string me = Get(root, "provider", "steamid"), who = Get(root, "player", "steamid");
+        string key = $"{(who.Length > 0 && who == me ? "local" : "outro")}|{Get(root, "player", "team")}|{Get(root, "player", "activity")}";
+        if (hasMap && !_inMatch) { _inMatch = true; _recent.Clear(); Write("inicio", json); }
+        else if (hasMap && key != _lastKey) Write("jogador " + key, json);
+        _lastKey = key;
+        _recent.Enqueue(json);
+        while (_recent.Count > 20) _recent.Dequeue();
+        if (!hasMap && _inMatch)
+        {
+            _inMatch = false;
+            foreach (var r in _recent) Write("fim", r);
+            _recent.Clear();
+        }
+    }
+
+    private static string Get(JsonElement e, params string[] path)
+    {
+        foreach (var k in path)
+            if (e.ValueKind != JsonValueKind.Object || !e.TryGetProperty(k, out e)) return "";
+        return e.ValueKind == JsonValueKind.String ? e.GetString() ?? "" : "";
+    }
+
+    private void Write(string kind, string payload)
+    {
+        Directory.CreateDirectory(Path.GetDirectoryName(_file)!);
+        string line = "{\"quando\":" + JsonSerializer.Serialize(DateTime.Now.ToString("O")) + ",\"tipo\":" + JsonSerializer.Serialize(kind)
+            + ",\"payload\":" + (payload.TrimStart().StartsWith('{') ? payload.Replace("\r", "").Replace("\n", "") : JsonSerializer.Serialize(payload)) + "}\n";
+        File.AppendAllText(_file, line, new UTF8Encoding(false));
+        var fi = new FileInfo(_file);
+        if (fi.Length > Max)
+        {
+            var lines = File.ReadAllLines(_file);
+            File.WriteAllLines(_file, lines.Skip(lines.Length / 2), new UTF8Encoding(false));
+        }
+    }
+}
+
+/// <summary>
 /// The local endpoint CS2 posts to (127.0.0.1 only). A plain socket and a minimal HTTP reader: http.sys
 /// (HttpListener) would need a URL reservation.
 /// </summary>
@@ -271,6 +332,8 @@ internal sealed class Cs2Source : GameSource
         var root = d.RootElement;
         if (root.TryGetProperty("auth", out var a) && a.TryGetProperty("token", out var t) && t.GetString() != GameSetup.Cs2Token) return;
         _lastPost = DateTime.UtcNow;
+        try { _samples.Feed(root, body); }
+        catch (Exception e) { Log.Escrever("jogos: cs2 amostras: " + e.Message); }
         List<Moment> moments;
         Match? m;
         lock (_state)
@@ -280,6 +343,8 @@ internal sealed class Cs2Source : GameSource
         }
         Publish(m, moments);
     }
+
+    private readonly Cs2Samples _samples = new(Path.Combine(Config.Pasta, "jogos", "cs2-amostras.jsonl"));
 
     private void CheckIdle()
     {

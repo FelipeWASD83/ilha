@@ -150,6 +150,33 @@ internal sealed partial class GamesModule
             && GamesOverview.ModeName("cs2", "Padrão ranqueado") == "Padrão ranqueado" && GamesOverview.ModeName("rl", "Heatseeker ranqueado") == "Heatseeker ranqueado"
             && RocketLeagueState.ArenaName("cs_p") == "Champions Field" && RocketLeagueState.ArenaName("EuroStadium_Night_P") == "Mannfield");
         TestRocketLeagueTeam(now);
+        TestCs2Samples();
+    }
+
+    // 4.2.0: the samples of real CS2 payloads (start, player changes, the last ones at the end)
+    private static void TestCs2Samples()
+    {
+        string file = Path.Combine(Path.GetTempPath(), "ilha-cs2-amostras-" + Guid.NewGuid().ToString("N") + ".jsonl");
+        try
+        {
+            var s = new Cs2Samples(file);
+            void Feed(string j) { using var d = JsonDocument.Parse(j); s.Feed(d.RootElement, Encoding.UTF8.GetBytes(j)); }
+            const string menu = """{"provider":{"steamid":"1"},"player":{"steamid":"1","activity":"menu"}}""";
+            string live(string who, string team) => "{\"provider\":{\"steamid\":\"1\"},\"map\":{\"mode\":\"competitive\"},\"player\":{\"steamid\":\"" + who + "\",\"team\":\"" + team + "\",\"activity\":\"playing\"}}";
+            Feed(menu);
+            Feed(live("1", "CT"));
+            Feed(live("1", "CT"));
+            Feed(live("2", "CT"));
+            Feed(live("1", "T"));
+            Feed(menu);
+            var lines = File.ReadAllLines(file);
+            var kinds = lines.Select(l => JsonDocument.Parse(l).RootElement.GetProperty("tipo").GetString()).ToList();
+            Ok("cs2: amostras guardam o início, cada troca de jogador ou time e as últimas no fim",
+                kinds.Count(k => k == "inicio") == 1 && kinds.Count(k => k!.StartsWith("jogador")) == 2 && kinds.Count(k => k == "fim") == 5
+                && JsonDocument.Parse(lines[0]).RootElement.GetProperty("payload").GetProperty("player").GetProperty("team").GetString() == "CT",
+                string.Join(",", kinds));
+        }
+        finally { try { File.Delete(file); } catch (Exception) { } }
     }
 
     // 4.0.3: he was always blue. Target's TeamNum is 0 while the match loads; our Players entry says the real team.

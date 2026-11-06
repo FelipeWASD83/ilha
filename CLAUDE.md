@@ -662,6 +662,45 @@ and the points that matter are here.
   screen), the request goes back to the regular dialog right away, even if that changes while the request is waiting.
   If he says the dialog takes a while to show up, this is why.
 
+## 4.2.0 (his requests on 06/11/2026)
+
+- **Razer keyboard** (`Modulos/Teclado/`, id `teclado`): Huntsman V3 HE TKL, USB `1532:02EA`, control interface
+  `MI_03` with 91-byte feature reports. The protocol was read from Synapse 4.0.896's own cached code (Service Worker
+  CacheStorage of RazerAppEngine; `rzDevice25`, product 746): 90-byte packet after report id 0, transaction id 1..31,
+  `[5]` size, `[6]` class, `[7]` command, args from `[8]`, `[88]` = XOR of `[2..87]`; "get" = "set" | 0x80; status 2 ok,
+  1 busy. Commands used: Get Active Profile ID `05 84`, Get Profiles ID List `05 81`, **Get Snap Tap `02 A7` / Set Snap
+  Tap `02 27`** (15 bytes: slot, pairs, on, then key1/key2/mode per pair; the reply pads to 4 pairs). Synapse writes
+  the active profile to **slot 1** (the live one): reading slot 1 is what the keys do now; the island writes only slot 1
+  and only the pairs in use (Synapse's way), so its toggle lasts until the next profile change. Synapse's HID mutex name
+  was not found (built at run time): replies of other transactions are skipped and read again. Analog key ids (A=31,
+  D=33, W=18, S=32...) and modes (LAST_INPUT, PRIO_LEFT, PRIO_RIGHT, NEUTRAL, COMPARE_LEVEL) come from Synapse's tables.
+  **Profiles and names** come from Synapse's tray log (`Logs\systray_systrayv*.log`: `"activeProfile":"<guid>",
+  "productId":746,"profiles":[{"name","guid"}]`), followed from where it stopped every 2 s. Profile switching is left
+  to Synapse (its app linking or the keyboard shortcut): Synapse keeps keymaps and OBM slots of its own. CS2 guard:
+  `GamesModule.MatchChanged` (new static event) with `RawMode` competitive/premier/scrimcomp2v2 and Snap Tap on = a
+  notice (`PermitidoNoCompetitivo`), or `desligarSnapTapNoCs2` turns it off and back on at the end. He tested casual with
+  Snap Tap and was not kicked; he uses a profile without it ("SnapTapLess") for CS2 and Rocket League. **Not tested
+  with him yet:** the write (toggle) and the guard in a real competitive match.
+- **DSX** (`Modulos/Dsx/`, id `dsx`): DSX 3.1.7 (Steam 1812620, `Main_v3_Beta`) has a mod server: JSON over UDP to
+  127.0.0.1:6969 (`app_settings.json`: `use_incoming_udp`, `incoming_udp_port`). Read with REA and dnfile from
+  `DSX.dll`'s metadata (no code run): `{"instructions":[{"type":N,"parameters":[...]}]}`; InstructionType GetDSXStatus 0,
+  TriggerUpdate 1, RGBUpdate 2, PlayerLED 3, TriggerThreshold 4, MicLED 5, PlayerLEDNewRevision 6, ResetToUserSettings 7,
+  ToMode 8; Trigger Left 1 / Right 2; MicLEDMode On 0 / Pulse 1 / Off 2; trigger modes = `TriggerType_v2_Legacy`
+  (Normal 0, Rigid 7, VibrateTrigger 8, Resistance 13, SemiAutomaticGun 16...). The answer is `UDPResponse` (Status,
+  TimeReceived, isControllerConnected, BatteryLevel, Devices[Index, MacAddress, DeviceType (DualSense 0, Edge 1...),
+  ConnectionType (USB 0, Bluetooth 1, Dongle 2), BatteryLevel, IsSupport*]). `DSX.API.Shared.dll` is DSX's license and
+  Steam ownership check: **not touched**. **Not tested live** (DSX was closed): only against a fake UDP server.
+- **Controllers connecting** (`Extras/Fones/Controllers.cs`): Xbox Series `045E:0B12/0B13/0B20/0B21/0B22`, DualSense
+  `054C:0CE6`, Edge `054C:0DF2` over the USB watcher, and Bluetooth `TipoAparelho.Controle` by name. Photos in
+  `imagens/fones` (`xbox-wireless-controller-preto|branco`, `dualsense-wireless-controller`,
+  `dualsense-edge-wireless-controller`, sources in `FONTES.md`; also in `ilha-imagens` once `publicar-imagens.ps1`
+  runs). The Xbox color: `corXbox`, or a color word in the device name (both colors have the same ids). Photo hook:
+  `ILHA_FOTO_CONTROLE=<name>`. A controller through the Xbox wireless adapter (dongle) is not seen.
+- **CS2 side**: still unexplained (the code reads the local player's `player.team` right on recorded payloads).
+  `Cs2Samples` keeps the first payload of a match, every change of player block (local or spectated, team, activity)
+  and the last 20 at the end in `~/.ilha/jogos/cs2-amostras.jsonl` (200 KB cap; his Steam id and name are in it, it
+  stays on the PC), and the log says `jogos: cs2 lado X`. Read them after his next match.
+
 ## Updater
 
 - `Modulos/Atualizador`: looks at the releases of `FelipeWASD83/ilha` (6 h cache), downloads, checks the SHA-256,

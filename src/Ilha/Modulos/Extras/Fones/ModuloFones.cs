@@ -81,7 +81,7 @@ internal sealed class ModuloFones : Modulo
         _bt = new VigiaBluetooth((a, c, i) => BluetoothMudou(a, c, i));
         _bt.Iniciar();
         if (_cfg.G733) IniciarG733();
-        if (_cfg.Teclados) StartKeyboards();
+        if (_cfg.Teclados || _cfg.Controles) StartKeyboards();
         SystemEvents.PowerModeChanged += PowerChanged;
         ProgramGHub();
         // for photos: ILHA_FOTO_CARREGAR=<device name> shows the charging card a few seconds after opening, with the
@@ -99,6 +99,20 @@ internal sealed class ModuloFones : Modulo
             };
             demo.Start();
         }
+        // for photos (4.2.0): ILHA_FOTO_CONTROLE=<device name> shows the "connected" card of that controller
+        if (Environment.GetEnvironmentVariable("ILHA_FOTO_CONTROLE") is { Length: > 0 } pad)
+        {
+            var demo = new System.Windows.Forms.Timer { Interval = 5000 };
+            demo.Tick += (_, _) =>
+            {
+                demo.Stop();
+                demo.Dispose();
+                var f = new Fone { Chave = "foto-controle", Nome = pad, Tipo = TipoAparelho.Controle };
+                f.Foto = ControllerPhoto(pad, Fotos.Arquivos());
+                PrepararEMostrar(f, lerBateriaDoWindows: false);
+            };
+            demo.Start();
+        }
     }
 
     public override void ConfigMudou(JsonObject cfg)
@@ -108,8 +122,9 @@ internal sealed class ModuloFones : Modulo
         _cfg = Ler<ConfigFones>(cfg);
         if (_cfg.G733 && !g733Antes) IniciarG733();
         else if (!_cfg.G733 && g733Antes) PararG733();
-        if (_cfg.Teclados && _usbWatcher == null) StartKeyboards();
-        else if (!_cfg.Teclados) StopKeyboards();
+        bool usb = _cfg.Teclados || _cfg.Controles;
+        if (usb && _usbWatcher == null) StartKeyboards();
+        else if (!usb) StopKeyboards();
         if (_cfg.LimiaresBateria != niveisAntes) _alerts = new BatteryAlerts(BatteryAlerts.ParseLevels(_cfg.LimiaresBateria));
         ProgramarRajadas();
         ProgramGHub();
@@ -191,7 +206,7 @@ internal sealed class ModuloFones : Modulo
             ProgramarRajadas();
             if (_cfg.BateriaAirPods) _varredura?.Rajada(Math.Max(2, _cfg.RajadaSegundos) + 3, f.Modelo, (short)_cfg.SinalMinimo);
         }
-        if (inicial || Ignorado(a.Nome)) return;
+        if (inicial || Ignorado(a.Nome) || (a.Tipo == TipoAparelho.Controle && !_cfg.Controles)) return;
         f.Foto = EscolherFoto(f);
         PrepararEMostrar(f, lerBateriaDoWindows: !apple);
     }
@@ -201,7 +216,16 @@ internal sealed class ModuloFones : Modulo
         var arquivos = Fotos.Arquivos();
         if (f.Modelo is ushort m && ModelosApple.Foto(m) is string pelaApple && arquivos.Contains(pelaApple, StringComparer.OrdinalIgnoreCase))
             return pelaApple;
+        if (f.Tipo == TipoAparelho.Controle) return ControllerPhoto(f.Nome, arquivos);
         return Fotos.Escolher(f.Nome, arquivos, _cfg.Fotos, f.Mouse ? _cfg.CorMouse : _cfg.CorG733);
+    }
+
+    /// <summary>A controller's photo (4.2.0): matched by the known model's name, the Xbox one by color.</summary>
+    private string? ControllerPhoto(string deviceName, List<string> files)
+    {
+        var k = Controllers.ByName(deviceName);
+        string name = k?.PhotoName ?? deviceName;
+        return Fotos.Escolher(name, files, _cfg.Fotos, k?.Xbox == true ? Controllers.XboxColor(deviceName, _cfg.CorXbox) : null);
     }
 
     /// <summary>Foto (e bateria do Windows) fora da interface; o alerta aparece quando ela fica pronta.</summary>
@@ -438,7 +462,20 @@ internal sealed class ModuloFones : Modulo
 
     private void KeyboardAdded(string id, string name, bool initial)
     {
-        if (_parado || !_cfg.Teclados || _keyboards.ContainsKey(id) || Keyboards.ParseIds(id) is not var (vid, pid)) return;
+        if (_parado || _keyboards.ContainsKey(id) || Keyboards.ParseIds(id) is not var (vid, pid)) return;
+        // a controller plugged in with a cable (4.2.0): the same card as over Bluetooth, with its photo
+        if (Controllers.ByIds(vid, pid) is { } pad)
+        {
+            if (!_cfg.Controles) return;
+            Log.Escrever($"fones: controle USB {vid:X4}:{pid:X4} \"{name}\" = {pad.Name}{(initial ? " (já estava)" : "")}");
+            var c = new Fone { Chave = "usb:" + id, Nome = pad.Name, Tipo = TipoAparelho.Controle };
+            _keyboards[id] = c;
+            if (initial || Environment.TickCount64 - _resumedAt < 20_000 || Ignorado(pad.Name) || Ignorado(name)) return;
+            c.Foto = ControllerPhoto(pad.Name + " " + name, Fotos.Arquivos());
+            PrepararEMostrar(c, lerBateriaDoWindows: false);
+            return;
+        }
+        if (!_cfg.Teclados) return;
         var k = Keyboards.Match(vid, pid, name);
         // the Huntsman's product id was not known when this was written: the log keeps every Razer device's
         if (vid == Keyboards.Razer || k != null)
@@ -454,7 +491,7 @@ internal sealed class ModuloFones : Modulo
 
     private void KeyboardRemoved(string id)
     {
-        if (_keyboards.Remove(id, out var f)) Log.Escrever($"fones: teclado {f.Nome} saiu");
+        if (_keyboards.Remove(id, out var f)) Log.Escrever($"fones: {(f.Tipo == TipoAparelho.Controle ? "controle" : "teclado")} {f.Nome} saiu");
     }
 
     /// <summary>The keyboard's own photo when it is in imagens/fones, else one from "fotos" in the config; never a guess by
@@ -973,6 +1010,14 @@ public sealed class ConfigFones
     [Help("Mostra o teclado quando ele é conectado (Logitech G213 e Razer Huntsman V3 HE TKL)",
         "Shows the keyboard when it is plugged in (Logitech G213 and Razer Huntsman V3 HE TKL)")]
     [JsonPropertyName("teclados")] public bool Teclados { get; set; } = true;
+    [Label("Controles de videogame", "Game controllers")]
+    [Help("Mostra o controle quando ele conecta (Xbox Series e DualSense, por Bluetooth ou cabo)",
+        "Shows the controller when it connects (Xbox Series and DualSense, over Bluetooth or cable)")]
+    [JsonPropertyName("controles")] public bool Controles { get; set; } = true;
+    [Label("Cor do controle de Xbox (foto)", "Xbox controller color (photo)")]
+    [Help("branco ou preto. Com os dois controles, renomeie um deles no Painel de Controle > Dispositivos e Impressoras (\"Xbox Wireless Controller Branco\"): a cor no nome vale",
+        "branco or preto (white or black). With both controllers, rename one in Control Panel > Devices and Printers (\"Xbox Wireless Controller White\"): the color in the name wins")]
+    [JsonPropertyName("corXbox")] public string CorXbox { get; set; } = "preto";
     [Label("Intervalo do G HUB (segundos)", "G HUB interval (seconds)")]
     [JsonPropertyName("intervaloGHubSegundos")] public int IntervaloGHubSegundos { get; set; } = 60;
 }

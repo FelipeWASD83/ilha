@@ -40,3 +40,14 @@ The other brands (downloaded on 01/11/2026) all have a transparent background, e
 cut out). Sizes: Sony, Beats and Corsair 1200×1200; Bose 1632×1224; JBL 1605×1605; Logitech 1384×1038; SteelSeries
 1172×938; Nothing 2048×2048; HyperX 1500×1500; Samsung 800×600 (Samsung's original size); Razer 500×500 (the largest
 transparent PNG Razer publishes; its large gallery is JPG with a dark background).
+
+## Game controllers (4.2.0, downloaded on 06/11/2026)
+
+| File | Product | Source |
+|---|---|---|
+| `xbox-wireless-controller-preto.png` | Xbox Wireless Controller, Carbon Black (front) | Microsoft Store (Scene7), `cdn-dynmedia-1.microsoft.com/is/image/microsoftcorp/gldn-Xbox-Cntrl-Black-b00?wid=1600&hei=1600&fmt=png-alpha` (page `microsoft.com/en-us/d/xbox-wireless-controller/8xn59crbsqgz`), cropped, 1200×831 |
+| `xbox-wireless-controller-branco.png` | Xbox Wireless Controller, Robot White (front) | same, `.../gldn-Xbox-Cntrl-White-b01-1?...`, cropped, 1200×823 |
+| `dualsense-wireless-controller.png` | DualSense, white (front) | PlayStation, `gmedia.playstation.com/is/image/SIEPDC/dualsense-controller-product-thumbnail-03-en-29may23?fmt=png-alpha&wid=1600` (page `playstation.com/en-us/accessories/dualsense-wireless-controller/`), cropped, 968×668 |
+| `dualsense-edge-wireless-controller.png` | DualSense Edge (front) | PlayStation Direct, `media.direct.playstation.com/is/image/sierialto/dualsense-edge-ps5-controller-front?fmt=png-alpha&wid=1600`, cropped, 824×606 |
+
+All four with a transparent background.
