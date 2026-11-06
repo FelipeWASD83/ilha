@@ -83,8 +83,11 @@ internal sealed class KeyboardModule : Modulo
             if (_lastProfile != null && p.Active != _lastProfile)
             {
                 Log.Escrever($"teclado: perfil {p.ActiveName ?? p.Active}");
-                // Synapse writes the new profile to the keyboard right after logging it
-                var later = new System.Windows.Forms.Timer { Interval = 1500 };
+                // Synapse is still writing the profile for ~4 s after the log line (watched on 06/11/2026: the
+                // keys sit on the factory values first). A read of ours in that window mixed up its replies and
+                // left the keyboard at 1.2 mm, so the island keeps off the keyboard for SILENCIO_APOS_TROCA.
+                _profileChangedAt = DateTime.Now;
+                var later = new System.Windows.Forms.Timer { Interval = (int)SILENCIO_APOS_TROCA.TotalMilliseconds };
                 later.Tick += (_, _) => { later.Stop(); later.Dispose(); ReadSnap(notify: true, profileChanged: true); };
                 later.Start();
             }
@@ -93,8 +96,12 @@ internal sealed class KeyboardModule : Modulo
             S.Menu.Redesenhar();
         }
         // the Snap Tap can change in Synapse without a profile change: read it again now and then while plugged in
-        if (_present && DateTime.Now - _snapReadAt > TimeSpan.FromSeconds(30)) ReadSnap(notify: true);
+        if (_present && DateTime.Now - _snapReadAt > TimeSpan.FromSeconds(30) && DateTime.Now - _profileChangedAt > SILENCIO_APOS_TROCA)
+            ReadSnap(notify: true);
     }
+
+    private static readonly TimeSpan SILENCIO_APOS_TROCA = TimeSpan.FromSeconds(15);
+    private DateTime _profileChangedAt = DateTime.MinValue;
 
     private void AddMenu() => S.Menu.Adicionar(new ItemDoMenu
     {

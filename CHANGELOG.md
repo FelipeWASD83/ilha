@@ -1,5 +1,12 @@
 # Changelog
 
+## 4.3.1 (06/11/2026)
+
+**Fixed**
+- Keyboard: after a profile switch in Synapse the island waits 15 seconds before reading the keyboard (it read it 1.5
+  seconds after, while Synapse was still writing the profile, which could leave every key at 1.2 mm). The Snap Tap
+  notice after a switch comes 15 seconds later because of it.
+
 ## 4.3.0 (06/11/2026)
 
 **New**

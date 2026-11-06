@@ -682,6 +682,9 @@ and the points that matter are here.
   Snap Tap and was not kicked; he uses a profile without it ("SnapTapLess") for CS2 and Rocket League. **The toggle
   was tested with him on 06/11/2026**: on and off from the card, both accepted, the A/D pair kept (read back over HID),
   and he felt it in use. A read can find the keyboard busy (Synapse talking): `Command` asks again up to 3 times.
+  **4.3.1:** a profile switch puts every key at 1.2 mm first and Synapse keeps writing the profile ~4 s after its log
+  line (watched on 06/11/2026); a read of ours in that window can leave the keyboard stuck at 1.2 mm. The module stays
+  off the keyboard for `SILENCIO_APOS_TROCA` (15 s) after a switch: the after-switch read and the 30 s read wait for it.
   **Not tested yet:** the guard in a real competitive match.
 - **DSX** (`Modulos/Dsx/`, id `dsx`): DSX 3.1.7 (Steam 1812620, `Main_v3_Beta`) has a mod server: JSON over UDP to
   127.0.0.1:6969 (`app_settings.json`: `use_incoming_udp`, `incoming_udp_port`). Read with REA and dnfile from
