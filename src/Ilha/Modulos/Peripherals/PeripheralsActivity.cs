@@ -15,7 +15,7 @@ namespace Ilha.Peripherals;
 /// </summary>
 internal sealed class PeripheralsActivity : Atividade
 {
-    private const float L = 352, HEADER = 38, PROFILE = 54, BTN_H = 32, BTN_GAP = 8, ROW = 26, OPEN_H = 34;
+    private const float L = 352, HEADER = 38, PROFILE = 54, BTN_H = 32, BTN_GAP = 8, ROW = 26, OPEN_H = 34, KB_H = 70;
     private const int COLS = 3, MAX_PROFILES = 12, MAX_DEVICES = 6;
 
     /// <summary>The orange of Gear Hub's icon (#ff8a3d) and the colors of its three knobs.</summary>
@@ -125,7 +125,12 @@ internal sealed class PeripheralsActivity : Atividade
         var saved = st.Saved.Take(MAX_PROFILES).ToList();
         var devices = st.Devices.Take(MAX_DEVICES).ToList();
         int rows = ProfileRows(saved.Count);
-        float profilesTop = HEADER + PROFILE;
+        // the keyboard block (4.4.0): Synapse's profile, the live Snap Tap with its pairs and the switch
+        var kb = Keyboard.KeyboardModule.Instance is { Plugged: true } k ? k : null;
+        float kbTop = HEADER + PROFILE, kbH = kb != null ? KB_H + 14 : 0;
+        bool? snapOn = _m.SnapTapOn;
+        var kbButton = new System.Drawing.RectangleF(L - 110, kbTop + 18, 96, 34);
+        float profilesTop = kbTop + kbH;
         float profilesH = saved.Count > 0 ? 22 + rows * BTN_H + (rows - 1) * BTN_GAP + 14 : 0;
         float devicesTop = profilesTop + profilesH;
         float devicesH = devices.Count > 0 ? 22 + devices.Count * ROW + 10 : 0;
@@ -146,7 +151,7 @@ internal sealed class PeripheralsActivity : Atividade
                 var gs = p.Texto.Medir("Gear Hub", 15, FontWeight.SemiBold);
                 p.Texto.Desenhar(dc, v, new Vector2(32 + gs.X + 8, 5), 11.5f, Cor.Fraco, FontWeight.Normal);
             }
-            if (st.SnapTap is bool on)
+            if (kb == null && st.SnapTap is bool on)
             {
                 Icone.Retangulo(dc, chip.X, chip.Y, chip.Width, chip.Height, 13, new Color4(1, 1, 1, 0.08f));
                 Icone.Circulo(dc, new Vector2(chip.X + 14, chip.Y + 13), 4, on ? SnapOn : new Color4(1, 1, 1, 0.45f));
@@ -158,6 +163,27 @@ internal sealed class PeripheralsActivity : Atividade
             p.Texto.Desenhar(dc, st.ProfileDisplay ?? Lang.T("nenhum", "none"), new Vector2(0, HEADER + 16), 20,
                 st.ProfileDisplay != null ? Cor.Branco : Cor.Fraco, FontWeight.Bold, largura: L);
             if (problem != null) p.Texto.Desenhar(dc, problem, new Vector2(L / 2, HEADER + 2), 11.5f, Cor.Laranja, FontWeight.Normal, largura: L / 2);
+
+            // the keyboard
+            if (kb != null)
+            {
+                Icone.Retangulo(dc, 0, kbTop, L, KB_H, 14, new Color4(1, 1, 1, 0.06f));
+                global::Ilha.Extras.Desenhos.Teclado(dc, fab, new Vector2(24, kbTop + 22), 22, Cor.Branco);
+                string kbName = kb.Profiles?.ActiveName is { } pn ? Lang.T("Teclado · ", "Keyboard · ") + pn : Lang.T("Teclado", "Keyboard");
+                p.Texto.Desenhar(dc, kbName, new Vector2(44, kbTop + 12), 13.5f, Cor.Branco, FontWeight.SemiBold, largura: kbButton.X - 52);
+                string state = snapOn is bool sOn ? "Snap Tap " + (sOn ? Lang.T("ligado", "on") : Lang.T("desligado", "off")) : "Snap Tap";
+                var snap = kb.Snap;
+                string pairs = snap?.Used.Count > 0 ? " · " + string.Join(", ", snap.Used.Select(Keyboard.RazerProtocol.PairText)) : "";
+                Icone.Circulo(dc, new Vector2(48, kbTop + 45), 3.5f, snapOn == true ? SnapOn : new Color4(1, 1, 1, 0.45f));
+                p.Texto.Desenhar(dc, state + pairs, new Vector2(57, kbTop + 37), 12, snapOn == true ? SnapOn : Cor.Secundario, FontWeight.Normal, largura: kbButton.X - 64);
+                if (snapOn is bool b2)
+                {
+                    Icone.Retangulo(dc, kbButton.X, kbButton.Y, kbButton.Width, kbButton.Height, 17, b2 ? new Color4(1, 1, 1, 0.12f) : new Color4(SnapOn.R, SnapOn.G, SnapOn.B, 0.22f));
+                    string bt = b2 ? Lang.T("Desligar", "Turn off") : Lang.T("Ligar", "Turn on");
+                    var bs = p.Texto.Medir(bt, 12.5f, FontWeight.SemiBold);
+                    p.Texto.Desenhar(dc, bt, new Vector2(kbButton.X + (kbButton.Width - bs.X) / 2, kbButton.Y + 8), 12.5f, Cor.Branco, FontWeight.SemiBold);
+                }
+            }
 
             // saved profiles as buttons
             if (saved.Count > 0)
@@ -201,7 +227,18 @@ internal sealed class PeripheralsActivity : Atividade
             p.Texto.Desenhar(dc, open, new Vector2((L - os.X) / 2, openTop + 8), 13, Cor.Branco, FontWeight.SemiBold);
         });
 
-        if (st.SnapTap != null) c.Botoes.Add(new Botao { Area = chip, Acao = _m.SnapTapPressed });
+        if (kb == null && st.SnapTap != null) c.Botoes.Add(new Botao { Area = chip, Acao = _m.SnapTapPressed });
+        if (kb != null)
+        {
+            // the switch, and the rest of the block opens the keyboard card (Synapse's profiles)
+            if (snapOn != null) c.Botoes.Add(new Botao { Area = kbButton, Acao = _m.SnapTapPressed });
+            c.Botoes.Add(new Botao { Area = new System.Drawing.RectangleF(0, kbTop, kbButton.X - 8, KB_H), Acao = kb.OpenCard });
+        }
+        for (int i = 0; i < devices.Count; i++)
+        {
+            var d = devices[i];
+            c.Botoes.Add(new Botao { Area = new System.Drawing.RectangleF(0, devicesTop + 22 + i * ROW - 2, L, ROW), Acao = () => _m.DevicePressed(d) });
+        }
         for (int i = 0; i < saved.Count; i++)
         {
             string name = saved[i].Name;

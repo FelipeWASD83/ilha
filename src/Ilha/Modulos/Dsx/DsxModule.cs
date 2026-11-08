@@ -30,8 +30,20 @@ internal sealed class DsxModule : Modulo
 
     internal DsxDevice? Device => State?.Devices.FirstOrDefault();
 
+    /// <summary>The module the Peripherals card opens for a DualSense (4.4.0); null when the module is off.</summary>
+    internal static DsxModule? Instance { get; private set; }
+
+    /// <summary>The controller card, when DSX is open and has a controller (the Peripherals card's DualSense row).</summary>
+    internal bool OpenCard()
+    {
+        if (Device == null || _activity == null) return false;
+        _activity.Open();
+        return true;
+    }
+
     protected override void Iniciar(JsonObject cfg)
     {
+        Instance = this;
         _activity = new DsxActivity(S, this);
         S.Ilha.Adicionar(_activity);
         _tick.Tick += (_, _) => Poll();
@@ -42,6 +54,7 @@ internal sealed class DsxModule : Modulo
     public override void Parar()
     {
         _stopped = true;
+        if (Instance == this) Instance = null;
         _tick.Stop();
         _tick.Dispose();
     }

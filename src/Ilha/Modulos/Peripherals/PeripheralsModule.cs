@@ -49,13 +49,17 @@ internal sealed class PeripheralsModule : Modulo
             on => S.NaInterface(() => OnConnection(on)),
             IsGearHub);
         _link.Start();
+        Keyboard.KeyboardModule.StateChanged += KeyboardChanged;
     }
+
+    private void KeyboardChanged() { if (!_stopped) _activity?.Changed(); }
 
     public override void ConfigMudou(JsonObject cfg) => _cfg = Ler<ConfigPerifericos>(cfg);
 
     public override void Parar()
     {
         _stopped = true;
+        Keyboard.KeyboardModule.StateChanged -= KeyboardChanged;
         _batchTimer.Stop();
         _batchTimer.Dispose();
         _link?.Dispose();
@@ -149,20 +153,48 @@ internal sealed class PeripheralsModule : Modulo
 
     internal void ApplyProfile(string name) => Request(GearHubProtocol.Profile(name));
 
-    internal void ShowGearHub() => Request(GearHubProtocol.Show());
+    internal void ShowGearHub(string? page = null) => Request(GearHubProtocol.Show(page));
 
     /// <summary>
-    /// The Snap Tap chip: the keyboard module already has the Snap Tap card (state, key pairs, the switch), so with its
-    /// menu entry there the chip opens it; without it (keyboard module off) the chip asks Gear Hub to switch.
+    /// The live Snap Tap: Gear Hub's word when it sent one, else what the keyboard module read off the keyboard.
+    /// </summary>
+    internal bool? SnapTapOn => State.SnapTap ?? Keyboard.KeyboardModule.Instance?.Snap?.Enabled;
+
+    /// <summary>
+    /// The Snap Tap switch (4.4.0: the keyboard lives in this card now): Gear Hub switches it, so its own state stays
+    /// right, and the keyboard module reads the keyboard again to show the pairs.
     /// </summary>
     internal void SnapTapPressed()
     {
-        if (S.Menu.Itens.FirstOrDefault(i => i.Id == "teclado") is { } kb) { kb.Abrir(); return; }
-        if (State.SnapTap is bool on) Request(GearHubProtocol.SnapTap(!on));
+        if (SnapTapOn is not bool on) return;
+        Request(GearHubProtocol.SnapTap(!on));
+        Keyboard.KeyboardModule.Instance?.RefreshSoon();
     }
 
-    private void Request(string json)
+    /// <summary>
+    /// A device row: the keyboard opens its card (Synapse's profiles, the pairs), a DualSense the DSX card when DSX has
+    /// it, anything else Gear Hub on that device's page.
+    /// </summary>
+    internal void DevicePressed(GearDevice d) => Request(DeviceAction(d, Keyboard.KeyboardModule.Instance, Dsx.DsxModule.Instance) switch
     {
+        "teclado" when Keyboard.KeyboardModule.Instance is { } kb => Do(kb.OpenCard),
+        "dsx" when Dsx.DsxModule.Instance?.OpenCard() == true => null,
+        _ => GearHubProtocol.Show(d.Key),
+    });
+
+    private static string? Do(Action a) { a(); return null; }
+
+    /// <summary>What a device row does: "teclado", "dsx" or "gearhub" (pure, the self test checks it).</summary>
+    internal static string DeviceAction(GearDevice d, Keyboard.KeyboardModule? kb, Dsx.DsxModule? dsx)
+    {
+        if (d.Kind == "keyboard" && d.Key.StartsWith("razer-", StringComparison.OrdinalIgnoreCase) && kb?.Plugged == true) return "teclado";
+        if (d.Kind == "controller" && d.Key.StartsWith("dualsense", StringComparison.OrdinalIgnoreCase) && dsx?.Device != null) return "dsx";
+        return "gearhub";
+    }
+
+    private void Request(string? json)
+    {
+        if (json == null) return;
         bool ok = _link?.Send(json) == true;
         Problem = ok ? null : Lang.T("O Gear Hub não respondeu.", "Gear Hub did not answer.");
         if (!ok) Log.Escrever("periféricos: pedido não foi para o Gear Hub");
@@ -305,6 +337,13 @@ internal sealed class PeripheralsModule : Modulo
             JsonNode.Parse(GearHubProtocol.Profile("cs2 \"x\""))!["name"]!.GetValue<string>() == "cs2 \"x\"" && GearHubProtocol.Profile("a") == """{"cmd":"profile","name":"a"}"""
             && GearHubProtocol.SnapTap(true) == """{"cmd":"snaptap","on":true}""" && GearHubProtocol.Show() == """{"cmd":"show"}"""
             && GearHubProtocol.Show("profiles") == """{"cmd":"show","page":"profiles"}""" && GearHubProtocol.State() == """{"cmd":"state"}""");
+
+        // 4.4.0: what a device row does without the keyboard and DSX modules (both Gear Hub's page then)
+        Ok("periféricos: aparelho sem módulo próprio abre o Gear Hub na página dele",
+            DeviceAction(new GearDevice("razer-02ea", "Huntsman", "keyboard", null, null), null, null) == "gearhub"
+            && DeviceAction(new GearDevice("dualsense-std", "DualSense", "controller", null, 80), null, null) == "gearhub"
+            && DeviceAction(new GearDevice("logi-4a1b", "G502", "mouse", null, 64), null, null) == "gearhub"
+            && JsonNode.Parse(GearHubProtocol.Show("logi-4a1b"))!["page"]!.GetValue<string>() == "logi-4a1b");
 
         RecordSnapTap(true);
         Ok("periféricos: o teclado pula o aviso que o Gear Hub já deu", SnapTapJustReported(true) && !SnapTapJustReported(false));

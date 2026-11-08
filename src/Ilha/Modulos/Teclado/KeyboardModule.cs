@@ -15,7 +15,7 @@ namespace Ilha.Keyboard;
 ///   the card, keeping the key pairs (it lasts until the next profile change, when Synapse writes the profile again);
 /// - guards CS2's competitive modes (Valve kicks Snap Tap there): a notice when it is on, or, if he asks, it turns it
 ///   off for the match and back on after.
-/// The menu entry "Teclado" exists while the keyboard is plugged in.
+/// Its card is reached from the Peripherals card (4.4.0: the "Teclado" menu entry went away, his request).
 /// </summary>
 [Modulo("teclado", "Teclado Razer", English = "Razer keyboard")]
 internal sealed class KeyboardModule : Modulo
@@ -43,6 +43,7 @@ internal sealed class KeyboardModule : Modulo
     protected override void Iniciar(JsonObject cfg)
     {
         _cfg = Ler<ConfigTeclado>(cfg);
+        Instance = this;
         _activity = new KeyboardActivity(S, this);
         S.Ilha.Adicionar(_activity);
         GamesModule.MatchChanged += OnMatch;
@@ -56,6 +57,7 @@ internal sealed class KeyboardModule : Modulo
     public override void Parar()
     {
         _stopped = true;
+        if (Instance == this) Instance = null;
         GamesModule.MatchChanged -= OnMatch;
         _tick.Stop();
         _tick.Dispose();
@@ -73,7 +75,7 @@ internal sealed class KeyboardModule : Modulo
             {
                 _present = now;
                 Log.Escrever(now ? "teclado: Huntsman V3 HE presente" : "teclado: Huntsman V3 HE saiu");
-                if (now) AddMenu(); else S.Menu.Remover("teclado");
+                Changed();
                 if (now) ReadSnap(notify: false);
             }
         }
@@ -92,7 +94,7 @@ internal sealed class KeyboardModule : Modulo
                 later.Start();
             }
             _lastProfile = p.Active;
-            _activity?.Changed();
+            Changed();
             S.Menu.Redesenhar();
         }
         // the Snap Tap can change in Synapse without a profile change: read it again now and then while plugged in
@@ -103,13 +105,33 @@ internal sealed class KeyboardModule : Modulo
     private static readonly TimeSpan SILENCIO_APOS_TROCA = TimeSpan.FromSeconds(15);
     private DateTime _profileChangedAt = DateTime.MinValue;
 
-    private void AddMenu() => S.Menu.Adicionar(new ItemDoMenu
+    /// <summary>
+    /// The module the Peripherals card reads (4.4.0, his request on 08/11/2026: the "Teclado" menu entry went away and
+    /// the keyboard lives in Gear Hub's card). Null when the module is off.
+    /// </summary>
+    internal static KeyboardModule? Instance { get; private set; }
+
+    internal bool Plugged => _present;
+
+    /// <summary>Something the cards show changed (the Peripherals card listens).</summary>
+    internal static event Action? StateChanged;
+
+    private void Changed()
     {
-        Id = "teclado", Nome = Lang.T("Teclado", "Keyboard"), Ordem = 66,
-        Abrir = () => _activity?.Open(),
-        Icone = (dc, p, r) => KeyboardActivity.Glyph(dc, p.G.Fabrica, r, Cor.Branco),
-        Detalhe = () => Profiles?.ActiveName,
-    });
+        _activity?.Changed();
+        try { StateChanged?.Invoke(); } catch (Exception e) { Log.Escrever("teclado: quem ouve: " + e.Message); }
+    }
+
+    /// <summary>The full keyboard card (Synapse's profiles, the Snap Tap pairs), opened from the Peripherals card.</summary>
+    internal void OpenCard() => _activity?.Open();
+
+    /// <summary>Reads Snap Tap again shortly (Gear Hub just switched it): the card shows the new state and pairs.</summary>
+    internal void RefreshSoon()
+    {
+        var t = new System.Windows.Forms.Timer { Interval = 1200 };
+        t.Tick += (_, _) => { t.Stop(); t.Dispose(); ReadSnap(notify: false); };
+        t.Start();
+    }
 
     /// <summary>Reads the live Snap Tap off the interface thread; a change becomes a notice when `notify`.</summary>
     internal void ReadSnap(bool notify, bool profileChanged = false)
@@ -134,7 +156,7 @@ internal sealed class KeyboardModule : Modulo
                     && !global::Ilha.Peripherals.PeripheralsModule.SnapTapJustReported(s.Enabled);
                 if (notify && s != null && (profileChanged ? _cfg.AvisarPerfil : changed && _cfg.AvisarSnapTap))
                     Notice(profileChanged);
-                _activity?.Changed();
+                Changed();
                 CheckGuard();
             });
         });
@@ -153,11 +175,11 @@ internal sealed class KeyboardModule : Modulo
         if (on && s.Used.Count == 0)
         {
             Problem = Lang.T("Esse perfil não tem par de teclas no Snap Tap (configure no Synapse).", "This profile has no Snap Tap key pair (set it in Synapse).");
-            _activity?.Changed();
+            Changed();
             return;
         }
         _reading = true;
-        _activity?.Changed();
+        Changed();
         Task.Run(() =>
         {
             bool ok = false;
@@ -167,7 +189,7 @@ internal sealed class KeyboardModule : Modulo
             S.NaInterface(() =>
             {
                 _reading = false;
-                if (!ok) { Problem = Lang.T("O teclado não aceitou a mudança.", "The keyboard did not take the change."); _activity?.Changed(); return; }
+                if (!ok) { Problem = Lang.T("O teclado não aceitou a mudança.", "The keyboard did not take the change."); Changed(); return; }
                 ReadSnap(notify: false);
             });
         });

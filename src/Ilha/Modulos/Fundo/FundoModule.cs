@@ -30,19 +30,42 @@ internal sealed class FundoModule : Modulo
         var atv = new PickerActivity(S, () => _cfg, c => { _cfg = c; Salvar(c); });
         _atv = atv;
         S.Ilha.Adicionar(atv);
-        S.Menu.Adicionar(new ItemDoMenu
+        // 4.4.0 (his request on 08/11/2026): the entry exists only while Fundo Vivo runs, checked every 5 s
+        _watch.Tick += (_, _) => Watch();
+        _watch.Start();
+        Watch();
+    }
+
+    private readonly System.Windows.Forms.Timer _watch = new() { Interval = 5000 };
+    private bool _menu;
+
+    /// <summary>Fundo Vivo open (its app or its engine, both are FundoVivo.exe): the "Fundo" entry is there.</summary>
+    private void Watch()
+    {
+        bool open = Games.GamesModule.Running("FundoVivo");
+        if (open == _menu || _atv is not { } atv) return;
+        _menu = open;
+        if (open)
         {
-            Id = "fundo", Nome = Lang.T("Fundo", "Wallpaper"), Ordem = 58,
-            Abrir = atv.OpenCard,
-            Icone = (dc, p, r) => Icon(dc, p.G.Fabrica, r),
-            Detalhe = atv.MenuDetail,
-        });
+            S.Menu.Adicionar(new ItemDoMenu
+            {
+                Id = "fundo", Nome = Lang.T("Fundo", "Wallpaper"), Ordem = 58,
+                Abrir = atv.OpenCard,
+                Icone = (dc, p, r) => Icon(dc, p.G.Fabrica, r),
+                Detalhe = atv.MenuDetail,
+            });
+            return;
+        }
+        S.Menu.Remover("fundo");
+        if (S.Ilha.Expandida == atv) S.Ilha.Recolher();
     }
 
     public override void ConfigMudou(JsonObject cfg) => _cfg = Ler<ConfigFundo>(cfg);
 
     public override void Parar()
     {
+        _watch.Stop();
+        _watch.Dispose();
         if (_atv != null && S.Ilha.Expandida == _atv) S.Ilha.Recolher();
     }
 

@@ -1,5 +1,19 @@
 # Changelog
 
+## 4.4.0 (08/11/2026)
+
+**Changed**
+- The keyboard moved into the Peripherals card: the Synapse profile in use, Snap Tap with its key pair and a button to
+  turn it on or off (through Gear Hub). A tap on the block opens the full keyboard card. The "Keyboard" menu entry is
+  gone; the profile and Snap Tap notices and the CS2 guard keep working.
+- The devices in the Peripherals card can be tapped: the DualSense opens the DSX card (when DSX has it), anything else
+  opens Gear Hub on that device's page.
+- "Wallpaper" is in the menu only while Fundo Vivo is open (Peripherals already only shows with Gear Hub).
+- The Do Not Disturb button switches only Windows' Do Not Disturb, without turning on the Do Not Disturb focus mode,
+  and it is lit whenever Windows has it on.
+- Claude limit: with no 5-hour window (the Ultra plan has only the weekly one), that row is gone and the card shows
+  only the week.
+
 ## 4.3.1 (06/11/2026)
 
 **Fixed**

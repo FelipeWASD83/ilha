@@ -744,6 +744,26 @@ and the points that matter are here.
   process). **Not tested**: against the real Gear Hub (its side of the pipe was being written the same day) and on
   screen (the notices, the card, the profile over a real competitive game).
 
+## 4.4.0 (his requests on 08/11/2026)
+
+- **No "Teclado" menu entry**: the keyboard module keeps running (notices, CS2 guard, HID reads) and its card opens
+  from the Peripherals card's keyboard block. `KeyboardModule.Instance`, `Plugged`, `OpenCard`, `RefreshSoon` and the
+  static `StateChanged` (the Peripherals card redraws on it). The block's switch sends `snaptap` to **Gear Hub** (it is
+  the app in charge, so its own state stays right) and the keyboard module reads the keyboard again 1.2 s later for the
+  pairs; `PeripheralsModule.SnapTapOn` = Gear Hub's word, else the keyboard module's read. Device rows are buttons:
+  `DeviceAction` (pure) gives "teclado" (Razer keyboard, module present), "dsx" (DualSense with DSX having a
+  controller: `DsxModule.Instance.OpenCard`) or "gearhub" (`show` with the device key as `page`). Gear Hub's channel has
+  only `state`, `profile`, `snaptap` and `show`: DPI and lighting can't be set from the island without changing Gear Hub.
+- **App-bound menu entries**: "Fundo" exists only while a `FundoVivo` process runs (checked every 5 s; the open card
+  collapses when it closes). "Periféricos" already existed only while Gear Hub's pipe was connected; "Controle" (DSX)
+  only with DSX running and a controller.
+- **Do Not Disturb ball** (`FocoModule`): toggles Windows' Do Not Disturb only (`WindowsDnd.Read/Write`, off the UI
+  thread), never the "Não Perturbe" focus mode (still in the Focus card). Lit from `Contexto.NaoPerturbeLido` (the
+  quiet hours WNF state), so the taskbar or a focus mode lighting Windows' DND shows too.
+- **Claude limit card**: no `five_hour` in the status line (the Ultra plan, his since 07/11/2026, has only the weekly
+  limit) = no "Sessão de 5 horas" row and a shorter card; `_montado` remembers (empty, with session) to rebuild when it
+  changes.
+
 ## Updater
 
 - `Modulos/Atualizador`: looks at the releases of `FelipeWASD83/ilha` (6 h cache), downloads, checks the SHA-256,

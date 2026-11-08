@@ -25,7 +25,9 @@ internal sealed class AtividadeLimite : Atividade
     private readonly Func<int[]> _limiares;
     // só com o cartão na tela: o "atualizado há" anda sozinho
     private readonly System.Windows.Forms.Timer _idade = new() { Interval = 30_000 };
-    private bool? _vazioMontado;
+    // the layout the card was built with: empty or not, and with the 5-hour row or not (4.4.0: the Ultra plan has no
+    // 5-hour window, so the row goes away and the card shrinks)
+    private (bool Vazio, bool Sessao)? _montado;
 
     public AtividadeLimite(Func<LeituraDoUso?> leitura, Func<bool> arquivoExiste, Func<int[]> limiares)
     {
@@ -43,10 +45,12 @@ internal sealed class AtividadeLimite : Atividade
 
     private bool Vazio => _leitura() == null;
 
+    private bool ComSessao => _leitura()?.Sessao != null;
+
     /// <summary>Chegou leitura nova, o reset passou ou a config mudou.</summary>
     public void Atualizar()
     {
-        if (_vazioMontado != null && _vazioMontado != Vazio) MudouTamanho();
+        if (_montado != null && _montado != (Vazio, ComSessao)) MudouTamanho();
         else Redesenhar();
     }
 
@@ -107,11 +111,11 @@ internal sealed class AtividadeLimite : Atividade
 
     private Cena Cartao(Palco p)
     {
-        bool vazio = Vazio;
-        _vazioMontado = vazio;
+        bool vazio = Vazio, sessao = ComSessao;
+        _montado = (vazio, sessao);
         // the note at the bottom: only the terminal Claude Code runs the status line (he found out on 02/11/2026: the
         // desktop app's sessions never write the file), so the numbers stop moving while only the app is used
-        float yAviso = vazio ? 102 : TOPO + 2 * LINHA + 2;
+        float yAviso = vazio ? 102 : TOPO + (sessao ? 2 : 1) * LINHA + 2;
         float altura = yAviso + 32;
         var c = p.NovaCena(new Vector2(L, altura));
         p.Desenho(c, Vector2.Zero, c.Tamanho, (dc, t) =>
@@ -150,8 +154,10 @@ internal sealed class AtividadeLimite : Atividade
             p.Texto.Desenhar(dc, idade, new Vector2(L - MathF.Min(ti.X, 140), 2), 12, Cor.Secundario, FontWeight.Normal, largura: 140);
             var limiares = _limiares();
             var agoraLocal = DateTime.Now;
-            Linha(dc, p, TOPO, Lang.T("Sessão de 5 horas", "5-hour session"), l.Sessao, agora, agoraLocal, limiares);
-            Linha(dc, p, TOPO + LINHA, Lang.T("Semana", "Week"), l.Semana, agora, agoraLocal, limiares);
+            // no 5-hour reading (the Ultra plan has only the weekly limit): only the week
+            float y = TOPO;
+            if (sessao) { Linha(dc, p, y, Lang.T("Sessão de 5 horas", "5-hour session"), l.Sessao, agora, agoraLocal, limiares); y += LINHA; }
+            Linha(dc, p, y, Lang.T("Semana", "Week"), l.Semana, agora, agoraLocal, limiares);
         });
         return c;
     }

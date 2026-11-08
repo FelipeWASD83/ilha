@@ -74,12 +74,15 @@ internal sealed class FocoModule : Modulo
         });
         S.Menu.Adicionar(new ItemDoMenu
         {
+            // 4.4.0 (his request on 08/11/2026): Windows' own Do Not Disturb only, not the "Não Perturbe" focus mode,
+            // and lit whenever Windows has it on (from the island, the taskbar or a focus mode)
             Id = "nao-perturbe", Nome = Lang.T("Não Perturbe", "Do Not Disturb"), Ordem = 7,
-            Abrir = () => Toggle(DoNotDisturb()),
+            Abrir = ToggleWindowsDnd,
             Icone = (dc, p, r) => FocusIcons.BellOff(dc, p.G.Fabrica, r, Cor.Branco),
-            BodyColor = () => _active?.Id == FocusMode.DoNotDisturbId ? FocusIcons.ColorOf(DoNotDisturb()?.Cor ?? "indigo") : null,
-            Detalhe = () => _active?.Id == FocusMode.DoNotDisturbId ? Lang.T("ligado", "on") : null,
+            BodyColor = () => _windowsDnd ? FocusIcons.ColorOf("indigo") : null,
+            Detalhe = () => _windowsDnd ? Lang.T("ligado", "on") : null,
         });
+        _windowsDnd = S.ContextoAtual().NaoPerturbeLido == true;
         // a mode turned on by hand stays on after the island restarts
         if (ReadState() is { } id && Find(id) is { } kept) Activate(kept, byAuto: false, announce: false);
         _tick.Tick += (_, _) => Evaluate();
@@ -126,8 +129,43 @@ internal sealed class FocoModule : Modulo
         S.Menu.Redesenhar();
     }
 
+    // Windows' Do Not Disturb as last read (the menu ball lights up with it)
+    private bool _windowsDnd, _dndBusy;
+
+    /// <summary>The menu ball: Windows' Do Not Disturb on or off, nothing else (off the interface thread: it calls the shell).</summary>
+    private void ToggleWindowsDnd()
+    {
+        if (_dndBusy) return;
+        _dndBusy = true;
+        Task.Run(() =>
+        {
+            bool? now = null;
+            string? problem = null;
+            try
+            {
+                bool on = !string.Equals(WindowsDnd.Read(), WindowsDnd.Off, StringComparison.OrdinalIgnoreCase);
+                WindowsDnd.Write(on ? WindowsDnd.Off : WindowsDnd.On);
+                now = !on;
+            }
+            catch (Exception e) { problem = e.Message; }
+            S.NaInterface(() =>
+            {
+                _dndBusy = false;
+                if (now is bool v)
+                {
+                    _windowsDnd = v;
+                    Log.Escrever($"foco: Não Perturbe do Windows {(v ? "ligado" : "desligado")} pelo botão");
+                }
+                else S.Avisar(Lang.T("O Windows não deixou mudar o Não Perturbe: ", "Windows did not let Do Not Disturb change: ") + problem);
+                S.Menu.Redesenhar();
+            });
+        });
+    }
+
     public override void Contexto(Contexto ctx)
     {
+        bool dnd = ctx.NaoPerturbeLido == true;
+        if (dnd != _windowsDnd) { _windowsDnd = dnd; S.Menu.Redesenhar(); }
         // an app trigger: re-check when the window in front changes (an app just opened, most of the time)
         if (_cfg.Modos.Any(m => m.Apps.Count > 0)) Evaluate();
     }
