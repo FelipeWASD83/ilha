@@ -1,10 +1,12 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
 using System.IO.Compression;
 using System.Linq;
 using System.Net.Http;
 using System.Runtime.InteropServices;
+using System.Runtime.Loader;
 using System.Text;
 using System.Text.Json;
 using System.Threading.Tasks;
@@ -49,6 +51,83 @@ internal sealed partial class ModuloAtualizador
     {
         var arquivos = Pacote.Arquivos(pasta).Where(a => a != Pacote.MANIFESTO).Append(Pacote.MANIFESTO).ToList();
         File.WriteAllText(Path.Combine(pasta, Pacote.MANIFESTO), JsonSerializer.Serialize(new ManifestoDoPacote { Versao = versao, Arquivos = arquivos }));
+    }
+
+    private const string TROCA_VIVA = "--teste-troca-viva";
+
+    /// <summary>
+    /// The live swap test (4.5.2): the build is copied twice to a temp folder, and the copy "instalada" runs with
+    /// --teste-troca-viva, loads every app-local assembly like the running island, and swaps its own files for the
+    /// copy "preparacao" through the same TrocarEConferir the updater uses. "falhar" never gives the signal, so the
+    /// files must come back exactly as they were; "ok" takes `Ilha.exe --ping` of the new files exiting 0 as the signal.
+    /// </summary>
+    private static void TrocaViva(Action<string, bool, string> conferir)
+    {
+        var t = Path.Combine(Path.GetTempPath(), "ilha-teste-troca-viva-" + Guid.NewGuid().ToString("N")[..8]);
+        try
+        {
+            string inst = Path.Combine(t, "instalada"), prep = Path.Combine(t, "preparacao"), ant = Path.Combine(t, "anterior");
+            foreach (var d in new[] { inst, prep })
+            {
+                Directory.CreateDirectory(d);
+                foreach (var f in Directory.GetFiles(AppContext.BaseDirectory))
+                    if (Path.GetExtension(f).ToLowerInvariant() is ".dll" or ".exe" or ".json")
+                        File.Copy(f, Path.Combine(d, Path.GetFileName(f)));
+            }
+            File.WriteAllText(Path.Combine(prep, "marca-da-nova.txt"), "nova");
+            var antes = Retrato(inst);
+
+            string[] Rodar(string modo)
+            {
+                var saida = Path.Combine(t, modo + ".txt");
+                using var p = Process.Start(new ProcessStartInfo(Path.Combine(inst, "Ilha.exe"))
+                {
+                    UseShellExecute = false, CreateNoWindow = true, ArgumentList = { TROCA_VIVA, prep, ant, saida, modo },
+                })!;
+                string linha;
+                if (!p.WaitForExit(90_000)) { try { p.Kill(); } catch { } linha = "0|0|não terminou em 90 s"; }
+                else linha = File.Exists(saida) ? File.ReadAllText(saida) : $"0|0|saiu com {p.ExitCode} sem resultado";
+                var partes = linha.Split('|', 3);
+                return partes.Length == 3 ? partes : new[] { "0", "0", linha };
+            }
+
+            var falhou = Rodar("falhar");
+            conferir("troca viva: sem o sinal, a cópia põe o próprio exe e as DLLs de volta", falhou[0] == "0" && Retrato(inst) == antes, falhou[2]);
+            var trocou = Rodar("ok");
+            bool ok = trocou[0] == "1" && File.Exists(Path.Combine(inst, "marca-da-nova.txt"))
+                && File.Exists(Path.Combine(ant, "Ilha.exe")) && File.Exists(Path.Combine(ant, "Ilha.dll"));
+            conferir($"troca viva: a cópia troca o próprio exe e as {trocou[1]} DLLs carregadas, e a nova abre",
+                ok && int.TryParse(trocou[1], out int n) && n >= 5, trocou[2]);
+        }
+        catch (Exception e) { conferir("troca viva", false, e.Message); }
+        finally { try { Directory.Delete(t, true); } catch { } }
+    }
+
+    /// <summary>The child of <see cref="TrocaViva"/>. True when the argument was this one.</summary>
+    public static bool TrocaVivaFilho(string[] args)
+    {
+        int i = Array.IndexOf(args, TROCA_VIVA);
+        if (i < 0) return false;
+        if (i + 4 >= args.Length) return true;
+        string prep = args[i + 1], ant = args[i + 2], saida = args[i + 3];
+        bool falhar = args[i + 4] == "falhar";
+        string linha;
+        try
+        {
+            var destino = AppContext.BaseDirectory.TrimEnd('\\');
+            int carregadas = 0;
+            foreach (var dll in Directory.GetFiles(destino, "*.dll"))
+                try { AssemblyLoadContext.Default.LoadFromAssemblyPath(dll); carregadas++; } catch { }
+            var plano = Troca.Planejar(destino, Pacote.Arquivos(prep), Pacote.Arquivos(destino));
+            Process? nova = null;
+            var (ok, motivo) = Atualizador.TrocarEConferir(plano, destino, prep, ant,
+                () => nova = Process.Start(new ProcessStartInfo(Path.Combine(destino, "Ilha.exe")) { UseShellExecute = false, CreateNoWindow = true, ArgumentList = { "--ping" } }),
+                () => !falhar && nova != null && nova.HasExited && nova.ExitCode == 0, 20, _ => { });
+            linha = $"{(ok ? 1 : 0)}|{carregadas}|{motivo}";
+        }
+        catch (Exception e) { linha = "0|0|" + e.Message; }
+        try { File.WriteAllText(saida, linha); } catch { }
+        return true;
     }
 
     public override string Autoteste()
@@ -214,6 +293,8 @@ internal sealed partial class ModuloAtualizador
         {
             try { Directory.Delete(temp, true); } catch { }
         }
+
+        TrocaViva((n, ok, d) => Conferir(n, ok, d));
 
         // linha de comando do executor
         foreach (var caso in new[] { @"C:\Users\Fulano de Tal\AppData\Local\Programs\Ilha", @"C:\pasta com barra\", "sem-espaco", "aspas \"no\" meio", "" })

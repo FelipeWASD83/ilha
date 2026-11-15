@@ -46,11 +46,16 @@ internal sealed class InfoDaRelease
 /// Atualização pelas releases do GitHub, no modelo do clave (servidor/atualizador.py), sem PowerShell:
 /// 1. Procurar: releases/latest do repositório (público, sem token), cache de 6 h, asset "Ilha-&lt;versão&gt;.zip".
 /// 2. Instalar: baixa numa pasta temporária, confere o SHA-256 com o "digest" do asset, extrai numa pasta de
-///    preparação (recusando caminho fora dela), confere a versão, copia o pacote para a pasta "executor" e roda o
-///    Ilha.exe NOVO de lá com --instalar-atualizacao. Ele avisa que está vivo, e só aí esta ilha fecha.
-/// 3. O executor (TratarArgumentos) espera esta ilha sair, guarda os arquivos gerenciados em "anterior", copia os
-///    novos (o que não vem no pacote fica: logos, fotos de fones, qualquer arquivo de fora), abre a versão nova e
-///    espera ela gravar "abriu bem" em até 30 s. Sem o sinal, devolve a anterior e abre a versão velha.
+///    preparação (recusando caminho fora dela), confere a versão e pede para o núcleo fechar.
+/// 3. Since 4.5.2 this same process does the swap (TrocarAoSair, called by Programa.Main once the core closed and the
+///    single instance mutex was released): it moves the managed files to "anterior" (its own running exe and DLLs
+///    included: Windows lets a loaded image be renamed, not overwritten), copies the new ones (what the package does not
+///    bring stays: logos, headphone photos, any outside file), opens the new version from the installed folder and waits
+///    up to 30 s for it to write "abriu bem". Without the signal, it puts the previous files back and opens them again.
+///    Up to 4.5.1 the new Ilha.exe was copied to ~/.ilha/atualizacao/executor and ran from there with
+///    --instalar-atualizacao; Kaspersky took that exe, rewriting another program's exes and opening them, for a trojan
+///    (PDM:Trojan.Win32.Generic, 15/11/2026). TratarArgumentos still answers it, for the islands up to 4.5.1 that update
+///    to this one that way.
 /// A config e os dados ficam em ~/.ilha e nunca entram no pacote.
 /// </summary>
 internal sealed class Atualizador
@@ -222,11 +227,10 @@ internal sealed class Atualizador
                 Pacote.Extrair(zip, Preparacao);
                 var r = Pacote.Raiz(Preparacao);
                 Pacote.Conferir(r, versao);
-                Troca.CopiarPasta(r, Executor);
                 return r;
             });
             Trocando?.Invoke();
-            await EntregarAoExecutor(raiz, versao);
+            PedirTroca(raiz, versao);
         }
         catch (ErroDeAtualizacao) { throw; }
         catch (Exception e) { throw new ErroDeAtualizacao(Lang.T($"A atualização falhou: {e.Message}", $"The update failed: {e.Message}")); }
@@ -263,43 +267,142 @@ internal sealed class Atualizador
         if (tamanho > 0 && lido != tamanho) throw new ErroDeAtualizacao(Lang.T("O download veio incompleto. Tente de novo.", "The download came in incomplete. Try again."));
     }
 
-    private async Task EntregarAoExecutor(string preparacao, string versao)
+    /// <summary>The swap waiting for the core to close (set by Instalar, done by TrocarAoSair).</summary>
+    private static (string Preparacao, string Versao)? _pendente;
+
+    /// <summary>True when Programa.Main has a swap to do after Application.Run returns.</summary>
+    public static bool TrocaPendente => _pendente != null;
+
+    private static void PedirTroca(string preparacao, string versao)
     {
         foreach (var m in new[] { MarcaVivo, MarcaAbriu, MarcaEsperando, Resultado })
             try { File.Delete(m); } catch { }
-        var exe = Path.Combine(Executor, "Ilha.exe");
-        var psi = new ProcessStartInfo(exe)
-        {
-            Arguments = Argumentos.Juntar(ARGUMENTO, Inicio.PastaInstalada.TrimEnd('\\'), Environment.ProcessId.ToString(), preparacao.TrimEnd('\\')),
-            UseShellExecute = true,
-            WorkingDirectory = Executor,
-        };
-        Process? p;
-        try { p = Process.Start(psi); }
-        catch (Exception e) { throw new ErroDeAtualizacao(Lang.T($"A versão {versao} não abriu ({e.Message}). O Smart App Control pode ter barrado; a ilha continua na {VersaoAtual}.",
-            $"Version {versao} didn't open ({e.Message}). Smart App Control may have blocked it; the island stays on {VersaoAtual}.")); }
-        if (p == null) throw new ErroDeAtualizacao(Lang.T($"A versão {versao} não abriu.", $"Version {versao} didn't open."));
-        using (p)
-        {
-            var prazo = DateTime.UtcNow.AddSeconds(15);
-            while (DateTime.UtcNow < prazo)
-            {
-                if (File.Exists(MarcaVivo)) break;
-                if (p.HasExited)
-                    throw new ErroDeAtualizacao(Lang.T($"A versão {versao} fechou na hora (código {p.ExitCode}). O Smart App Control pode ter barrado; a ilha continua na {VersaoAtual}.",
-                        $"Version {versao} closed right away (code {p.ExitCode}). Smart App Control may have blocked it; the island stays on {VersaoAtual}."));
-                await Task.Delay(200);
-            }
-            if (!File.Exists(MarcaVivo))
-            {
-                try { if (!p.HasExited) p.Kill(); } catch { }
-                throw new ErroDeAtualizacao(Lang.T($"A versão {versao} não respondeu. A ilha continua na {VersaoAtual}.", $"Version {versao} didn't respond. The island stays on {VersaoAtual}."));
-            }
-        }
-        Log.Escrever($"atualizador: o executor da {versao} está vivo; fechando a {VersaoAtual} para a troca");
+        _pendente = (preparacao, versao);
+        Log.Escrever($"atualizador: a {versao} está pronta; fechando a {VersaoAtual} para trocar os arquivos");
         // o mesmo pedido do "Ilha.exe --sair": o Programa fecha o núcleo direito
         try { using var ev = EventWaitHandle.OpenExisting(@"Local\Ilha.Sair"); ev.Set(); }
         catch { System.Windows.Forms.Application.Exit(); }
+    }
+
+    /// <summary>
+    /// The swap by this island itself (4.5.2). Programa.Main calls it after the core closed and the single instance
+    /// mutex was released, so the new version can take it as soon as it opens.
+    /// </summary>
+    public static void TrocarAoSair()
+    {
+        if (_pendente is not { } t) return;
+        _pendente = null;
+        var destino = Inicio.PastaInstalada.TrimEnd('\\');
+        string de = VersaoAtual;
+        Anotar($"troca da {de} para a {t.Versao} pela própria ilha (pid {Environment.ProcessId}), destino {destino}");
+        try
+        {
+            PlanoDeTroca plano;
+            try
+            {
+                var novo = Pacote.Conferir(t.Preparacao, t.Versao);
+                plano = Troca.Planejar(destino, novo.Arquivos, Pacote.LerManifesto(destino)?.Arquivos);
+            }
+            catch (Exception e)
+            {
+                Anotar("o pacote preparado não confere: " + e.Message);
+                GravarResultado(false, t.Versao, de, e.Message);
+                AbrirIlha(destino);
+                return;
+            }
+            TrocarEAvisar(plano, destino, t.Preparacao, t.Versao, de);
+        }
+        catch (Exception e)
+        {
+            Anotar("erro inesperado: " + e);
+            AbrirIlha(destino);
+        }
+    }
+
+    /// <summary>
+    /// The markers and the result around <see cref="TrocarEConferir"/> for the installed island: the new version sees
+    /// "esperando" and writes "abriu bem"; on failure the previous one opens again and shows the reason.
+    /// </summary>
+    private static void TrocarEAvisar(PlanoDeTroca plano, string destino, string preparacao, string versao, string de)
+    {
+        try { File.Delete(MarcaAbriu); } catch { }
+        GravarAtomico(MarcaEsperando, versao);
+        var (ok, motivo) = TrocarEConferir(plano, destino, preparacao, Anterior, () => AbrirIlha(destino), () => SinalDe(versao), PRAZO_ABRIR_S, Anotar);
+        try { File.Delete(MarcaEsperando); } catch { }
+        if (ok)
+        {
+            Anotar($"a versão {versao} abriu bem");
+            GravarResultado(true, versao, de, "");
+            return;
+        }
+        GravarResultado(false, versao, de, motivo);
+        AbrirIlha(destino);
+    }
+
+    /// <summary>
+    /// Applies the plan, opens the new version and waits up to <paramref name="prazoS"/> for its signal. Without it,
+    /// closes the new version and puts the previous files back. The caller decides what opens next.
+    /// </summary>
+    internal static (bool Ok, string Motivo) TrocarEConferir(PlanoDeTroca plano, string destino, string preparacao, string anterior,
+        Func<Process?> abrir, Func<bool> sinal, int prazoS, Action<string> anotar)
+    {
+        try
+        {
+            Troca.Aplicar(plano, destino, preparacao, anterior);
+            anotar($"arquivos trocados: {plano.Guardar.Count} guardados, {plano.Copiar.Count} copiados");
+        }
+        catch (Exception e)
+        {
+            // Aplicar já desfez o que tinha feito
+            anotar("a troca falhou: " + e.Message);
+            return (false, e.Message);
+        }
+
+        bool abriu = false;
+        string motivo = Lang.T($"a versão nova não deu sinal em {prazoS} s", $"the new version gave no signal in {prazoS} s");
+        Process? nova = null;
+        try
+        {
+            nova = abrir();
+            var prazo = DateTime.UtcNow.AddSeconds(prazoS);
+            while (DateTime.UtcNow < prazo)
+            {
+                if (sinal()) { abriu = true; break; }
+                if (nova == null || nova.HasExited)
+                {
+                    motivo = Lang.T("a versão nova fechou ao abrir", "the new version closed on opening") + (nova != null ? Lang.T($" (código {nova.ExitCode})", $" (code {nova.ExitCode})") : "");
+                    break;
+                }
+                Thread.Sleep(250);
+            }
+            if (!abriu && sinal()) abriu = true;
+        }
+        catch (Exception e) { motivo = Lang.T($"a versão nova não abriu ({e.Message})", $"the new version didn't open ({e.Message})"); }
+
+        if (abriu)
+        {
+            nova?.Dispose();
+            return (true, "");
+        }
+
+        anotar(motivo + "; voltando para a anterior");
+        try
+        {
+            if (nova != null && !nova.HasExited) { nova.Kill(); nova.WaitForExit(5_000); }
+        }
+        catch { }
+        nova?.Dispose();
+        try
+        {
+            Troca.Reverter(plano, destino, anterior);
+            anotar("a versão anterior voltou");
+        }
+        catch (Exception e)
+        {
+            anotar("a volta falhou: " + e.Message);
+            motivo += Lang.T($"; a volta falhou ({e.Message}), a versão anterior está em {anterior}", $"; rolling back failed ({e.Message}), the previous version is in {anterior}");
+        }
+        return (false, motivo);
     }
 
     private static void LimparPasta(string pasta)
@@ -331,7 +434,7 @@ internal sealed class Atualizador
         catch (Exception e) { Log.Escrever("atualizador: não gravou o sinal de abriu bem: " + e.Message); }
     }
 
-    // ------------------------------------------------------------------ o executor (processo novo)
+    // ------------------------------------------------------------------ o executor (processo novo; só o das ilhas até a 4.5.1 usa)
 
     /// <summary>
     /// `Ilha.exe --instalar-atualizacao &lt;destino&gt; &lt;pid&gt; &lt;preparacao&gt;`: faz a troca e sai. Chamar no começo do
@@ -411,64 +514,15 @@ internal sealed class Atualizador
         {
             var novo = Pacote.Conferir(preparacao, versao);
             plano = Troca.Planejar(destino, novo.Arquivos, Pacote.LerManifesto(destino)?.Arquivos);
-            Troca.Aplicar(plano, destino, preparacao, Anterior);
-            Anotar($"arquivos trocados: {plano.Guardar.Count} guardados, {plano.Copiar.Count} copiados");
         }
         catch (Exception e)
         {
-            Anotar("a troca falhou: " + e.Message);
+            Anotar("o pacote preparado não confere: " + e.Message);
             GravarResultado(false, versao, de, e.Message);
             AbrirIlha(destino);
             return;
         }
-
-        try { File.Delete(MarcaAbriu); } catch { }
-        GravarAtomico(MarcaEsperando, versao);
-        bool abriu = false;
-        string motivo = Lang.T($"a versão {versao} não deu sinal em {PRAZO_ABRIR_S} s", $"version {versao} gave no signal in {PRAZO_ABRIR_S} s");
-        Process? nova = null;
-        try
-        {
-            nova = AbrirIlha(destino);
-            var prazo = DateTime.UtcNow.AddSeconds(PRAZO_ABRIR_S);
-            while (DateTime.UtcNow < prazo)
-            {
-                if (SinalDe(versao)) { abriu = true; break; }
-                if (nova == null || nova.HasExited) { motivo = Lang.T($"a versão {versao} fechou ao abrir", $"version {versao} closed on opening") + (nova != null ? Lang.T($" (código {nova.ExitCode})", $" (code {nova.ExitCode})") : ""); break; }
-                Thread.Sleep(250);
-            }
-            if (!abriu && SinalDe(versao)) abriu = true;
-        }
-        catch (Exception e) { motivo = Lang.T($"a versão {versao} não abriu ({e.Message})", $"version {versao} didn't open ({e.Message})"); }
-        try { File.Delete(MarcaEsperando); } catch { }
-
-        if (abriu)
-        {
-            Anotar($"a versão {versao} abriu bem");
-            GravarResultado(true, versao, de, "");
-            nova?.Dispose();
-            return;
-        }
-
-        Anotar(motivo + "; voltando para a anterior");
-        try
-        {
-            if (nova != null && !nova.HasExited) { nova.Kill(); nova.WaitForExit(5_000); }
-        }
-        catch { }
-        nova?.Dispose();
-        try
-        {
-            Troca.Reverter(plano, destino, Anterior);
-            Anotar($"a versão {de} voltou");
-        }
-        catch (Exception e)
-        {
-            Anotar("a volta falhou: " + e.Message);
-            motivo += Lang.T($"; a volta falhou ({e.Message}), a versão anterior está em {Anterior}", $"; rolling back failed ({e.Message}), the previous version is in {Anterior}");
-        }
-        GravarResultado(false, versao, de, motivo);
-        AbrirIlha(destino);
+        TrocarEAvisar(plano, destino, preparacao, versao, de);
     }
 
     private static bool SinalDe(string versao)

@@ -45,6 +45,8 @@ public static class Programa
     {
         // o executor de uma atualização (troca os arquivos e volta atrás se a versão nova não abrir)
         if (Atualizador.TratarArgumentos(args)) return;
+        // the updater's self test: an island copied to a temp folder swaps its own running files (4.5.2)
+        if (global::Ilha.Atualizacoes.ModuloAtualizador.TrocaVivaFilho(args)) return;
         // o compilar.ps1 usa isto para saber se o Smart App Control deixou o Ilha.dll carregar
         if (Array.IndexOf(args, "--ping") >= 0) { Environment.Exit(0); return; }
 
@@ -159,5 +161,13 @@ public static class Programa
         }
         Application.Run();
         nucleo.Dispose();
+        if (Atualizador.TrocaPendente)
+        {
+            // an update (4.5.2): this process swaps the files itself, so the new version must be able to take the single
+            // instance the moment it opens
+            instancia.ReleaseMutex();
+            instancia.Dispose();
+            Atualizador.TrocarAoSair();
+        }
     }
 }

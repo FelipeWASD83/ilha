@@ -787,12 +787,31 @@ and the points that matter are here.
 
 - Steam downloads stuck at 100%: progress now comes from Steam's content log (see "Steam downloads" above).
 
+## 4.5.2 (his Kaspersky alert on 15/11/2026)
+
+- The 4.5.1 update set off Kaspersky's System Watcher: `PDM:Trojan.Win32.Generic` on
+  `~/.ilha/atualizacao/executor/Ilha.exe`. That executor (an unsigned exe run from a dot folder in the profile, waiting
+  for another process to exit, rewriting `AppData\Local\Programs\Ilha` and opening it) is the dropper pattern. The swap
+  had already finished (4.5.1 opened and signalled at 18:09:55); Kaspersky killed the executor afterwards, so only
+  `resultado.json` was never written.
+- Now the open island does the swap itself (see "Updater"). **Not verified against Kaspersky**: a process that renames
+  its own exe, writes a new one and opens it can still look suspicious; only the next real update will tell. Do not
+  touch his antivirus settings; an exclusion is his call.
+- The live self test (`--testar atualizador`, "troca viva") copies the build to `%TEMP%` twice and has the copy swap
+  its own running files through the same `Atualizador.TrocarEConferir`: on 15/11/2026 the exe and 10 loaded DLLs were
+  renamed fine, the rollback left the folder byte for byte as it was, and no Kaspersky window came to the front.
+
 ## Updater
 
 - `Modulos/Atualizador`: looks at the releases of `FelipeWASD83/ilha` (6 h cache), downloads, checks the SHA-256,
-  swaps the files through an executor (`Ilha.exe --instalar-atualizacao`, handled on the first line of `Main`) and goes
-  back to the previous version if the new one does not signal that it opened fine (`Atualizador.AbriuBem`, called by
-  `Programa` with the core built). State in `~/.ilha/atualizacao/`. It never deletes anything from `~/.ilha`.
+  extracts to `~/.ilha/atualizacao/preparacao` and asks the core to close. **Since 4.5.2 the same process swaps the
+  files**: `Programa.Main`, after `Application.Run` returns, releases the single instance mutex and calls
+  `Atualizador.TrocarAoSair`, which moves the managed files to `anterior` (Windows lets a loaded exe or DLL be renamed,
+  never overwritten), copies the new ones, opens `Ilha.exe` from the installed folder and goes back to the previous
+  version if the new one does not signal that it opened fine (`Atualizador.AbriuBem`, called by `Programa` with the core
+  built). Nothing runs from `~/.ilha` any more. The old executor (`Ilha.exe --instalar-atualizacao`, handled on the
+  first line of `Main`) stays only for islands up to 4.5.1 updating to a newer one. State in `~/.ilha/atualizacao/`. It
+  never deletes anything from `~/.ilha`.
 - Publishing: `ferramentas/publicar-versao.ps1` (refuses if the `.csproj` and the top of `CHANGELOG.md` do not match;
   `-SoGerar` only builds the package; it builds with `compilar.ps1 -Publico`, so no private module goes into the
   release). **Publishing a release is his decision.** There is no release yet (01/11/2026).

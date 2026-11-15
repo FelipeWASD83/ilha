@@ -1,5 +1,14 @@
 # Changelog
 
+## 4.5.2 (15/11/2026)
+
+**Fixed**
+- Updating the island no longer looks like a trojan to antivirus behaviour checks. Kaspersky flagged the 4.5.1 update
+  (PDM:Trojan.Win32.Generic) because the island ran a copy of itself from its settings folder, and that copy rewrote
+  the program's files and opened them. Now the island that is open swaps its own files once it has closed its window,
+  opens the new version from where it is installed, and goes back to the previous one if the new one does not start.
+  The update from 4.5.1 to this one still goes the old way, once.
+
 ## 4.5.1 (15/11/2026)
 
 **Fixed**
