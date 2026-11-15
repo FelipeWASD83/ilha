@@ -337,8 +337,14 @@ and the points that matter are here.
   class it saw ("zona de soltar: captura com ...").
 - **Claude limit:** `ferramentas/statusline_uso.py` takes the place of the Claude Code status line, writes only
   `rate_limits` to `~/.ilha/uso-claude.json` and calls the previous status line (installed on 01/11/2026; copy of the
-  settings in `settings.json.antes-limite`). **Only the terminal Claude Code writes it** (he found out on 02/11/2026):
-  desktop app sessions never run the status line, so the card shows an orange note saying so (2.0.1).
+  settings in `settings.json.antes-limite`). **Only the terminal Claude Code runs the status line** (he found out on
+  02/11/2026). **Since 4.5.0 the desktop app writes it too, through the Claude Code mod `claude-mod/ilha-limit`**
+  (his request on 15/11/2026): `session.measure` hands the mod the same `rateLimits` (kind, `percentUsed`, ISO
+  `resetsAt`) after each reply that moves a window a whole point, and `session.start` reads `$.session.usage()` once;
+  it writes the same file with the same merge rules as the script (`hooks/usage.ts` mirrors `mesclar`; change both
+  together), skips the write when `modulos.limite.ligado` is false, and leaves `spend_limit` out. Loaded in every
+  session through `CLAUDE_CODE_PLUGIN_DIRS` in the `env` block of his `~/.claude/settings.json`. Check with `claude
+  plugin validate` and `claude plugin test` on that folder. The card's note now says who updates it (gray, not orange).
 - **Air:** it left the pill. The module reads `GET /api/historico` (which does not make the server read the LG unit)
   every 45 s and gives a notice when power, mode or target change; the room temperature alone does not trigger a
   notice. A change made from the island gives the notice right away and the confirmation that comes later stays quiet.
@@ -763,6 +769,12 @@ and the points that matter are here.
 - **Claude limit card**: no `five_hour` in the status line (the Ultra plan, his since 07/11/2026, has only the weekly
   limit) = no "Sessão de 5 horas" row and a shorter card; `_montado` remembers (empty, with session) to rebuild when it
   changes.
+
+## 4.5.0 (his request on 15/11/2026)
+
+- **`claude-mod/ilha-limit`**: Claude Code mod (function hooks module, TypeScript) that writes the plan limits to
+  `~/.ilha/uso-claude.json` from any session, desktop app included. Details under "Claude limit" above; its README
+  says how to install it for anyone else.
 
 ## Updater
 

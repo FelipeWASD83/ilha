@@ -113,8 +113,8 @@ internal sealed class AtividadeLimite : Atividade
     {
         bool vazio = Vazio, sessao = ComSessao;
         _montado = (vazio, sessao);
-        // the note at the bottom: only the terminal Claude Code runs the status line (he found out on 02/11/2026: the
-        // desktop app's sessions never write the file), so the numbers stop moving while only the app is used
+        // the note at the bottom: who writes the file. Only the terminal runs the status line (he found out on
+        // 02/11/2026); since 4.5.0 the claude-mod/ilha-limit mod writes it from the desktop app's sessions too
         float yAviso = vazio ? 102 : TOPO + (sessao ? 2 : 1) * LINHA + 2;
         float altura = yAviso + 32;
         var c = p.NovaCena(new Vector2(L, altura));
@@ -124,10 +124,10 @@ internal sealed class AtividadeLimite : Atividade
             var l = _leitura();
             Anel(dc, p, new Vector2(9, 10), 7, 2.4f);
             string[] aviso = Lang.English
-                ? new[] { "Only Claude Code in the terminal updates this: the", "desktop app's sessions don't run the status line." }
-                : new[] { "Só o Claude Code de terminal atualiza isto: as", "sessões do app desktop não rodam a status line." };
+                ? new[] { "Updated by the status line in the terminal and", "by the ilha-limit mod in the desktop app." }
+                : new[] { "Atualizado pela status line no terminal e pelo", "mod ilha-limit no app desktop." };
             for (int i = 0; i < aviso.Length; i++)
-                p.Texto.Desenhar(dc, aviso[i], new Vector2(0, yAviso + i * 15), 11.5f, Cor.Laranja, FontWeight.Normal, largura: L);
+                p.Texto.Desenhar(dc, aviso[i], new Vector2(0, yAviso + i * 15), 11.5f, Cor.Secundario, FontWeight.Normal, largura: L);
             p.Texto.Desenhar(dc, Lang.T("Limite do Claude", "Claude limit"), new Vector2(24, 1), 13, Cor.Secundario, largura: 160);
             if (l == null)
             {
@@ -135,15 +135,15 @@ internal sealed class AtividadeLimite : Atividade
                 string[] linhas = Lang.English
                     ? new[]
                     {
-                        "Relies on the Claude Code status line:",
-                        "ferramentas/statusline_uso.py writes the usage to",
-                        ".ilha/uso-claude.json after every reply.",
+                        "ferramentas/statusline_uso.py (terminal) and the",
+                        "claude-mod/ilha-limit mod (desktop app) write the",
+                        "usage to .ilha/uso-claude.json after every reply.",
                     }
                     : new[]
                     {
-                        "Depende da status line do Claude Code: o",
-                        "ferramentas/statusline_uso.py grava o uso em",
-                        ".ilha/uso-claude.json a cada resposta.",
+                        "O ferramentas/statusline_uso.py (terminal) e o",
+                        "mod claude-mod/ilha-limit (app desktop) gravam",
+                        "o uso em .ilha/uso-claude.json a cada resposta.",
                     };
                 for (int i = 0; i < linhas.Length; i++)
                     p.Texto.Desenhar(dc, linhas[i], new Vector2(0, 52 + i * 16), 12, Cor.Secundario, FontWeight.Normal, largura: L);

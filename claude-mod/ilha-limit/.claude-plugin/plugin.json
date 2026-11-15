@@ -1,0 +1,5 @@
+{
+  "name": "ilha-limit",
+  "version": "1.0.0",
+  "description": "Writes the plan usage limits (5-hour and weekly) to ~/.ilha/uso-claude.json so the Ilha shows them, from any Claude Code session, desktop app included."
+}

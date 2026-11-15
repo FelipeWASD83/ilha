@@ -1,5 +1,16 @@
 # Changelog
 
+## 4.5.0 (15/11/2026)
+
+**New**
+- Claude limit from the desktop app: the `claude-mod/ilha-limit` mod for Claude Code writes the 5-hour and weekly
+  usage to the file the island reads, from every session, desktop app included (before, only the status line of the
+  terminal did, so the card stopped moving while only the app was used). How to install it is in its README.
+
+**Changed**
+- The note at the bottom of the Claude limit card says who updates it (status line in the terminal, the mod in the
+  desktop app) instead of warning that the app never does.
+
 ## 4.4.0 (08/11/2026)
 
 **Changed**
