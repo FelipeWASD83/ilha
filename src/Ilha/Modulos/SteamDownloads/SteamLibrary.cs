@@ -7,7 +7,7 @@ using Ilha.Games;
 namespace Ilha.SteamDownloads;
 
 /// <summary>One thing Steam is downloading: a game (install or update) or Workshop items of a game.</summary>
-internal sealed record Download(string Key, int App, string Name, long Done, long Total, bool Paused, bool Workshop)
+internal sealed record Download(string Key, int App, string Name, long Done, long Total, bool Paused, bool Workshop, double? Rate = null)
 {
     public double? Fraction => Total > 0 ? Math.Clamp(Done / (double)Total, 0, 1) : null;
 }
@@ -15,8 +15,10 @@ internal sealed record Download(string Key, int App, string Name, long Done, lon
 /// <summary>
 /// Reads what Steam is downloading from its own files (3.9.0, his request), no Steam API: each library's
 /// appmanifest_&lt;app&gt;.acf (StateFlags, BytesToDownload, BytesDownloaded) and the folders Steam fills while it
-/// downloads (steamapps\downloading\&lt;app&gt;, steamapps\workshop\downloads\&lt;app&gt;). Steam does not always rewrite the
-/// manifest during a download, so the progress is the larger of the manifest's count and the size of the folder.
+/// downloads (steamapps\workshop\downloads\&lt;app&gt;). Steam rewrites the manifest only when a download pauses or stops,
+/// so a game's progress is the larger of the manifest's count and the live count from Steam's content log (4.5.1: the
+/// size of steamapps\downloading\&lt;app&gt; was used before, but Steam allocates that folder at full size up front, and a
+/// download showed 100% from its first second).
 /// </summary>
 internal static class SteamLibrary
 {
@@ -76,6 +78,8 @@ internal static class SteamLibrary
     {
         var now = new List<Download>();
         var manifests = new Dictionary<int, Manifest>();
+        Dictionary<int, ContentLog.Run>? runs = null;
+        var clock = DateTime.Now;
         foreach (var lib in libraries)
         {
             string apps = Path.Combine(lib, "steamapps");
@@ -95,9 +99,18 @@ internal static class SteamLibrary
                     if (m == null) continue;
                     manifests[m.App] = m;
                     if (!IsDownloading(m.Flags)) continue;
-                    long folder = FolderSize(Path.Combine(apps, "downloading", m.App.ToString()));
-                    long done = Math.Max(m.Downloaded, Math.Min(folder, m.ToDownload > 0 ? m.ToDownload : folder));
-                    now.Add(new Download("app:" + m.App, m.App, m.Name, done, m.ToDownload, IsPaused(m.Flags), false));
+                    runs ??= ContentLog.Current();
+                    bool paused = IsPaused(m.Flags);
+                    long done = m.Downloaded, total = m.ToDownload;
+                    double? rate = null;
+                    // the log's run counts only when it is about this download (same total)
+                    if (runs.TryGetValue(m.App, out var run) && (total == 0 || run.Total == total))
+                    {
+                        done = Math.Max(done, run.Downloaded(clock));
+                        if (total == 0) total = run.Total;
+                        if (!paused && !run.Ended && (clock - run.RateAt).TotalMinutes < 3) rate = run.Rate;
+                    }
+                    now.Add(new Download("app:" + m.App, m.App, m.Name, done, total, paused, false, rate));
                 }
                 string ws = Path.Combine(apps, "workshop", "downloads");
                 if (Directory.Exists(ws))

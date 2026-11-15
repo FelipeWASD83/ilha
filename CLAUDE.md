@@ -604,10 +604,17 @@ and the points that matter are here.
   server's own ping is impossible here: UDP tables carry no remote address and anything deeper is admin or kernel.
 - **Steam downloads** (`Modulos/SteamDownloads`, id `downloads-steam`): appmanifest StateFlags (EAppState bits:
   UpdateRunning 256, UpdatePaused 512, UpdateStarted 1024, Preallocating, Downloading, Staging, Committing), progress =
-  max(BytesDownloaded, size of `steamapps\downloading\<app>`); Workshop = non-empty `workshop\downloads\<app>`. One
-  FileSystemWatcher per library (filtered to manifests, `downloading`, Workshop downloads), a look every 2 s while
-  something downloads, else one a minute. **Not seen with a real download** (nothing was downloading on 03/11/2026):
-  whether Steam rewrites the manifest during a download is the open question the folder size covers.
+  max(BytesDownloaded, the live count from `Steam\logs\content_log.txt`) (`ContentLog.cs`, 4.5.1); Workshop = non-empty
+  `workshop\downloads\<app>` (folder size, no total). One FileSystemWatcher per library (filtered to manifests,
+  `downloading`, Workshop downloads), a look every 2 s while something downloads, else one a minute.
+  **Seen with a real download on 15/11/2026 (Red Dead 2, 121 GB):** Steam does NOT rewrite the manifest while it
+  downloads (only on pause/stop), and `steamapps\downloading\<app>` is allocated at full size from the first second
+  (not sparse: real size on disk = length), so the old max(manifest, folder) showed 100% all the time. The log: the
+  last `AppID <app> update started : download A/B` is where the run began, each `stats: (Invalid, 0) : N Bytes` line
+  (every 5 min, the sum of all the per-server lines) adds N, and `Current download rate: X Mbps` (every minute, megabits)
+  fills the time since the last stats (at most 5 min, only while the rate is under 3 min old) and is the speed shown. A
+  run closes on `update canceled`, `App update changed : None` or another app's start. The log's run counts only when
+  its total equals the manifest's BytesToDownload. `content_log.previous.txt` is read first (rotation).
 - **Steam friends** existed only in 3.9.0 and was **removed in 4.0.0** (see below). Do not bring it back.
 - **Weather** (`Modulos/Clima`, id `clima`): Open-Meteo forecast every 10 min; the city's coordinates from its
   geocoding, cached in `~/.ilha/clima.json`. `SkyWatch`: a new sky group must be read twice in a row to count; the first
@@ -775,6 +782,10 @@ and the points that matter are here.
 - **`claude-mod/ilha-limit`**: Claude Code mod (function hooks module, TypeScript) that writes the plan limits to
   `~/.ilha/uso-claude.json` from any session, desktop app included. Details under "Claude limit" above; its README
   says how to install it for anyone else.
+
+## 4.5.1 (his report on 15/11/2026)
+
+- Steam downloads stuck at 100%: progress now comes from Steam's content log (see "Steam downloads" above).
 
 ## Updater
 

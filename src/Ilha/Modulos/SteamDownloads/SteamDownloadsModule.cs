@@ -135,6 +135,8 @@ internal sealed class SteamDownloadsModule : Modulo
                 }
                 else speed = old.Speed;
             }
+            // Steam's own measured rate when the log has one (the count jumps every 5 minutes with its stats lines)
+            if (d.Rate is double steamRate && !d.Paused) speed = steamRate;
             _rate[d.Key] = (d.Done, at, speed);
             items.Add((d, speed));
         }
@@ -199,6 +201,35 @@ internal sealed class SteamDownloadsModule : Modulo
         Ok("downloads: detalhe com velocidade e tempo", DownloadsActivity.Detail(d, 25e6).Contains("/s") && DownloadsActivity.Detail(d, 25e6).Contains("min"),
             DownloadsActivity.Detail(d, 25e6));
         Ok("downloads: fração", d.Fraction is double f && Math.Abs(f - 0.25) < 1e-9);
+        // 4.5.1: the content log (the manifest stays still during a download and the folder is full size from the start)
+        var log = new[]
+        {
+            "[2026-11-15 13:23:46] AppID 1174180 update started : download 5429984/120936093232, store 0/0, reuse 0/0, delta 0/0, stage 7332642/128327186218 ",
+            "[2026-11-15 13:28:46] stats: (SteamCache, 452) cache10-gru1.steamcontent.com: 1000 Bytes, 285 sec (5.31 Mbps). 5281 Hits / 0 Misses (100 %, 100 % bytes), score 0.9342",
+            "[2026-11-15 13:28:46] stats: (Invalid, 0) : 3000000000 Bytes, 300 sec (80.00 Mbps). 41974 Hits / 12042 Misses (78 %, 79 % bytes), score 0.0000",
+            "[2026-11-15 13:37:16] AppID 1174180 update canceled : Disabled (Suspended)",
+            "[2026-11-15 13:40:00] stats: (Invalid, 0) : 999 Bytes, 300 sec (0.00 Mbps). 0 Hits / 0 Misses (0 %, 0 % bytes), score 0.0000",
+            "[2026-11-15 13:46:52] AppID 1174180 update started : download 8341920208/120936093232, store 0/0, reuse 0/0, delta 0/0, stage 8486384745/128327186218 ",
+            "[2026-11-15 13:51:52] stats: (Invalid, 0) : 2888789824 Bytes, 300 sec (76.93 Mbps). 41974 Hits / 12042 Misses (78 %, 79 % bytes), score 0.0000",
+            "[2026-11-15 13:52:00] Current download rate: 80.000 Mbps",
+            "[2026-11-15 13:56:52] stats: (Invalid, 0) : 3000000000 Bytes, 300 sec (80.00 Mbps). 41974 Hits / 12042 Misses (78 %, 79 % bytes), score 0.0000",
+            "[2026-11-15 13:57:00] AppID 730 update started : download 0/500, store 0/0, reuse 0/0, delta 0/0, stage 0/600 ",
+            "[2026-11-15 13:58:00] stats: (Invalid, 0) : 400 Bytes, 300 sec (0.01 Mbps). 1 Hits / 0 Misses (100 %, 100 % bytes), score 0.0000",
+        };
+        var runs = ContentLog.Parse(log);
+        var rdr = runs.GetValueOrDefault(1174180);
+        Ok("downloads: log da Steam, a última partida e as stats dela", rdr is { Start: 8341920208, Total: 120936093232, Since: 5888789824, Ended: true }
+            && rdr.Downloaded(new DateTime(2026, 11, 15, 14, 30, 0)) == 8341920208 + 5888789824, $"{rdr?.Start} + {rdr?.Since}, {(rdr?.Ended == true ? "fechada" : "aberta")}");
+        var cs = runs.GetValueOrDefault(730);
+        Ok("downloads: log da Steam, outra partida não herda a taxa da anterior",
+            cs is { Since: 400, Ended: false, Rate: null } && cs.Downloaded(new DateTime(2026, 11, 15, 13, 59, 0)) == 400, $"{cs?.Downloaded(new DateTime(2026, 11, 15, 13, 59, 0))}");
+        var open = ContentLog.Parse(log[5..8]).GetValueOrDefault(1174180);
+        Ok("downloads: log da Steam, 2 min depois da última stats a 80 Mbps",
+            open != null && open.Downloaded(new DateTime(2026, 11, 15, 13, 53, 52)) == 8341920208 + 2888789824 + 1_200_000_000,
+            $"{open?.Downloaded(new DateTime(2026, 11, 15, 13, 53, 52))}");
+        Ok("downloads: log da Steam, taxa velha (Steam fechada) não soma nada e nada passa do total",
+            open != null && open.Downloaded(new DateTime(2026, 11, 15, 14, 30, 0)) == 8341920208 + 2888789824
+            && (open with { Since = 200_000_000_000 }).Downloaded(DateTime.Now) == 120936093232);
         // the real libraries, read only
         var libs = GameSetup.SteamLibraries();
         var (now, manifests) = SteamLibrary.Scan(libs);

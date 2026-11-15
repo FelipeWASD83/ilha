@@ -1,5 +1,12 @@
 # Changelog
 
+## 4.5.1 (15/11/2026)
+
+**Fixed**
+- Steam downloads showed 100% from the start. Steam reserves the whole download on disk the moment it begins and
+  only updates its own record when the download pauses, so neither could be trusted. The progress and the speed now
+  come from Steam's download log, the same numbers Steam itself logs while it downloads.
+
 ## 4.5.0 (15/11/2026)
 
 **New**
